@@ -1,0 +1,22 @@
+{
+  "table": "close_combat_table",
+  "version": 1,
+  "provenance": [
+    "Rule 20.3. Transcribed from the data card image described in docs/research/2026-09-07_RV-1_counters_charts.md section 7.2.",
+    "Odds are attack firepower to defense firepower, rounded down in favor of the defender (rule 20.3 examples: 6 to 4 is 3-2, 11 to 4 is 2-1, 4 to 15 is 1-4). A ratio below 1-4 uses the 1-5+ column.",
+    "The kill number is the highest adjusted dice roll that eliminates the attacked units.",
+    "The project writes this table in its own layout (SR-07)."
+  ],
+  "odds": [
+    {"label": "1-5+", "attack": 1, "defense": 5, "kill": 2},
+    {"label": "1-4", "attack": 1, "defense": 4, "kill": 3},
+    {"label": "1-2", "attack": 1, "defense": 2, "kill": 4},
+    {"label": "1-1", "attack": 1, "defense": 1, "kill": 5},
+    {"label": "3-2", "attack": 3, "defense": 2, "kill": 6},
+    {"label": "2-1", "attack": 2, "defense": 1, "kill": 7},
+    {"label": "3-1", "attack": 3, "defense": 1, "kill": 8},
+    {"label": "4-1", "attack": 4, "defense": 1, "kill": 9},
+    {"label": "6-1", "attack": 6, "defense": 1, "kill": 10},
+    {"label": "8-1", "attack": 8, "defense": 1, "kill": 11}
+  ]
+}

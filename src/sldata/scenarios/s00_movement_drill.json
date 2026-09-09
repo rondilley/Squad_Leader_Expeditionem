@@ -1,0 +1,46 @@
+{
+  "id": "s00_movement_drill",
+  "title": "Movement drill on the fixture board",
+  "notes": "A project test scenario, not a printed scenario. Two small forces on the hand-written 10 by 10 fixture board. It exists for the slice 2 headless games, the determinism tests, and the first throughput number. It has no victory conditions.",
+  "board": "fixture_10x10",
+  "turns": 3,
+  "first_mover": "russian",
+  "setup_order": ["german", "russian"],
+  "rules_used": ["1", "2", "3", "4", "5", "6", "7", "19", "21"],
+  "switches": {},
+  "sides": [
+    {
+      "side": "german",
+      "nationality": "german",
+      "groups": [
+        {
+          "id": "g1",
+          "objective": true,
+          "area": {"hexes": ["A1", "A2", "A3", "B1", "B2"]},
+          "units": [
+            {"type": "9-1", "name": "Sgt Kelso"},
+            {"type": "4-6-7", "count": 3},
+            {"type": "LMG", "count": 1}
+          ]
+        }
+      ]
+    },
+    {
+      "side": "russian",
+      "nationality": "russian",
+      "groups": [
+        {
+          "id": "r1",
+          "objective": true,
+          "area": {"hexes": ["I1", "I2", "I3", "J1", "J2"]},
+          "units": [
+            {"type": "8-0", "name": "Com Cohenov"},
+            {"type": "4-4-7", "count": 4},
+            {"type": "MMG", "count": 1}
+          ]
+        }
+      ]
+    }
+  ],
+  "victory": []
+}

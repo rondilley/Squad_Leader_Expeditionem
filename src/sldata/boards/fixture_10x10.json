@@ -1,0 +1,1193 @@
+{
+ "name": "fixture_10x10",
+ "cols": 10,
+ "rows": 10,
+ "hexes": [
+  {
+   "id": "A1",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "A2",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "A3",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "A4",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "A5",
+   "terrain": "open",
+   "road": true,
+   "polygons": []
+  },
+  {
+   "id": "A6",
+   "terrain": "open",
+   "road": true,
+   "polygons": []
+  },
+  {
+   "id": "A7",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "A8",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "A9",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "A10",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "B0",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "B1",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "B2",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "B3",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "B4",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "B5",
+   "terrain": "stone_building",
+   "building": {
+    "id": "B1",
+    "kind": "stone",
+    "size": 4
+   },
+   "polygons": [
+    {
+     "kind": "stone_building",
+     "points": [
+      [
+       5,
+       11
+      ],
+      [
+       4,
+       12
+      ],
+      [
+       2,
+       12
+      ],
+      [
+       1,
+       11
+      ],
+      [
+       2,
+       10
+      ],
+      [
+       4,
+       10
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "B6",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "B7",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "B8",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "B9",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "B10",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "C1",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "C2",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "C3",
+   "terrain": "stone_building",
+   "building": {
+    "id": "B1",
+    "kind": "stone",
+    "size": 4
+   },
+   "polygons": [
+    {
+     "kind": "stone_building",
+     "points": [
+      [
+       8,
+       6
+      ],
+      [
+       7,
+       7
+      ],
+      [
+       5,
+       7
+      ],
+      [
+       4,
+       6
+      ],
+      [
+       5,
+       5
+      ],
+      [
+       7,
+       5
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "C4",
+   "terrain": "stone_building",
+   "building": {
+    "id": "B1",
+    "kind": "stone",
+    "size": 4
+   },
+   "polygons": [
+    {
+     "kind": "stone_building",
+     "points": [
+      [
+       5,
+       8
+      ],
+      [
+       7,
+       7
+      ],
+      [
+       8,
+       8
+      ],
+      [
+       7,
+       9
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "C5",
+   "terrain": "stone_building",
+   "building": {
+    "id": "B1",
+    "kind": "stone",
+    "size": 4
+   },
+   "polygons": [
+    {
+     "kind": "stone_building",
+     "points": [
+      [
+       8,
+       10
+      ],
+      [
+       7,
+       11
+      ],
+      [
+       5,
+       11
+      ],
+      [
+       4,
+       10
+      ],
+      [
+       5,
+       9
+      ],
+      [
+       7,
+       9
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "C6",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "C7",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "C8",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "C9",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "C10",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "D0",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "D1",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "D2",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "D3",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "D4",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "D5",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "D6",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "D7",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "D8",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "D9",
+   "terrain": "woods",
+   "polygons": [
+    {
+     "kind": "woods",
+     "points": [
+      [
+       11,
+       19
+      ],
+      [
+       10,
+       20
+      ],
+      [
+       8,
+       20
+      ],
+      [
+       7,
+       19
+      ],
+      [
+       8,
+       18
+      ],
+      [
+       10,
+       18
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "D10",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "E1",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "E2",
+   "terrain": "woods",
+   "polygons": [
+    {
+     "kind": "woods",
+     "points": [
+      [
+       14,
+       4
+      ],
+      [
+       13,
+       5
+      ],
+      [
+       11,
+       5
+      ],
+      [
+       10,
+       4
+      ],
+      [
+       11,
+       3
+      ],
+      [
+       13,
+       3
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "E3",
+   "terrain": "woods",
+   "polygons": [
+    {
+     "kind": "woods",
+     "points": [
+      [
+       14,
+       6
+      ],
+      [
+       13,
+       7
+      ],
+      [
+       11,
+       7
+      ],
+      [
+       10,
+       6
+      ],
+      [
+       11,
+       5
+      ],
+      [
+       13,
+       5
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "E4",
+   "terrain": "stone_building",
+   "building": {
+    "id": "B4",
+    "kind": "stone",
+    "size": 3
+   },
+   "polygons": [
+    {
+     "kind": "stone_building",
+     "points": [
+      [
+       14,
+       8
+      ],
+      [
+       13,
+       9
+      ],
+      [
+       11,
+       9
+      ],
+      [
+       10,
+       8
+      ],
+      [
+       11,
+       7
+      ],
+      [
+       13,
+       7
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "E5",
+   "terrain": "stone_building",
+   "building": {
+    "id": "B4",
+    "kind": "stone",
+    "size": 3
+   },
+   "polygons": [
+    {
+     "kind": "stone_building",
+     "points": [
+      [
+       14,
+       10
+      ],
+      [
+       13,
+       11
+      ],
+      [
+       11,
+       11
+      ],
+      [
+       10,
+       10
+      ],
+      [
+       11,
+       9
+      ],
+      [
+       13,
+       9
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "E6",
+   "terrain": "stone_building",
+   "building": {
+    "id": "B4",
+    "kind": "stone",
+    "size": 3
+   },
+   "polygons": [
+    {
+     "kind": "stone_building",
+     "points": [
+      [
+       14,
+       12
+      ],
+      [
+       13,
+       13
+      ],
+      [
+       11,
+       13
+      ],
+      [
+       10,
+       12
+      ],
+      [
+       11,
+       11
+      ],
+      [
+       13,
+       11
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "E7",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "E8",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "E9",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "E10",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "F0",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "F1",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "F2",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "F3",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "F4",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "F5",
+   "terrain": "open",
+   "hexsides": {
+    "3": "wall"
+   },
+   "polygons": []
+  },
+  {
+   "id": "F6",
+   "terrain": "open",
+   "hexsides": {
+    "0": "wall"
+   },
+   "polygons": []
+  },
+  {
+   "id": "F7",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "F8",
+   "terrain": "wooden_building",
+   "building": {
+    "id": "B2",
+    "kind": "wooden",
+    "size": 2
+   },
+   "polygons": [
+    {
+     "kind": "wooden_building",
+     "points": [
+      [
+       17,
+       17
+      ],
+      [
+       16,
+       18
+      ],
+      [
+       14,
+       18
+      ],
+      [
+       13,
+       17
+      ],
+      [
+       14,
+       16
+      ],
+      [
+       16,
+       16
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "F9",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "F10",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "G1",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "G2",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "G3",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "G4",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "G5",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "G6",
+   "terrain": "stone_building",
+   "building": {
+    "id": "B3",
+    "kind": "stone",
+    "size": 3
+   },
+   "polygons": [
+    {
+     "kind": "stone_building",
+     "points": [
+      [
+       20,
+       12
+      ],
+      [
+       19,
+       13
+      ],
+      [
+       17,
+       13
+      ],
+      [
+       16,
+       12
+      ],
+      [
+       17,
+       11
+      ],
+      [
+       19,
+       11
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "G7",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "G8",
+   "terrain": "wooden_building",
+   "building": {
+    "id": "B2",
+    "kind": "wooden",
+    "size": 2
+   },
+   "polygons": [
+    {
+     "kind": "wooden_building",
+     "points": [
+      [
+       20,
+       16
+      ],
+      [
+       19,
+       17
+      ],
+      [
+       17,
+       17
+      ],
+      [
+       16,
+       16
+      ],
+      [
+       17,
+       15
+      ],
+      [
+       19,
+       15
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "G9",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "G10",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "H0",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "H1",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "H2",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "H3",
+   "terrain": "shellhole",
+   "polygons": []
+  },
+  {
+   "id": "H4",
+   "terrain": "woods",
+   "polygons": [
+    {
+     "kind": "woods",
+     "points": [
+      [
+       23,
+       9
+      ],
+      [
+       22,
+       10
+      ],
+      [
+       20,
+       10
+      ],
+      [
+       19,
+       9
+      ],
+      [
+       20,
+       8
+      ],
+      [
+       22,
+       8
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "H5",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "H6",
+   "terrain": "stone_building",
+   "building": {
+    "id": "B3",
+    "kind": "stone",
+    "size": 3
+   },
+   "polygons": [
+    {
+     "kind": "stone_building",
+     "points": [
+      [
+       23,
+       13
+      ],
+      [
+       22,
+       14
+      ],
+      [
+       20,
+       14
+      ],
+      [
+       19,
+       13
+      ],
+      [
+       20,
+       12
+      ],
+      [
+       22,
+       12
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "H7",
+   "terrain": "stone_building",
+   "building": {
+    "id": "B3",
+    "kind": "stone",
+    "size": 3
+   },
+   "polygons": [
+    {
+     "kind": "stone_building",
+     "points": [
+      [
+       23,
+       15
+      ],
+      [
+       22,
+       16
+      ],
+      [
+       20,
+       16
+      ],
+      [
+       19,
+       15
+      ],
+      [
+       20,
+       14
+      ],
+      [
+       22,
+       14
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "H8",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "H9",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "H10",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "I1",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "I2",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "I3",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "I4",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "I5",
+   "terrain": "wheat",
+   "polygons": [
+    {
+     "kind": "wheat",
+     "points": [
+      [
+       26,
+       10
+      ],
+      [
+       25,
+       11
+      ],
+      [
+       23,
+       11
+      ],
+      [
+       22,
+       10
+      ],
+      [
+       23,
+       9
+      ],
+      [
+       25,
+       9
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "I6",
+   "terrain": "wheat",
+   "polygons": [
+    {
+     "kind": "wheat",
+     "points": [
+      [
+       26,
+       12
+      ],
+      [
+       25,
+       13
+      ],
+      [
+       23,
+       13
+      ],
+      [
+       22,
+       12
+      ],
+      [
+       23,
+       11
+      ],
+      [
+       25,
+       11
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "I7",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "I8",
+   "terrain": "woods",
+   "polygons": [
+    {
+     "kind": "woods",
+     "points": [
+      [
+       26,
+       16
+      ],
+      [
+       25,
+       17
+      ],
+      [
+       23,
+       17
+      ],
+      [
+       22,
+       16
+      ],
+      [
+       23,
+       15
+      ],
+      [
+       25,
+       15
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "I9",
+   "terrain": "woods",
+   "polygons": [
+    {
+     "kind": "woods",
+     "points": [
+      [
+       26,
+       18
+      ],
+      [
+       25,
+       19
+      ],
+      [
+       23,
+       19
+      ],
+      [
+       22,
+       18
+      ],
+      [
+       23,
+       17
+      ],
+      [
+       25,
+       17
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "I10",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "J0",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "J1",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "J2",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "J3",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "J4",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "J5",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "J6",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "J7",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "J8",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "J9",
+   "terrain": "open",
+   "polygons": []
+  },
+  {
+   "id": "J10",
+   "terrain": "open",
+   "polygons": []
+  }
+ ],
+ "provenance": "A hand-written 10 by 10 test board, not a 1977 layout. Built by tests/los/fixture_board.py and written here for the scenarios and the CLI."
+}

@@ -1,0 +1,210 @@
+{
+  "table": "project_rulings",
+  "version": 9,
+  "note": "Project rulings fill gaps that the rules text leaves open. Each names the rule it extends and its cause. The official Q and A rulings live in qa.json (slice 3). The owner can change a ruling here, and the change is a data change with a new version.",
+  "rulings": [
+    {
+      "id": "PR-01",
+      "extends": "4.1",
+      "ruling": "In the Rally Phase the phasing player acts first, then the defender. Each player has one command window.",
+      "cause": "Rule 4.1 lets the two players repair and rally but gives no sequence. Rule 4.6 gives the phasing player first in the Rout Phase, and the project uses the same sequence for consistency.",
+      "decided": "2026-09-07"
+    },
+    {
+      "id": "PR-02",
+      "extends": "20.4",
+      "ruling": "In the Close Combat Phase the phasing player declares all attacks first, then the defender declares. The core then resolves each attack in the declared sequence, and the effects of all attacks apply at the same time (rule 20.2).",
+      "cause": "Rule 20.4 says all attacks are designated before any dice roll, and rule 20.2 says the combat is simultaneous, but no sequence of declaration between the players is given.",
+      "decided": "2026-09-07"
+    },
+    {
+      "id": "PR-03",
+      "extends": "5.52",
+      "ruling": "A unit enters a road hex through a road hexside when the hex it comes from is also a road hex.",
+      "cause": "The board data holds a road flag for each hex and no road hexside record. On the 1977 boards the road of two adjacent road hexes crosses their shared hexside in almost every case.",
+      "decided": "2026-09-07"
+    },
+    {
+      "id": "PR-04",
+      "extends": "6.3",
+      "ruling": "A unit may enter a hex that would be above the stacking limit only when it keeps enough movement factors to enter a neighboring hex. The end of the Movement Phase is not legal while a hex is above the limit. When a hex of the moving player is above the limit, the legal list also offers its units a move into any hex they can pay for, whatever the load of that hex.",
+      "cause": "Rule 6.3 lets a player exceed the limit during movement but not at the end of the phase. Without the reserve rule a player could reach a state with no legal command. The last part gives rule 6.3 in full, so that the units of a hex above the limit always have a move.",
+      "decided": "2026-09-07"
+    },
+    {
+      "id": "PR-05",
+      "extends": "5.44",
+      "ruling": "A leader and the squads that use its movement bonus form one stack for the whole Movement Phase. The stack is set by the first stack move, and its members move only together for the rest of the phase.",
+      "cause": "Rule 5.44 gives the bonus to a squad that spends the entire Movement Phase stacked with a leader, and rule 19.4 says the leader must accompany the unit throughout the phase.",
+      "decided": "2026-09-07"
+    },
+    {
+      "id": "PR-06",
+      "extends": "21.2",
+      "ruling": "During set up, the legal list offers the lowest-numbered unplaced unit of each type in each group, because identical counters are interchangeable.",
+      "cause": "The choice among identical counters has no effect on play, and the smaller list helps the agents and the replay.",
+      "decided": "2026-09-07"
+    },
+    {
+      "id": "PR-07",
+      "extends": "victory",
+      "ruling": "The core records the last side with an unbroken unit in each building at the end of each phase.",
+      "cause": "The scenario 1 victory conditions ask who was last to occupy a hex of a building with an unbroken unit. The rules give no moment of record, and the end of each phase is the point where the core sees the board.",
+      "decided": "2026-09-07"
+    },
+    {
+      "id": "PR-08",
+      "extends": "20.4",
+      "ruling": "The legal list offers each single enemy unit and the whole enemy stack as close combat targets, and attacker groups of up to three units.",
+      "cause": "Rule 20.4 lets a player divide the attacks in any way. The full division is a power set of the attackers and the targets, which the legal list cannot hold. The two ends of the range cover the tactical choice.",
+      "decided": "2026-09-07"
+    },
+    {
+      "id": "PR-09",
+      "extends": "17.7",
+      "ruling": "Beyond the target hex, machine gun penetration along a hexside uses the hex with the lower grid reference.",
+      "cause": "Rule 17.7 gives the firer the choice for the line to the target hex. It does not say who chooses for the hexes beyond it, and a second choice would multiply the legal list.",
+      "decided": "2026-09-07"
+    },
+    {
+      "id": "PR-10",
+      "extends": "17.5",
+      "ruling": "Machine gun penetration applies when every member of the fire group is in one hex.",
+      "cause": "Rule 17.5 traces the penetration along the line of sight of the firing machine gun. A fire group spread over several hexes has no single line to continue, and the rules give no method for that case.",
+      "decided": "2026-09-07"
+    },
+    {
+      "id": "PR-11",
+      "extends": "21.2",
+      "ruling": "During set up, a unit that is on the board may be placed again on another hex of its own area. The legal list offers this only when an unplaced unit has no legal hex.",
+      "cause": "Rule 21.2 has a side place its counters within the areas the scenario names, and it gives no sequence. A sequence of legal placements can fill the hexes so that a remaining unit has no legal hex, and the side then has no legal command. A player at a table moves a counter that is in the way.",
+      "decided": "2026-09-07"
+    },
+    {
+      "id": "PR-12",
+      "extends": "21.2",
+      "ruling": "When a scenario card says to roll a die for the first mover, the core rolls one die from the seeded generator at the end of set up. A roll of 1 to 3 gives the first player turn to the side that sets up first, and a roll of 4 to 6 gives it to the other side.",
+      "cause": "Scenarios 2 and 3 say to roll a die for the first mover and give no table. A game must be a function of its seed and its commands (FR-12), so the roll belongs to the core generator and not to the players.",
+      "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-13",
+      "extends": "25.3",
+      "ruling": "The concealment counters that rule 25.3 gives at the end of a player turn are placed by the core, one on each hex that satisfies the conditions and does not have a counter of that side.",
+      "cause": "Rule 25.3 says a counter can be placed and gives the conditions, but not who chooses. A choice with no cost is not a decision, and an automatic step keeps the legal list small for the trainer and the model agents.",
+      "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-14",
+      "extends": "23.3",
+      "ruling": "A demolition charge is operable when the unit that placed it is unbroken and still in its placement hex at the end of the Defensive Fire Phase. A charge that is not operable stays on its target hex and never explodes.",
+      "cause": "Rule 23.3 says the placing unit must survive the Defensive Fires against the placement hex without breaking, and it says what happens when it breaks in that hex. It does not say what happens when the unit leaves the hex or is eliminated, and the project treats both as a charge that is not operable.",
+      "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-15",
+      "extends": "27.22",
+      "ruling": "A stack that is lost in the sewer comes up at an entrance that the opposing player names. The core opens one window for that player in the Movement Phase of the lost stack, before the moves of that phase.",
+      "cause": "Rule 27.22 gives the choice to the opposing player and says the stack is placed in its following Movement Phase. It gives no point in the phase, and a choice before the moves keeps the sequence of one phase clear.",
+      "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-16",
+      "extends": "21.3",
+      "ruling": "A victory condition that counts hexes of a building asks for the number on the scenario card, or for the whole building when the building has fewer hexes than that number.",
+      "cause": "The scenario 2 card asks for six hexes of the factory. The generated board makes a factory of four to six hexes, so the printed number can be more than the building holds. Without the limit the condition is impossible and the scenario is a draw whatever the players do.",
+      "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-17",
+      "extends": "25.6",
+      "ruling": "The concealment counters that a scenario allocates are placed on the woods hexes and the building hexes that are not in a set up area of the other side, and the side cannot declare set up complete while it holds a counter.",
+      "cause": "Rule 25.6 says the counters must be placed on the board during set up. It gives no place and no moment. Rule 25.3 gives the terrain. A counter in the set up area of the other side is a claim on a hex that this side does not hold. Room outside the side's own units is necessary, because a counter on an empty hex is the dummy of rule 25.7.",
+      "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-18",
+      "extends": "6.3",
+      "ruling": "The Movement Phase ends when no hex is over a stacking limit, or when no legal command of that window takes a unit out of a hex that is over a limit.",
+      "cause": "Rule 6.3 says the units above a limit must be moved during the Movement Phase, and the core holds the window open until they are. A broken unit cannot move in that phase, so a hex whose excess is broken units has no relief and the window never closes. Rule 13.44 removes the broken units above a limit in the Rout Phase, and the Movement Phase must be able to reach that phase.",
+      "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-19",
+      "extends": "13.43",
+      "ruling": "A broken unit routs one time in a Rout Phase, with its movement allowance. A unit that cannot reach cover in that allowance stops where it ran out and stays there until the next Rout Phase.",
+      "cause": "Rule 13.43 gives the rout a movement allowance, and rule 4.6 gives one Rout Phase to each player turn. The core first gave the allowance to each rout command instead of to the phase, so a unit could rout without end between two cover hexes and the phase never closed.",
+      "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-20",
+      "extends": "28",
+      "ruling": "This tier gives tanks and self-propelled guns to a scenario. A scenario that names a halftrack, a truck, or a jeep is refused with an error that names rules 47 and 51.",
+      "cause": "Rule 28 says that halftracks and trucks have rules of their own and that those rules come later, with the scenarios that introduce them. Rules 47 and 51 hold them. Their counter values are in the counter data because the counters exist, and a scenario cannot use one until the rules for it are here.",
+      "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-21",
+      "extends": "29.4",
+      "ruling": "A vehicle faces one of the six spines of its hex. Its covered arc is the wedge between the two hexsides that meet at that spine, extended to the edge of the board. A place command carries the facing. A vehicle that moves into a hex arrives on the spine to the right of the direction it moved, and a pivot command sets any other facing at no cost in movement points.",
+      "cause": "Rule 29.4 builds the covered arc from a spine and the two hexsides beside the gun barrel. A counter on a table shows its facing by the way it lies. A command log has no counter, so the facing must be in a payload or a replay cannot reproduce the game. Rule 30.5 gives a free facing change after a move into a hex, and rule 33.32 says the penalty for a pivot and the penalty for a move to a new hex are not cumulative, so one arrival facing plus a free pivot command reaches every state with no command that repeats another.",
+      "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-22",
+      "extends": "33.5",
+      "ruling": "The target facing is the class of the target hexside that the line of sight crosses: front for the two hexsides that meet at the spine the vehicle faces, rear for the two opposite hexsides, and side for the other two. When the line of sight runs along a spine of the target hex, the two hexsides it lies between are both read and the harder one for the attacker is used, in the order front, side, rear.",
+      "cause": "Rule 33.5 gives the rule in a diagram and one sentence: the facing least favourable to the attacker when the line runs along a spine. The diagram is not in the tree (SR-07), so the mapping from a spine to two front hexsides, two rear hexsides, and two side hexsides is written here.",
+      "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-23",
+      "extends": "41.1",
+      "ruling": "A vehicle is hull down to a firer when the hexside of its own hex that the line of sight crosses carries a wall, or when a wreck stands in a hex on the traced line of sight.",
+      "cause": "Rule 41.1 says hull down is a vehicle directly behind a wall, not a hedge, or behind a wreck, and rule 40.6 says a vehicle behind a wreck is hull down to a firer in an adjacent hex. The rule gives no test for the general case, and the line of sight that the core already traces gives one.",
+      "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-24",
+      "extends": "28",
+      "ruling": "The open top vehicles of the counter set are the halftracks, the M-10, the M-16, and the Priest.",
+      "cause": "Rule 28 says an open top vehicle is printed on a white background. The counter record in the research appendix holds the printed numbers of each counter and not the colour of its background, so the list comes from the vehicles that have no roof.",
+      "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-25",
+      "extends": "33.4",
+      "ruling": "A main gun with no column of its own on the kill table uses the largest column that does not exceed its calibre. A 122 millimetre gun uses the 120 column and a 152 millimetre gun uses the 150 column.",
+      "cause": "The kill table has columns for 37, 50, 75 or 76, 105, 120, and 150 millimetres. The counter set has a 122 millimetre gun and a 152 millimetre gun. Rule 34.2 rounds a calibre down to find its firepower column on the Infantry Fire Table, and the same method gives each gun one column of the kill table.",
+      "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-26",
+      "extends": "33.2",
+      "ruling": "A vehicle fires its main armament in one fire phase of its player turn and its machine guns in one fire phase of that turn. The M-10 fires its main armament in two phases.",
+      "cause": "Rule 33.2 says a vehicle may fire its main armament once per player turn and names the M-10 as the exception. Rule 34.3 lets the same vehicle roll again with its machine gun after the main armament, so the two weapons have their own counts and not one shared count.",
+      "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-27",
+      "extends": "32.5",
+      "ruling": "Fire at a hex that holds a vehicle takes the plus two of rule 32.1 when every infantry unit in the hex is a passenger, and the plus one of rule 32.5 when any of them is on foot.",
+      "cause": "Rule 32.1 gives one modifier to the passengers on the counter and rule 32.5 gives another to the infantry on foot beneath it. The core resolves fire against a hex and not against one counter, so a hex that holds both would need two modifiers at one time. The infantry on foot are the ones the hull covers, so their modifier wins when they are there.",
+      "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-28",
+      "extends": "40.4",
+      "ruling": "A push of a wreck is one command in the Rally Phase. The wreck leaves the board, the pushing vehicle takes its hex, and the vehicle neither moves nor fires for the rest of that player turn.",
+      "cause": "Rule 40.4 spends two player turns on the push: the vehicle neither moves nor fires in the first, and it must end the second in the hex the wreck held. A command that reserves a vehicle for a turn and then moves it in the next one needs a state field of its own and gives the same board position. One command reaches that position and costs the vehicle the same turn.",
+      "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-29",
+      "extends": "33.3",
+      "ruling": "A main gun shot names its aim and its shell in the command payload. A hex that holds a vehicle and infantry gives two commands. The shell is armour piercing at a vehicle where the gun has it and high explosive at infantry.",
+      "cause": "Rule 33.3 and rule 34.2 are two different shots at one hex, and the firing player chooses between them at the table. A command log has no player at a table, so the choice is in the payload. Armour piercing has the lower kill number against every armour facing where the gun has both columns, so a command that offers high explosive at a vehicle as well would repeat a worse version of the same shot and make the decision frame larger for nothing.",
+      "decided": "2026-09-08"
+    }
+  ]
+}

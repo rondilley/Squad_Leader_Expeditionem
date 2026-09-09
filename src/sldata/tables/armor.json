@@ -1,0 +1,589 @@
+{
+ "table": "armor",
+ "version": 2,
+ "provenance": [
+  "The four tables of armor combat, rules 33.3, 33.31, 33.4, and 33.41. Values transcribed from the owner's copy of the 4th edition rulebook, page 13, where the tables are printed as graphics inside the rules text. The project writes them in its own layout and ships no rulebook text (SR-07, DR-01, FR-16).",
+  "An earlier note in this project said that the armor tables were on the second page of the Quick Reference Data Card and out of reach. That was wrong. The search read the text layer of the rulebook, and a table drawn as a graphic is not in a text layer. The tables are on page 13 of the rulebook.",
+  "Rule 33.3: each cell of the to-hit table holds two numbers. A Russian firing unit uses the second one, and each other firing unit uses the first. The dice roll must be equal to or less than the number to hit.",
+  "Rule 33.4: the kill number is the roll that eliminates the vehicle. The dice roll must be equal to or less than the number. NA means that the weapon has no kill number against that target, and rule 51.4 sends the attack to the Infantry Fire Table instead.",
+  "The case descriptions of rule 33.31 are in the project's own words. The modifier of each case is the number the table gives.",
+  "The asterisk of cases B and C marks the main armament of a firing vehicle whose counter carries an asterisk (rule 33.31, the footnote of the table).",
+  "Rule 36.12, rule 37.31, and rule 37.41 each print a small chart. They are on pages 15 of the same rulebook and they are graphics as well, so they are read the same way as the tables of rule 33.",
+  "Rule 34.2 says the weapon size of the firing vehicle, rounded down, is beside the firepower columns of the Infantry Fire Table. Those calibres are the second numbers of the column headers recorded in docs/research/2026-09-07_RV-1_counters_charts.md section 7.1: 1/20, 2/30, 4/40, 6/50, 8/70, 12/80, 16/100, 20/120, 24, 30/150, 36+. The rule 34.4 example gives a 76 millimetre gun 8 firepower factors, which is the 8/70 column, so a calibre uses the largest entry that does not exceed it.",
+  "The kill table of rule 33.4 has a column for each of 37, 50, 75 or 76, 105, 120, and 150 millimetres. A gun of 122 or 152 millimetres has no column of its own, and project ruling PR-25 puts it in the largest column that does not exceed it, which is the rule 34.2 method."
+ ],
+ "to_hit": {
+  "rule": "33.3",
+  "note": "The columns are the range in hexes. `default` is the black number and `russian` is the red one.",
+  "ranges": [
+   {
+    "low": 1,
+    "high": 6
+   },
+   {
+    "low": 7,
+    "high": 12
+   },
+   {
+    "low": 13,
+    "high": 24
+   },
+   {
+    "low": 25,
+    "high": null
+   }
+  ],
+  "rows": [
+   {
+    "target": "infantry_in_building",
+    "what": "infantry in a building, a shellhole, or an entrenchment",
+    "default": [
+     8,
+     7,
+     6,
+     5
+    ],
+    "russian": [
+     8,
+     6,
+     5,
+     2
+    ]
+   },
+   {
+    "target": "infantry_in_woods",
+    "what": "infantry in woods",
+    "default": [
+     8,
+     6,
+     5,
+     4
+    ],
+    "russian": [
+     8,
+     6,
+     4,
+     2
+    ]
+   },
+   {
+    "target": "infantry_in_other",
+    "what": "infantry in each other terrain type",
+    "default": [
+     9,
+     8,
+     7,
+     6
+    ],
+    "russian": [
+     9,
+     7,
+     6,
+     3
+    ]
+   },
+   {
+    "target": "vehicle_hull_down",
+    "what": "a vehicle that is hull down",
+    "default": [
+     7,
+     5,
+     4,
+     3
+    ],
+    "russian": [
+     6,
+     4,
+     3,
+     2
+    ]
+   },
+   {
+    "target": "vehicle_in_woods_or_building",
+    "what": "a vehicle in woods or in a building",
+    "default": [
+     9,
+     8,
+     7,
+     6
+    ],
+    "russian": [
+     9,
+     7,
+     6,
+     3
+    ]
+   },
+   {
+    "target": "vehicle_in_other",
+    "what": "a vehicle in each other terrain type",
+    "default": [
+     10,
+     9,
+     8,
+     7
+    ],
+    "russian": [
+     10,
+     8,
+     7,
+     4
+    ]
+   },
+   {
+    "target": "at_gun",
+    "what": "an anti-tank gun",
+    "default": [
+     6,
+     5,
+     4,
+     2
+    ],
+    "russian": [
+     5,
+     4,
+     3,
+     null
+    ]
+   }
+  ]
+ },
+ "hit_modifiers": {
+  "rule": "33.31",
+  "note": "The modifiers are cumulative, with the limit that rule 33.32 puts on cases B and C.",
+  "cases": [
+   {
+    "case": "A",
+    "modifier": 2,
+    "what": "the firer fires in the Defensive Fire Phase at a target that moved"
+   },
+   {
+    "case": "B",
+    "modifier": 2,
+    "what": "a gun with an asterisk fires at a target more than six hexes away"
+   },
+   {
+    "case": "C",
+    "modifier": 4,
+    "what": "a gun with an asterisk fires at a target more than twelve hexes away"
+   },
+   {
+    "case": "D",
+    "modifier": 2,
+    "what": "a tank fires outside its covered arc"
+   },
+   {
+    "case": "E",
+    "modifier": 1,
+    "what": "a tank fires in the Advancing Fire Phase after it turned inside its hex in the Movement Phase"
+   },
+   {
+    "case": "F",
+    "modifier": 5,
+    "what": "a tank fires in the Advancing Fire Phase after it moved to a new hex"
+   },
+   {
+    "case": "G",
+    "modifier": 3,
+    "what": "a self-propelled gun, an anti-tank gun, or a howitzer fires in the Advancing Fire Phase after it turned inside its hex in the Movement Phase"
+   },
+   {
+    "case": "H",
+    "modifier": 2,
+    "what": "the target is below a concealment counter"
+   },
+   {
+    "case": "I",
+    "modifier": 4,
+    "what": "a self-propelled gun, an anti-tank gun, or a howitzer fires in the Defensive Fire Phase after it turned inside its hex in that same phase"
+   },
+   {
+    "case": "J",
+    "modifier": -2,
+    "what": "the target is in an adjacent hex"
+   },
+   {
+    "case": "K",
+    "modifier": -2,
+    "what": "the target is in the same hex"
+   }
+  ]
+ },
+ "kill_number_modifiers": {
+  "rule": "33.41",
+  "note": "The modifier goes on the dice roll of the attacker on the kill table. A vehicle that no row names takes no modifier.",
+  "vehicles": [
+   {
+    "vehicle": "halftrack",
+    "drm": -5
+   },
+   {
+    "vehicle": "priest",
+    "drm": -2
+   },
+   {
+    "vehicle": "m10",
+    "drm": -1
+   },
+   {
+    "vehicle": "m4a4",
+    "drm": 0
+   },
+   {
+    "vehicle": "t34",
+    "drm": 0
+   },
+   {
+    "vehicle": "mkiv",
+    "drm": 0
+   },
+   {
+    "vehicle": "m4m52",
+    "drm": 1
+   },
+   {
+    "vehicle": "su122",
+    "drm": 1
+   },
+   {
+    "vehicle": "stg3",
+    "drm": 1
+   },
+   {
+    "vehicle": "su152",
+    "drm": 2
+   },
+   {
+    "vehicle": "brumbar",
+    "drm": 2
+   }
+  ]
+ },
+ "kill_table": {
+  "rule": "33.4",
+  "note": "The kill number is the roll that eliminates the target. A null is NA: the weapon has no kill number there, and rule 51.4 sends the attack to the Infantry Fire Table.",
+  "weapons": [
+   {
+    "weapon": "mmg_hmg",
+    "ammunition": "ap",
+    "what": "a medium or heavy machine gun"
+   },
+   {
+    "weapon": "cal50_20mm",
+    "ammunition": "ap",
+    "what": "a fifty calibre or twenty millimetre gun"
+   },
+   {
+    "weapon": "ap37",
+    "ammunition": "ap",
+    "what": "a thirty-seven millimetre gun"
+   },
+   {
+    "weapon": "ap50",
+    "ammunition": "ap",
+    "what": "a fifty millimetre gun"
+   },
+   {
+    "weapon": "ap75_76",
+    "ammunition": "ap",
+    "what": "a seventy-five or seventy-six millimetre gun"
+   },
+   {
+    "weapon": "he37",
+    "ammunition": "he",
+    "what": "a thirty-seven millimetre gun"
+   },
+   {
+    "weapon": "he50",
+    "ammunition": "he",
+    "what": "a fifty millimetre gun"
+   },
+   {
+    "weapon": "he75_76",
+    "ammunition": "he",
+    "what": "a seventy-five or seventy-six millimetre gun"
+   },
+   {
+    "weapon": "he105",
+    "ammunition": "he",
+    "what": "a one hundred and five millimetre gun"
+   },
+   {
+    "weapon": "he120",
+    "ammunition": "he",
+    "what": "a one hundred and twenty millimetre gun"
+   },
+   {
+    "weapon": "he150",
+    "ammunition": "he",
+    "what": "a one hundred and fifty millimetre gun"
+   },
+   {
+    "weapon": "h6",
+    "ammunition": "special",
+    "what": "a howitzer marked H6"
+   },
+   {
+    "weapon": "panzerfaust",
+    "ammunition": "special",
+    "what": "a panzerfaust"
+   },
+   {
+    "weapon": "bazooka",
+    "ammunition": "special",
+    "what": "a bazooka"
+   },
+   {
+    "weapon": "flamethrower",
+    "ammunition": "special",
+    "what": "a flamethrower"
+   },
+   {
+    "weapon": "demolition_charge",
+    "ammunition": "special",
+    "what": "a demolition charge"
+   }
+  ],
+  "rows": [
+   {
+    "target": "afv_front",
+    "what": "the front of an armoured fighting vehicle",
+    "kill": [
+     -3,
+     -3,
+     2,
+     3,
+     6,
+     -1,
+     0,
+     2,
+     4,
+     6,
+     8,
+     8,
+     7,
+     3,
+     3,
+     9
+    ]
+   },
+   {
+    "target": "afv_side",
+    "what": "the side of an armoured fighting vehicle",
+    "kill": [
+     -3,
+     -2,
+     3,
+     6,
+     8,
+     1,
+     2,
+     3,
+     6,
+     7,
+     10,
+     10,
+     8,
+     4,
+     4,
+     10
+    ]
+   },
+   {
+    "target": "afv_rear",
+    "what": "the rear of an armoured fighting vehicle",
+    "kill": [
+     -2,
+     -1,
+     4,
+     8,
+     10,
+     2,
+     3,
+     4,
+     8,
+     9,
+     12,
+     11,
+     10,
+     6,
+     6,
+     11
+    ]
+   },
+   {
+    "target": "truck_or_jeep",
+    "what": "a truck or a jeep",
+    "kill": [
+     null,
+     null,
+     8,
+     10,
+     10,
+     10,
+     11,
+     12,
+     12,
+     12,
+     12,
+     11,
+     10,
+     10,
+     10,
+     12
+    ]
+   }
+  ]
+ },
+ "pre_afv_attack": {
+  "rule": "36.12",
+  "note": "The dice roll a squad or a leader needs to attack an armoured fighting vehicle in the Defensive Fire Phase. The same roll immobilizes the vehicle (rule 36.12) and rule 36.13 reads it again on the Infantry Fire Table for the passengers.",
+  "rows": [
+   {
+    "location": "leader_in_cover",
+    "what": "a leader alone in any hex that is not open ground",
+    "roll": 2
+   },
+   {
+    "location": "squad_in_wheat",
+    "what": "a squad in a wheatfield",
+    "roll": 2
+   },
+   {
+    "location": "squad_in_small_building",
+    "what": "a squad in a small building, a shellhole, or an entrenchment",
+    "roll": 3
+   },
+   {
+    "location": "squad_in_woods_or_large_building",
+    "what": "a squad in woods or in a building of three hexes or more",
+    "roll": 4
+   }
+  ]
+ },
+ "panzerfaust_to_hit": {
+  "rule": "37.31",
+  "note": "The roll to hit a vehicle. The range is in hexes and the maximum is three.",
+  "ranges": [
+   1,
+   2,
+   3
+  ],
+  "prep_or_defensive_fire": [
+   8,
+   6,
+   3
+  ],
+  "advancing_fire_after_movement": [
+   7,
+   5,
+   2
+  ]
+ },
+ "bazooka_to_hit": {
+  "rule": "37.41",
+  "note": "The roll to hit a vehicle. The range is in hexes and the maximum is four.",
+  "ranges": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "prep_or_defensive_fire": [
+   8,
+   7,
+   6,
+   3
+  ],
+  "advancing_fire_after_movement": [
+   7,
+   6,
+   4,
+   2
+  ]
+ },
+ "gun_columns": {
+  "rule": "34.2",
+  "note": "A main gun calibre uses the largest entry that does not exceed it. `kill_ap` and `kill_he` name a column of the kill table and `firepower` is the column of the Infantry Fire Table that rule 34.2 gives the hit.",
+  "guns": [
+   {
+    "calibre": 20,
+    "kill_ap": "cal50_20mm",
+    "kill_he": null,
+    "firepower": 1
+   },
+   {
+    "calibre": 30,
+    "kill_ap": null,
+    "kill_he": null,
+    "firepower": 2
+   },
+   {
+    "calibre": 37,
+    "kill_ap": "ap37",
+    "kill_he": "he37",
+    "firepower": 2
+   },
+   {
+    "calibre": 40,
+    "kill_ap": null,
+    "kill_he": null,
+    "firepower": 4
+   },
+   {
+    "calibre": 50,
+    "kill_ap": "ap50",
+    "kill_he": "he50",
+    "firepower": 6
+   },
+   {
+    "calibre": 70,
+    "kill_ap": null,
+    "kill_he": null,
+    "firepower": 8
+   },
+   {
+    "calibre": 75,
+    "kill_ap": "ap75_76",
+    "kill_he": "he75_76",
+    "firepower": 8
+   },
+   {
+    "calibre": 76,
+    "kill_ap": "ap75_76",
+    "kill_he": "he75_76",
+    "firepower": 8
+   },
+   {
+    "calibre": 80,
+    "kill_ap": null,
+    "kill_he": null,
+    "firepower": 12
+   },
+   {
+    "calibre": 100,
+    "kill_ap": null,
+    "kill_he": null,
+    "firepower": 16
+   },
+   {
+    "calibre": 105,
+    "kill_ap": null,
+    "kill_he": "he105",
+    "firepower": 16
+   },
+   {
+    "calibre": 120,
+    "kill_ap": null,
+    "kill_he": "he120",
+    "firepower": 20
+   },
+   {
+    "calibre": 150,
+    "kill_ap": null,
+    "kill_he": "he150",
+    "firepower": 30
+   }
+  ]
+ }
+}

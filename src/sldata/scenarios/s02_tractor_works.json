@@ -1,0 +1,367 @@
+{
+ "id": "s02_tractor_works",
+ "title": "The Tractor Works",
+ "notes": "Scenario 2 of the 1977 game, in the project's own words (FR-22). Stalingrad, October 1942. A German company attacks a Russian garrison in a factory, and a Russian relief force attacks from the city. The force lists, the turn count, and the victory conditions come from the scenario card as docs/research/2026-09-07_RV-2_boards_scenarios.md section 3 records them. The card text is not reproduced. Rules 22 to 26 come in with this scenario: flamethrowers, demolition charges, smoke, concealment, and fanaticism. The set up areas use zones, because the printed board layout is not in this repository (DR-06). The board is the east part of a generated city board. The Russians hold the factory in the middle band and the relief force starts in the west band. The Germans start in the east band. The card says to roll a die for the first mover, and project ruling PR-12 gives that roll to the core generator.",
+ "board": "city",
+ "board_generator": {
+  "seed": 19421122,
+  "board_type": "city",
+  "cols": 33,
+  "rows": 10,
+  "building_density": 3,
+  "zones": [
+   {
+    "count": 3,
+    "min_hexes": 3,
+    "max_hexes": 6,
+    "min_col": 0,
+    "max_col": 6
+   },
+   {
+    "count": 1,
+    "min_hexes": 4,
+    "max_hexes": 6,
+    "min_col": 7,
+    "max_col": 12
+   },
+   {
+    "count": 3,
+    "min_hexes": 2,
+    "max_hexes": 6,
+    "min_col": 13,
+    "max_col": 18
+   },
+   {
+    "count": 2,
+    "min_hexes": 3,
+    "max_hexes": 6,
+    "min_col": 13,
+    "max_col": 18
+   }
+  ]
+ },
+ "board_columns": [
+  14,
+  32
+ ],
+ "turns": 8,
+ "first_mover": "german",
+ "first_mover_roll": true,
+ "setup_order": [
+  "russian",
+  "german",
+  "russian"
+ ],
+ "rules_used": [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "11",
+  "12",
+  "13",
+  "14",
+  "15",
+  "16",
+  "17",
+  "18",
+  "19",
+  "20",
+  "21",
+  "22",
+  "23",
+  "24",
+  "25",
+  "26"
+ ],
+ "switches": {
+  "predesignation": "basic",
+  "semi_simultaneous": "off"
+ },
+ "smoke_counters": {
+  "german": 6
+ },
+ "concealment_counters": {
+  "russian": 18,
+  "german": 12
+ },
+ "fanatic": {
+  "side": "russian",
+  "area": {
+   "zone": "stone_building",
+   "min_col": 7,
+   "max_col": 12,
+   "rank": 0,
+   "min_hexes": 4
+  }
+ },
+ "sides": [
+  {
+   "side": "german",
+   "nationality": "german",
+   "groups": [
+    {
+     "id": "g_stahler",
+     "setup_pass": 1,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 13,
+      "max_col": 18,
+      "rank": 0,
+      "min_hexes": 3
+     },
+     "units": [
+      {
+       "type": "9-2",
+       "name": "Lt Stahler"
+      },
+      {
+       "type": "8-1",
+       "name": "Sgt Pitz"
+      },
+      {
+       "type": "4-6-7",
+       "count": 7
+      },
+      {
+       "type": "MMG",
+       "count": 2
+      },
+      {
+       "type": "LMG",
+       "count": 4
+      }
+     ]
+    },
+    {
+     "id": "g_tienham",
+     "setup_pass": 1,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 13,
+      "max_col": 18,
+      "rank": 1,
+      "min_hexes": 3
+     },
+     "units": [
+      {
+       "type": "10-2",
+       "name": "Cpt Tienham"
+      },
+      {
+       "type": "9-1",
+       "name": "Sgt Stites"
+      },
+      {
+       "type": "8-0",
+       "name": "Cpl Uhl"
+      },
+      {
+       "type": "4-6-7",
+       "count": 6
+      },
+      {
+       "type": "LMG",
+       "count": 3
+      },
+      {
+       "type": "HMG",
+       "count": 1
+      }
+     ]
+    },
+    {
+     "id": "g_engineers",
+     "setup_pass": 1,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 13,
+      "max_col": 18,
+      "rank": 2,
+      "min_hexes": 2
+     },
+     "units": [
+      {
+       "type": "10-3",
+       "name": "Obr Greup"
+      },
+      {
+       "type": "8-3-8",
+       "count": 6
+      },
+      {
+       "type": "FT",
+       "count": 2
+      },
+      {
+       "type": "DC",
+       "count": 4
+      },
+      {
+       "type": "LMG",
+       "count": 2
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "side": "russian",
+   "nationality": "russian",
+   "groups": [
+    {
+     "id": "r_garrison",
+     "objective": true,
+     "setup_pass": 0,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 7,
+      "max_col": 12,
+      "rank": 0,
+      "min_hexes": 4
+     },
+     "units": [
+      {
+       "type": "9-2",
+       "name": "Maj Kirkov"
+      },
+      {
+       "type": "4-4-7",
+       "count": 12
+      },
+      {
+       "type": "LMG",
+       "count": 3
+      },
+      {
+       "type": "MMG",
+       "count": 2
+      },
+      {
+       "type": "HMG",
+       "count": 1
+      }
+     ]
+    },
+    {
+     "id": "r_doltski",
+     "setup_pass": 2,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 0,
+      "max_col": 6,
+      "rank": 0,
+      "min_hexes": 3
+     },
+     "units": [
+      {
+       "type": "9-1",
+       "name": "Com Doltski"
+      },
+      {
+       "type": "4-4-7",
+       "count": 9
+      },
+      {
+       "type": "LMG",
+       "count": 2
+      }
+     ]
+    },
+    {
+     "id": "r_eastonov",
+     "setup_pass": 2,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 0,
+      "max_col": 6,
+      "rank": 1,
+      "min_hexes": 3
+     },
+     "units": [
+      {
+       "type": "8-0",
+       "name": "Lt Eastonov"
+      },
+      {
+       "type": "4-4-7",
+       "count": 9
+      },
+      {
+       "type": "LMG",
+       "count": 1
+      }
+     ]
+    },
+    {
+     "id": "r_burnski",
+     "setup_pass": 2,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 0,
+      "max_col": 6,
+      "rank": 2,
+      "min_hexes": 3
+     },
+     "units": [
+      {
+       "type": "8-0",
+       "name": "Lt Burnski"
+      },
+      {
+       "type": "4-4-7",
+       "count": 9
+      },
+      {
+       "type": "LMG",
+       "count": 1
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "victory": [
+  {
+   "kind": "hex_control",
+   "side": "german",
+   "count": 6,
+   "groups": [
+    "r_garrison"
+   ],
+   "note": "The side that ends the game with undisputed control of six hexes of the factory wins. A hex belongs to the side that last held it with an unbroken unit, and a hex with both sides in Close Combat belongs to neither."
+  },
+  {
+   "kind": "hex_control",
+   "side": "russian",
+   "count": 6,
+   "groups": [
+    "r_garrison"
+   ],
+   "note": "The same condition for the Russian side."
+  },
+  {
+   "kind": "sole_occupant",
+   "side": "german",
+   "groups": [
+    "r_garrison"
+   ],
+   "note": "If only one side has an unbroken unit in the factory at game end, that side wins."
+  },
+  {
+   "kind": "sole_occupant",
+   "side": "russian",
+   "groups": [
+    "r_garrison"
+   ],
+   "note": "The same condition for the Russian side."
+  }
+ ],
+ "board_retries": 48
+}

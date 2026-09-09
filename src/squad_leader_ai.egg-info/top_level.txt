@@ -1,0 +1,9 @@
+slagents
+slboards
+slcampaign
+slcli
+slcore
+sldata
+slhost
+slruns
+slwindow

@@ -1,0 +1,1593 @@
+{
+ "family": "Morale, rout, rally, defensive fire, machine guns, fate, procedures, close combat, and set up",
+ "cases": [
+  {
+   "id": "r12.1-a-squad-passes-its-morale-check",
+   "rule": "12.1",
+   "type": "valid",
+   "citation": "Rule 12.1: a unit passes a morale check when it rolls its morale number or less with two dice.",
+   "check": "morale",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    3,
+    3
+   ],
+   "units": [
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    }
+   ],
+   "unit": "t",
+   "expect_events": [
+    {
+     "rule_id": "12.1",
+     "kind": "morale_pass"
+    }
+   ],
+   "expect_units": {
+    "t": {
+     "broken": false
+    }
+   }
+  },
+  {
+   "id": "r13.6-a-broken-unit-that-fails-again-is-removed",
+   "rule": "12.3",
+   "type": "invalid",
+   "citation": "Rule 12.3 and 13.6: a unit that fails a morale check breaks, and a broken unit that fails again is removed from the game.",
+   "check": "morale",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    5,
+    4
+   ],
+   "units": [
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1",
+     "broken": true
+    }
+   ],
+   "unit": "t",
+   "expect_events": [
+    {
+     "rule_id": "13.6",
+     "kind": "eliminated"
+    }
+   ],
+   "expect_eliminated": [
+    "t"
+   ]
+  },
+  {
+   "id": "r12.4-a-leader-does-not-use-its-own-rating",
+   "rule": "12.4",
+   "type": "boundary",
+   "citation": "Rule 12.4: a leader may not apply its leadership rating to its own morale check. A 9-1 leader that rolls 10 breaks.",
+   "check": "morale",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    5,
+    5
+   ],
+   "units": [
+    {
+     "ref": "lead",
+     "side": "russian",
+     "type": "9-1",
+     "hex": "A1"
+    }
+   ],
+   "unit": "lead",
+   "expect_events": [
+    {
+     "rule_id": "12.3",
+     "kind": "broken"
+    }
+   ],
+   "expect_units": {
+    "lead": {
+     "broken": true
+    }
+   }
+  },
+  {
+   "id": "r12.22-a-broken-leader-causes-a-second-check",
+   "rule": "12.22",
+   "type": "interaction",
+   "citation": "Rule 12.22: a leader that fails its morale check causes all other units stacked with it to take a second morale check at once.",
+   "check": "morale",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    5,
+    5,
+    3,
+    3
+   ],
+   "units": [
+    {
+     "ref": "lead",
+     "side": "russian",
+     "type": "9-1",
+     "hex": "A1"
+    },
+    {
+     "ref": "sq",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    }
+   ],
+   "unit": "lead",
+   "expect_events": [
+    {
+     "rule_id": "12.3",
+     "kind": "broken"
+    },
+    {
+     "rule_id": "12.1",
+     "kind": "morale_pass",
+     "data": {
+      "cause": "leader_break"
+     }
+    }
+   ],
+   "expect_units": {
+    "lead": {
+     "broken": true
+    },
+    "sq": {
+     "broken": false
+    }
+   }
+  },
+  {
+   "id": "r13.4-a-broken-unit-routs-to-cover",
+   "rule": "13.4",
+   "type": "valid",
+   "citation": "Rule 13.4: a broken unit that is not in a building or a woods hex moves to such cover at maximum speed.",
+   "check": "effect",
+   "phase": "rout",
+   "sub_step": "rout_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E1",
+     "broken": true
+    }
+   ],
+   "apply": [
+    {
+     "action": "rout",
+     "units": [
+      "a"
+     ],
+     "hex": "E2"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "13.43",
+     "kind": "rout",
+     "data": {
+      "reached": true
+     }
+    }
+   ],
+   "expect_units": {
+    "a": {
+     "hex": "E2"
+    }
+   }
+  },
+  {
+   "id": "r13.46-a-broken-unit-next-to-an-enemy-may-not-stay",
+   "rule": "13.46",
+   "type": "invalid",
+   "citation": "Rule 13.2 and 13.46: a broken unit in cover may stay unless it is adjacent to an enemy unit.",
+   "check": "legality",
+   "phase": "rout",
+   "sub_step": "rout_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E2",
+     "broken": true
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E1"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "stay",
+     "units": [
+      "a"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r13.47-a-broken-unit-with-no-route-is-removed",
+   "rule": "13.47",
+   "type": "boundary",
+   "citation": "Rule 13.47: a broken unit that cannot satisfy the rout requirements is eliminated. Rule 13.42 stops it from crossing open ground in the line of sight and the range of an unbroken enemy unit.",
+   "check": "effect",
+   "phase": "advancing_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1",
+     "broken": true
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "13.47",
+     "kind": "eliminated"
+    }
+   ],
+   "expect_eliminated": [
+    "a"
+   ]
+  },
+  {
+   "id": "r13.5-a-broken-unit-abandons-its-weapons",
+   "rule": "13.5",
+   "type": "interaction",
+   "citation": "Rule 13.5: broken units abandon the support weapons they carried before routing.",
+   "check": "morale",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    5,
+    4
+   ],
+   "units": [
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "lmg",
+     "side": "russian",
+     "type": "LMG",
+     "carrier": "t"
+    }
+   ],
+   "unit": "t",
+   "expect_events": [
+    {
+     "rule_id": "12.3",
+     "kind": "broken"
+    },
+    {
+     "rule_id": "13.5",
+     "kind": "abandon_weapon"
+    }
+   ],
+   "expect_units": {
+    "t": {
+     "broken": true
+    },
+    "lmg": {
+     "carrier": null,
+     "hex": "A1"
+    }
+   }
+  },
+  {
+   "id": "r14.2-a-broken-squad-rallies-with-a-leader",
+   "rule": "14.2",
+   "type": "valid",
+   "citation": "Rule 14.1 and 14.2: a broken squad rallies when an unbroken friendly leader is in its hex and it rolls its morale number or less.",
+   "check": "effect",
+   "phase": "rally",
+   "sub_step": "rally_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "dice": [
+    3,
+    3
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1",
+     "broken": true
+    },
+    {
+     "ref": "lead",
+     "side": "russian",
+     "type": "8-0",
+     "hex": "A1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "rally",
+     "units": [
+      "a"
+     ]
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "14.2",
+     "kind": "rallied"
+    }
+   ],
+   "expect_units": {
+    "a": {
+     "broken": false
+    }
+   }
+  },
+  {
+   "id": "r14.1-no-rally-without-an-unbroken-leader",
+   "rule": "14.1",
+   "type": "invalid",
+   "citation": "Rule 14.1 and 14.4: a broken squad may attempt to rally only when an unbroken friendly leader is in the same hex.",
+   "check": "legality",
+   "phase": "rally",
+   "sub_step": "rally_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1",
+     "broken": true
+    },
+    {
+     "ref": "lead",
+     "side": "russian",
+     "type": "8-0",
+     "hex": "A1",
+     "broken": true
+    }
+   ],
+   "illegal": [
+    {
+     "action": "rally",
+     "units": [
+      "a"
+     ]
+    }
+   ],
+   "legal": [
+    {
+     "action": "rally",
+     "units": [
+      "lead"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r14.6-desperation-morale-is-four-less",
+   "rule": "14.6",
+   "type": "boundary",
+   "citation": "Rule 14.6: a unit fired on since the preceding Rally Phase rallies on desperation morale, which is 4 less than its morale. A 4-4-7 squad then needs 3 or less, so a roll of 6 fails.",
+   "check": "effect",
+   "phase": "rally",
+   "sub_step": "rally_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "dice": [
+    3,
+    3
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1",
+     "broken": true,
+     "dm": true
+    },
+    {
+     "ref": "lead",
+     "side": "russian",
+     "type": "8-0",
+     "hex": "A1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "rally",
+     "units": [
+      "a"
+     ]
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "14.7",
+     "kind": "rally_failed",
+     "data": {
+      "desperation": true,
+      "target": 3
+     }
+    }
+   ],
+   "expect_units": {
+    "a": {
+     "broken": true
+    }
+   }
+  },
+  {
+   "id": "r18.3-a-rally-roll-of-twelve-removes-the-unit",
+   "rule": "18.3",
+   "type": "interaction",
+   "citation": "Rule 18.3: an infantry unit that rolls an unadjusted 12 in a rally attempt has taken further casualties and is eliminated.",
+   "check": "effect",
+   "phase": "rally",
+   "sub_step": "rally_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "dice": [
+    6,
+    6
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1",
+     "broken": true
+    },
+    {
+     "ref": "lead",
+     "side": "russian",
+     "type": "8-0",
+     "hex": "A1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "rally",
+     "units": [
+      "a"
+     ]
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "18.3",
+     "kind": "eliminated"
+    }
+   ],
+   "expect_eliminated": [
+    "a"
+   ]
+  },
+  {
+   "id": "r16.1-the-defender-returns-a-moved-unit-to-a-track-hex",
+   "rule": "16.1",
+   "type": "valid",
+   "citation": "Rule 16.1: at the end of the Movement Phase the defender may return a unit that moved to a hex it crossed, and fire at it there.",
+   "check": "effect",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "actor": "defender",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A3",
+     "moved": true,
+     "track": [
+      "A2",
+      "A3"
+     ]
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "B2"
+    }
+   ],
+   "apply": [
+    {
+     "action": "track_return",
+     "units": [
+      "a"
+     ],
+     "hex": "A2"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "16.1",
+     "kind": "track_return"
+    }
+   ],
+   "expect_units": {
+    "a": {
+     "hex": "A2"
+    }
+   }
+  },
+  {
+   "id": "r16.4-a-unit-that-did-not-move-has-no-track",
+   "rule": "16.4",
+   "type": "invalid",
+   "citation": "Rule 16.4: defensive fire against a moving unit is made in a hex where that unit spent movement factors. A unit that did not move has no such hex.",
+   "check": "legality",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "actor": "defender",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A3"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "B2"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "track_return",
+     "units": [
+      "a"
+     ],
+     "hex": "A2"
+    }
+   ]
+  },
+  {
+   "id": "r16.5-a-moving-target-in-the-open-gets-a-lower-roll",
+   "rule": "16.5",
+   "type": "boundary",
+   "citation": "Rule 16.5 and 16.6: a fire group in the Defensive Fire Phase gets a modifier of -2 against the units that moved in an open ground target hex, and one dice roll serves the whole hex.",
+   "check": "effect",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "actor": "defender",
+   "phasing": "russian",
+   "dice": [
+    5,
+    5,
+    3,
+    3
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A2",
+     "moved": true,
+     "track": [
+      "A2"
+     ]
+    },
+    {
+     "ref": "b",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A2"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "e"
+     ],
+     "hex": "A2"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "10.5",
+     "kind": "fire_result",
+     "data": {
+      "adjusted": 8,
+      "result": "M"
+     }
+    },
+    {
+     "rule_id": "10.5",
+     "kind": "fire_result",
+     "data": {
+      "adjusted": 10,
+      "result": "-"
+     }
+    }
+   ]
+  },
+  {
+   "id": "r16.3-the-unit-goes-back-after-the-defensive-fire",
+   "rule": "16.3",
+   "type": "interaction",
+   "citation": "Rule 16.3: after the defensive fire the units that were moved back and are not broken return to the positions they held before the phase.",
+   "check": "effect",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "actor": "defender",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A3",
+     "moved": true,
+     "track": [
+      "A2",
+      "A3"
+     ]
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "B2"
+    }
+   ],
+   "apply": [
+    {
+     "action": "track_return",
+     "units": [
+      "a"
+     ],
+     "hex": "A2"
+    },
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "16.3",
+     "kind": "track_return_end"
+    }
+   ],
+   "expect_units": {
+    "a": {
+     "hex": "A3"
+    }
+   }
+  },
+  {
+   "id": "r17.1-a-squad-fires-one-machine-gun-at-no-cost",
+   "rule": "17.1",
+   "type": "valid",
+   "citation": "Rule 17.1: a squad may fire any one machine gun at no cost to its own firepower.",
+   "check": "group_firepower",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {
+     "ref": "a",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "mmg",
+     "side": "german",
+     "type": "MMG",
+     "carrier": "a"
+    }
+   ],
+   "members": [
+    [
+     "a",
+     null
+    ],
+    [
+     "a",
+     "mmg"
+    ]
+   ],
+   "target": "A3",
+   "expect_halves": 16,
+   "expect_members": 2
+  },
+  {
+   "id": "r17.2-two-machine-guns-above-four-factors-forfeit-the-squad",
+   "rule": "17.2",
+   "type": "boundary",
+   "citation": "Rule 17.2: a squad may fire two machine guns with more than 4 firepower factors, and it then forfeits its own inherent firepower for that turn.",
+   "check": "group_firepower",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {
+     "ref": "a",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "mmg",
+     "side": "german",
+     "type": "MMG",
+     "carrier": "a"
+    },
+    {
+     "ref": "hmg",
+     "side": "german",
+     "type": "HMG",
+     "carrier": "a"
+    }
+   ],
+   "members": [
+    [
+     "a",
+     null
+    ],
+    [
+     "a",
+     "mmg"
+    ],
+    [
+     "a",
+     "hmg"
+    ]
+   ],
+   "target": "A3",
+   "expect_halves": 20,
+   "expect_members": 2
+  },
+  {
+   "id": "r17.3-a-leader-may-not-carry-a-medium-machine-gun",
+   "rule": "17.3",
+   "type": "invalid",
+   "citation": "The Support Weapons Chart note A: two leaders are needed to move a medium or heavy machine gun, so one leader may not fire one it carries alone in this build.",
+   "check": "legality",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {
+     "ref": "lead",
+     "side": "german",
+     "type": "9-1",
+     "hex": "A1"
+    },
+    {
+     "ref": "mmg",
+     "side": "german",
+     "type": "MMG",
+     "carrier": "lead"
+    },
+    {
+     "ref": "e",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A3"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "group_add_weapon",
+     "units": [
+      "lead"
+     ],
+     "weapon": "mmg",
+     "hex": "A3"
+    }
+   ]
+  },
+  {
+   "id": "r17.5-machine-gun-fire-goes-on-along-the-line",
+   "rule": "17.5",
+   "type": "interaction",
+   "citation": "Rule 17.5 and 17.6: a machine gun fires on as many target hexes as its penetration factor along the same line of sight, with the same dice roll.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    4,
+    4,
+    3,
+    3,
+    3,
+    3
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "mmg",
+     "side": "german",
+     "type": "MMG",
+     "carrier": "a"
+    },
+    {
+     "ref": "t1",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A2"
+    },
+    {
+     "ref": "t2",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A3"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add_weapon",
+     "units": [
+      "a"
+     ],
+     "weapon": "mmg",
+     "hex": "A2"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "10.5",
+     "kind": "fire_result"
+    },
+    {
+     "rule_id": "17.5",
+     "kind": "penetration"
+    },
+    {
+     "rule_id": "10.5",
+     "kind": "fire_result"
+    }
+   ]
+  },
+  {
+   "id": "r18.1-a-weapon-breaks-on-its-breakdown-number",
+   "rule": "18.1",
+   "type": "valid",
+   "citation": "Rule 18.1: a support weapon malfunctions when the unmodified dice roll of its attack is its breakdown number or more. A German machine gun breaks on 12.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    6,
+    6
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "mmg",
+     "side": "german",
+     "type": "MMG",
+     "carrier": "a"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A2"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add_weapon",
+     "units": [
+      "a"
+     ],
+     "weapon": "mmg",
+     "hex": "A2"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "18.1",
+     "kind": "malfunction",
+     "data": {
+      "roll": 12,
+      "breakdown": 12
+     }
+    }
+   ],
+   "expect_units": {
+    "mmg": {
+     "malfunction": true
+    }
+   }
+  },
+  {
+   "id": "r18.1-a-lower-roll-does-not-break-the-weapon",
+   "rule": "18.1",
+   "type": "invalid",
+   "citation": "Rule 18.1: a roll below the breakdown number leaves the weapon in action.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    5,
+    5
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "mmg",
+     "side": "german",
+     "type": "MMG",
+     "carrier": "a"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A2"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add_weapon",
+     "units": [
+      "a"
+     ],
+     "weapon": "mmg",
+     "hex": "A2"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_no_events_of_rule": [
+    "18.1"
+   ],
+   "expect_units": {
+    "mmg": {
+     "malfunction": false
+    }
+   }
+  },
+  {
+   "id": "r18.2-a-die-roll-of-one-repairs-the-weapon",
+   "rule": "18.2",
+   "type": "boundary",
+   "citation": "Rule 18.2: one die is rolled at the start of each Rally Phase. A 1 repairs the weapon and a 6 removes it from the game.",
+   "check": "effect",
+   "phase": "rally",
+   "sub_step": "rally_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "dice": [
+    1
+   ],
+   "single_dice": true,
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "mmg",
+     "side": "russian",
+     "type": "MMG",
+     "carrier": "a",
+     "malfunction": true
+    }
+   ],
+   "apply": [
+    {
+     "action": "repair",
+     "weapon": "mmg"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "18.2",
+     "kind": "repaired",
+     "data": {
+      "die": 1
+     }
+    }
+   ],
+   "expect_units": {
+    "mmg": {
+     "malfunction": false
+    }
+   }
+  },
+  {
+   "id": "r18.4-a-russian-unit-goes-berserk-on-an-unmodified-two",
+   "rule": "18.4",
+   "type": "interaction",
+   "citation": "Rule 18.4: a Russian infantry unit that rolls an unmodified 2 on a morale check caused by enemy fire becomes berserk and is then immune to morale checks.",
+   "check": "morale",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    1,
+    1
+   ],
+   "units": [
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    }
+   ],
+   "unit": "t",
+   "expect_events": [
+    {
+     "rule_id": "18.4",
+     "kind": "berserk"
+    }
+   ],
+   "expect_units": {
+    "t": {
+     "berserk": true,
+     "broken": false
+    }
+   }
+  },
+  {
+   "id": "r19.1-each-hex-entered-costs-its-factors",
+   "rule": "19.1",
+   "type": "valid",
+   "citation": "Rule 19.1: a unit pays the cost of each hex it enters, and the moving player may not take the unit back to its starting point and begin again.",
+   "check": "effect",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "move",
+     "units": [
+      "a"
+     ],
+     "hex": "A2"
+    },
+    {
+     "action": "move",
+     "units": [
+      "a"
+     ],
+     "hex": "A1"
+    }
+   ],
+   "expect_units": {
+    "a": {
+     "hex": "A1",
+     "mf_used": 4
+    }
+   }
+  },
+  {
+   "id": "r19.2-a-unit-with-no-factors-left-may-not-move",
+   "rule": "19.2",
+   "type": "invalid",
+   "citation": "Rule 19.2: once the moving player takes his hand off the counter that unit moves no further. The core applies this when the movement factors are spent.",
+   "check": "legality",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1",
+     "mf_used": 8,
+     "moved": true
+    }
+   ],
+   "illegal": [
+    {
+     "action": "move",
+     "units": [
+      "a"
+     ],
+     "hex": "A2"
+    }
+   ]
+  },
+  {
+   "id": "r19.4-a-squad-in-a-leader-stack-moves-with-the-leader",
+   "rule": "19.4",
+   "type": "boundary",
+   "citation": "Rule 19.4: infantry units move one at a time unless a squad uses the movement bonus of a leader, and the leader must then accompany it in a stack for the whole phase. The project ruling PR-05 fixes the stack at the first stack move.",
+   "check": "effect",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "lead",
+     "side": "russian",
+     "type": "8-0",
+     "hex": "A1"
+    },
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "stack_move",
+     "units": [
+      "lead",
+      "a"
+     ],
+     "hex": "A2"
+    }
+   ],
+   "expect_illegal_after": [
+    {
+     "action": "move",
+     "units": [
+      "a"
+     ],
+     "hex": "A3"
+    }
+   ]
+  },
+  {
+   "id": "r19.1-a-heavier-load-shortens-the-move",
+   "rule": "19.1",
+   "type": "interaction",
+   "citation": "Rule 19.1 with rule 5.7: the portage cost is paid for the whole phase, so a squad that picks up a machine gun with 3 factors spent has no factors left.",
+   "check": "effect",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1",
+     "mf_used": 6,
+     "moved": true
+    },
+    {
+     "ref": "mmg",
+     "side": "russian",
+     "type": "MMG",
+     "hex": "A1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "pickup",
+     "units": [
+      "a"
+     ],
+     "weapon": "mmg"
+    }
+   ],
+   "expect_illegal_after": [
+    {
+     "action": "move",
+     "units": [
+      "a"
+     ],
+     "hex": "A2"
+    }
+   ]
+  },
+  {
+   "id": "r20.3-twelve-against-four-is-three-to-one",
+   "rule": "20.3",
+   "type": "valid",
+   "citation": "The example in rule 20.3: two 6-2-8 squads that attack a 4-6-7 squad give odds of 12 to 4, which is 3-1. The Close Combat Table gives a kill number of 8 for those odds.",
+   "check": "cc_odds",
+   "attack": 12,
+   "defense": 4,
+   "expect_odds": "3-1",
+   "expect_kill": 8
+  },
+  {
+   "id": "r20.3-fractions-favor-the-defender",
+   "rule": "20.3",
+   "type": "boundary",
+   "citation": "The examples in rule 20.3: 6 to 4 becomes 3-2, 11 to 4 becomes 2-1, and 4 to 15 becomes 1-4.",
+   "check": "cc_odds",
+   "attack": 4,
+   "defense": 15,
+   "expect_odds": "1-4",
+   "expect_kill": 3
+  },
+  {
+   "id": "r20.4-a-unit-attacks-one-time-in-the-phase",
+   "rule": "20.4",
+   "type": "invalid",
+   "citation": "Rule 20.4: the attacks may be divided in any way so long as no unit attacks more than one time in a Close Combat Phase.",
+   "check": "effect",
+   "phase": "close_combat",
+   "sub_step": "cc_declare",
+   "actor": "phasing",
+   "phasing": "russian",
+   "melee": [
+    "A1"
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "e1",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "e2",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "cc_attack",
+     "units": [
+      "a"
+     ],
+     "targets": [
+      "e1"
+     ]
+    }
+   ],
+   "expect_illegal_after": [
+    {
+     "action": "cc_attack",
+     "units": [
+      "a"
+     ],
+     "targets": [
+      "e2"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r20.8-units-that-remain-are-locked-in-melee",
+   "rule": "20.8",
+   "type": "interaction",
+   "citation": "Rule 20.8: when units of the two sides remain in the hex after all close combat attacks, they are locked in melee and may not leave the hex.",
+   "check": "effect",
+   "phase": "close_combat",
+   "sub_step": "cc_declare",
+   "actor": "defender",
+   "phasing": "russian",
+   "dice": [
+    6,
+    6
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "cc_attack",
+     "units": [
+      "e"
+     ],
+     "targets": [
+      "a"
+     ]
+    },
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "20.3",
+     "kind": "cc_miss"
+    },
+    {
+     "rule_id": "20.8",
+     "kind": "melee"
+    }
+   ],
+   "expect_alive": [
+    "a",
+    "e"
+   ]
+  },
+  {
+   "id": "r21.2-a-unit-is-placed-in-its-set-up-area",
+   "rule": "21.2",
+   "type": "valid",
+   "citation": "Rule 21.2: the counters are placed on the mapboard within the areas the scenario calls for.",
+   "check": "effect",
+   "phase": "setup",
+   "active": "german",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "german",
+     "type": "4-6-7"
+    }
+   ],
+   "apply": [
+    {
+     "action": "place",
+     "units": [
+      "a"
+     ],
+     "hex": "A1"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "21.2",
+     "kind": "place"
+    }
+   ],
+   "expect_units": {
+    "a": {
+     "hex": "A1"
+    }
+   }
+  },
+  {
+   "id": "r21.2-a-hex-outside-the-area-is-not-legal",
+   "rule": "21.2",
+   "type": "invalid",
+   "citation": "Rule 21.2: the set up area of the scenario bounds the placement.",
+   "check": "legality",
+   "phase": "setup",
+   "active": "german",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "german",
+     "type": "4-6-7"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "place",
+     "units": [
+      "a"
+     ],
+     "hex": "C4"
+    }
+   ]
+  },
+  {
+   "id": "r21.2-set-up-ends-when-every-unit-is-placed",
+   "rule": "21.2",
+   "type": "boundary",
+   "citation": "Rule 21.2: the side places the counters it needs, and the set up of that side is over when they are on the board.",
+   "check": "legality",
+   "phase": "setup",
+   "active": "german",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "german",
+     "type": "4-6-7"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "end_setup"
+    }
+   ]
+  },
+  {
+   "id": "r21.2-a-weapon-needs-a-carrier-in-the-hex",
+   "rule": "21.2",
+   "type": "interaction",
+   "citation": "Rule 21.2 with rule 5.43: a support weapon has no movement of its own, so it is placed with the unit that carries it or on a hex of the set up area.",
+   "check": "legality",
+   "phase": "setup",
+   "active": "german",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "lmg",
+     "side": "german",
+     "type": "LMG"
+    }
+   ],
+   "legal": [
+    {
+     "action": "place_weapon",
+     "units": [
+      "a"
+     ],
+     "weapon": "lmg"
+    }
+   ]
+  },
+  {
+   "id": "r14.5-a-second-leader-helps-a-broken-leader-rally",
+   "rule": "14.5",
+   "type": "interaction",
+   "citation": "Rule 14.5 with rule 15.7: when more than one leader is with a broken unit, one unbroken leader is enough, and its rating modifies the rally roll of the broken leader. A 10-2 leader turns a roll of 11 into 9, which a 9-1 leader passes.",
+   "check": "effect",
+   "phase": "rally",
+   "sub_step": "rally_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "dice": [
+    5,
+    6
+   ],
+   "units": [
+    {
+     "ref": "lead",
+     "side": "russian",
+     "type": "9-1",
+     "hex": "A1",
+     "broken": true
+    },
+    {
+     "ref": "lead2",
+     "side": "russian",
+     "type": "10-2",
+     "hex": "A1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "rally",
+     "units": [
+      "lead"
+     ]
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "14.2",
+     "kind": "rallied",
+     "data": {
+      "leadership": -2,
+      "adjusted": 9
+     }
+    }
+   ],
+   "expect_units": {
+    "lead": {
+     "broken": false
+    }
+   }
+  }
+ ]
+}

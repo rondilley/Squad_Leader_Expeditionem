@@ -1,0 +1,339 @@
+{
+ "id": "s01_guards_counterattack",
+ "title": "The Guards Counterattack",
+ "notes": "Scenario 1 of the 1977 game, in the project's own words (FR-22). Stalingrad, October 1942. A Russian guards battalion counterattacks a German company in a city block. The force lists, the turn count, and the victory conditions come from the scenario card as docs/research/2026-09-07_RV-2_boards_scenarios.md section 3 records them. The card text is not reproduced. The set up areas use zones, because the printed board layout is not in this repository (DR-06). The Russians hold the west band of the board and the Germans the east band. Inside a band the buildings are sorted by hex count, from the largest, so rank 0 is the largest building and it holds the largest group. The generator zones make the board that this needs.",
+ "board": "city",
+ "board_generator": {
+  "seed": 19771001,
+  "board_type": "city",
+  "cols": 33,
+  "rows": 10,
+  "building_density": 2,
+  "zones": [
+   {
+    "count": 5,
+    "min_hexes": 2,
+    "max_hexes": 6,
+    "min_col": 0,
+    "max_col": 7
+   },
+   {
+    "count": 1,
+    "min_hexes": 4,
+    "max_hexes": 6,
+    "min_col": 0,
+    "max_col": 7
+   },
+   {
+    "count": 5,
+    "min_hexes": 2,
+    "max_hexes": 6,
+    "min_col": 8,
+    "max_col": 15
+   }
+  ]
+ },
+ "board_columns": [
+  0,
+  15
+ ],
+ "turns": 5,
+ "first_mover": "russian",
+ "setup_order": [
+  "german",
+  "russian"
+ ],
+ "rules_used": [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "11",
+  "12",
+  "13",
+  "14",
+  "15",
+  "16",
+  "17",
+  "18",
+  "19",
+  "20",
+  "21"
+ ],
+ "switches": {
+  "predesignation": "basic",
+  "semi_simultaneous": "off"
+ },
+ "sides": [
+  {
+   "side": "german",
+   "nationality": "german",
+   "groups": [
+    {
+     "id": "g_kelso",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 8,
+      "max_col": 15,
+      "rank": 2
+     },
+     "units": [
+      {
+       "type": "9-1",
+       "name": "Sgt Kelso"
+      },
+      {
+       "type": "4-6-7",
+       "count": 3
+      },
+      {
+       "type": "LMG",
+       "count": 2
+      }
+     ]
+    },
+    {
+     "id": "g_pollack",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 8,
+      "max_col": 15,
+      "rank": 3
+     },
+     "units": [
+      {
+       "type": "8-0",
+       "name": "Cpl Pollack"
+      },
+      {
+       "type": "4-6-7",
+       "count": 3
+      },
+      {
+       "type": "LMG",
+       "count": 2
+      }
+     ]
+    },
+    {
+     "id": "g_wetzelberge",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 8,
+      "max_col": 15,
+      "rank": 0
+     },
+     "units": [
+      {
+       "type": "9-2",
+       "name": "Cpt Wetzelberge"
+      },
+      {
+       "type": "4-6-7",
+       "count": 3
+      },
+      {
+       "type": "LMG",
+       "count": 3
+      }
+     ]
+    },
+    {
+     "id": "g_hamblen",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 8,
+      "max_col": 15,
+      "rank": 1
+     },
+     "units": [
+      {
+       "type": "8-1",
+       "name": "Sgt Hamblen"
+      },
+      {
+       "type": "4-6-7",
+       "count": 3
+      },
+      {
+       "type": "LMG",
+       "count": 1
+      },
+      {
+       "type": "MMG",
+       "count": 1
+      }
+     ]
+    },
+    {
+     "id": "g_hieken",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 8,
+      "max_col": 15,
+      "rank": 4
+     },
+     "units": [
+      {
+       "type": "8-1",
+       "name": "Sgt Hieken"
+      },
+      {
+       "type": "4-6-7",
+       "count": 1
+      },
+      {
+       "type": "HMG",
+       "count": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "side": "russian",
+   "nationality": "russian",
+   "groups": [
+    {
+     "id": "r_cohenov",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 0,
+      "max_col": 7,
+      "rank": 1,
+      "min_hexes": 2
+     },
+     "units": [
+      {
+       "type": "8-0",
+       "name": "Com Cohenov"
+      },
+      {
+       "type": "4-4-7",
+       "count": 4
+      }
+     ]
+    },
+    {
+     "id": "r_dubovich",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 0,
+      "max_col": 7,
+      "rank": 3
+     },
+     "units": [
+      {
+       "type": "9-1",
+       "name": "Lt Dubovich"
+      },
+      {
+       "type": "4-4-7",
+       "count": 1
+      },
+      {
+       "type": "MMG",
+       "count": 1
+      }
+     ]
+    },
+    {
+     "id": "r_m2",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 0,
+      "max_col": 7,
+      "rank": 2
+     },
+     "units": [
+      {
+       "type": "4-4-7",
+       "count": 3
+      }
+     ]
+    },
+    {
+     "id": "r_n2",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 0,
+      "max_col": 7,
+      "rank": 4
+     },
+     "units": [
+      {
+       "type": "4-4-7",
+       "count": 1
+      }
+     ]
+    },
+    {
+     "id": "r_guards",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 0,
+      "max_col": 7,
+      "rank": 0,
+      "min_hexes": 4
+     },
+     "units": [
+      {
+       "type": "10-2",
+       "name": "Col Berki"
+      },
+      {
+       "type": "6-2-8",
+       "count": 12
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "victory": [
+  {
+   "kind": "building_swing",
+   "side": "russian",
+   "margin": 2,
+   "enemy_groups": [
+    "g_kelso",
+    "g_pollack",
+    "g_wetzelberge",
+    "g_hamblen",
+    "g_hieken"
+   ],
+   "own_groups": [
+    "r_cohenov",
+    "r_dubovich",
+    "r_m2",
+    "r_n2",
+    "r_guards"
+   ],
+   "note": "The Russians must completely occupy two more of the German stone buildings than they lose of their own."
+  },
+  {
+   "kind": "unbroken_squad_ratio",
+   "side": "russian",
+   "numerator": 3,
+   "denominator": 1,
+   "note": "Or hold a 3 to 1 ratio of unbroken squads at game end."
+  }
+ ],
+ "board_retries": 24
+}

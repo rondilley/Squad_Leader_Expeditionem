@@ -1,0 +1,150 @@
+{
+ "nationality": "american",
+ "version": 3,
+ "provenance": [
+  "Values transcribed from the counter sheet scan described in docs/research/2026-09-07_RV-1_counters_charts.md sections 2 to 4 [S1]. The project writes them in its own layout and ships no counter art (SR-07).",
+  "Squad values are firepower-range-morale (rules 2.2 to 2.4). broken_morale is the number on the reverse side, used for rally and for morale checks of a broken unit (rules 13.6, 14.1).",
+  "The American squad is the 8-4-7 elite squad and the 6-6-6 line squad. RV-1 section 2 records that the 7-4-7 squad belongs to GI: Anvil of Victory and not to the 1977 base game.",
+  "The American set has no light machine gun counter. RV-1 section 4 lists no American LMG, because the automatic rifle of the squad is inherent firepower.",
+  "Machine gun penetration equals the firepower factor (rules 2.8 and 17.8).",
+  "Portage points come from the Support Weapons Chart (RV-1 section 7.3), which gives the cost by weapon and not by nationality. A null pp_leader means one leader cannot carry the weapon (chart note A: two leaders may carry one MMG or HMG one hex per Movement Phase).",
+  "heavy marks a weapon that rule 27.3 keeps out of the sewers: the heavy machine gun, the mortar, the one hundred and five millimetre gun, and the anti-tank gun.",
+  "Rule 18.4 gives berserk status to Russian units only, so the American set has no berserk counter.",
+  "Year one plays rules 1 to 27, the infantry game. The bazooka (rule 37), the radio, the mortar, the howitzer, and the guns are on the American counter sheet, and they wait for the armor game and the artillery rules. RV-1 section 4 records their counter values.",
+  "Vehicle values come from the counter sheet scan described in docs/research/2026-09-07_RV-1_counters_charts.md section 5 [S1]: movement points in the top right, main gun calibre in the bottom left, and the two machine gun factors in the bottom right. gun_he_only is the overscored calibre of rule 28.2 and gun_low_velocity is the asterisk of the same rule. survival is the number on the wreck side, which rule 33.9 uses for the crew. armor_key names the row of rule 33.41 in tables/armor.json. transport_pp is the P number on the counter, and rules 47 and 51 give it its meaning."
+ ],
+ "types": {
+  "6-6-6": {
+   "kind": "squad",
+   "fp": 6,
+   "range": 6,
+   "morale": 6,
+   "broken_morale": 6,
+   "count": 32
+  },
+  "8-4-7": {
+   "kind": "squad",
+   "fp": 8,
+   "range": 4,
+   "morale": 7,
+   "broken_morale": 7,
+   "count": 16,
+   "elite": true
+  },
+  "2-4-6": {
+   "kind": "crew",
+   "fp": 2,
+   "range": 4,
+   "morale": 6,
+   "broken_morale": 6,
+   "count": 11
+  },
+  "10-3": {
+   "kind": "leader",
+   "morale": 10,
+   "leadership": -3
+  },
+  "10-2": {
+   "kind": "leader",
+   "morale": 10,
+   "leadership": -2
+  },
+  "9-2": {
+   "kind": "leader",
+   "morale": 9,
+   "leadership": -2
+  },
+  "9-1": {
+   "kind": "leader",
+   "morale": 9,
+   "leadership": -1
+  },
+  "8-1": {
+   "kind": "leader",
+   "morale": 8,
+   "leadership": -1
+  },
+  "8-0": {
+   "kind": "leader",
+   "morale": 8,
+   "leadership": 0
+  },
+  "7-0": {
+   "kind": "leader",
+   "morale": 7,
+   "leadership": 0
+  },
+  "MMG": {
+   "kind": "sw",
+   "weapon_class": "mg",
+   "fp": 4,
+   "range": 12,
+   "breakdown": 12,
+   "penetration": 4,
+   "pp_squad": 4,
+   "pp_leader": null,
+   "count": 11
+  },
+  "HMG": {
+   "kind": "sw",
+   "weapon_class": "mg",
+   "fp": 8,
+   "range": 20,
+   "breakdown": 12,
+   "penetration": 8,
+   "pp_squad": 5,
+   "pp_leader": null,
+   "heavy": true,
+   "count": 7
+  },
+  "FT": {
+   "kind": "sw",
+   "weapon_class": "flamethrower",
+   "fp": 20,
+   "range": 2,
+   "breakdown": 9,
+   "penetration": 0,
+   "pp_squad": 2,
+   "pp_leader": 2,
+   "count": 3,
+   "note": "Rule 22. The breakdown number is the out of fuel roll of rule 22.6, and the weapon leaves the game."
+  },
+  "DC": {
+   "kind": "sw",
+   "weapon_class": "demo",
+   "fp": 30,
+   "range": 1,
+   "breakdown": 12,
+   "penetration": 0,
+   "pp_squad": 1,
+   "pp_leader": 1,
+   "count": 5,
+   "note": "Rule 23. The charge is placed in an adjacent hex and explodes in the following Advancing Fire Phase."
+  },
+    "M4A4": {"kind": "vehicle", "vehicle_class": "tank", "mp": 16, "gun": 75, "mg_ca": 4, "mg_360": 6, "survival": 5, "armor_key": "m4a4", "count": 5},
+    "M4M52": {"kind": "vehicle", "vehicle_class": "tank", "mp": 14, "gun": 105, "gun_he_only": true, "gun_low_velocity": true, "heat": true, "mg_ca": 4, "mg_360": 6, "survival": 5, "armor_key": "m4m52", "count": 2},
+    "Priest": {"kind": "vehicle", "vehicle_class": "sp_gun", "mp": 14, "gun": 105, "gun_he_only": true, "heat": true, "mg_ca": 4, "mg_360": 2, "survival": 6, "armor_key": "priest", "open_top": true, "count": 2},
+    "M10": {"kind": "vehicle", "vehicle_class": "tank", "mp": 18, "gun": 75, "mg_ca": 0, "mg_360": 6, "survival": 4, "armor_key": "m10", "open_top": true, "fires_twice": true, "count": 2},
+    "M16": {"kind": "vehicle", "vehicle_class": "halftrack", "mp": 16, "mg_360": 24, "quad_fifty": true, "survival": 4, "armor_key": "halftrack", "open_top": true, "count": 1},
+    "M3HTMG": {"kind": "vehicle", "vehicle_class": "halftrack", "mp": 16, "transport_pp": 5, "mg_360": 4, "survival": 4, "armor_key": "halftrack", "open_top": true, "count": 5},
+    "M3HT": {"kind": "vehicle", "vehicle_class": "halftrack", "mp": 16, "transport_pp": 5, "survival": 0, "armor_key": "halftrack", "open_top": true, "count": 4},
+    "Truck": {"kind": "vehicle", "vehicle_class": "truck", "mp": 24, "transport_pp": 7, "survival": 0, "count": 6},
+    "Jeep": {"kind": "vehicle", "vehicle_class": "jeep", "mp": 24, "survival": 0, "count": 3},
+    "BAZ": {"kind": "sw", "weapon_class": "bazooka", "fp": 6, "range": 4, "breakdown": 11, "penetration": 0, "pp_squad": 1, "pp_leader": 2, "count": 6, "note": "Rule 37.4. Reusable. Rule 37.45 removes it on an unmodified 11 or 12 on the to-hit dice. Rule 37.47 fires high explosive at infantry on the 6 column of the Infantry Fire Table."}
+ },
+ "leaders": [
+  {"name": "Cpt Robinson", "type": "9-2"},
+  {"name": "Cpt Shaw", "type": "9-2"},
+  {"name": "Sgt May", "type": "9-2"},
+  {"name": "Lt Greenwood", "type": "9-1"},
+  {"name": "Lt Hill", "type": "9-1"},
+  {"name": "Sgt Greene", "type": "9-1"},
+  {"name": "Cpl Medrow", "type": "8-1"},
+  {"name": "Sgt Thornton", "type": "8-1"},
+  {"name": "Sgt Allan", "type": "8-1"},
+  {"name": "Cpl Jones", "type": "8-0"},
+  {"name": "Cpl Miller", "type": "8-0"},
+  {"name": "Cpl Blumberg", "type": "8-0"},
+  {"name": "Lt Jackson", "type": "7-0"}
+ ]
+}

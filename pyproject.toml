@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "squad_leader_ai"
+version = "0.1.0"
+description = "A rules engine, host, trainer, and agent harness for a browser edition of a 1977 tactical board game. Working name; not affiliated with Hasbro or Multi-Man Publishing."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "GPL-3.0-or-later"
+dependencies = [
+    "websockets>=13",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "hypothesis>=6.100",
+]
+browser = [
+    "playwright>=1.47",
+]
+desktop = [
+    "pygame-ce>=2.5",
+]
+train = [
+    "torch>=2.4",
+    "numpy>=2.0",
+    "pettingzoo>=1.24",
+    "gymnasium>=1.0",
+    "tensorboard>=2.17",
+]
+finetune = [
+    "torch>=2.4",
+    "transformers>=4.44",
+    "peft>=0.12",
+    "datasets>=2.20",
+    "accelerate>=0.33",
+]
+
+[project.scripts]
+sl-cli = "slcli.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+sldata = ["tables/*.json", "counters/*.json", "scenarios/*.json", "rulings/*.json", "boards/*.json", "providers.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+addopts = "-m 'not integration and not gate'"
+asyncio_mode = "auto"
+markers = [
+    "integration: tests that call a real external service",
+    "slow: tests that take more than a few seconds",
+    "gate: the long measurement that one success criterion asks for; run it with -m gate",
+]

@@ -1,0 +1,27 @@
+{
+  "board": "fixture-10x10",
+  "note": "Each case recreates a rule 7 or rule 11.5 situation on the hand-written fixture board. The citation names the rule and gives the situation in the project's words. The hex names are fixture hexes, not board 1 hexes.",
+  "cases": [
+    {"id": "r7.8-adjacent-through-building", "rule": "7.8", "citation": "Units may always fire into an adjacent hex regardless of terrain.", "firer": "C3", "target": "C4", "expect": "clear", "rule_id": "7.8"},
+    {"id": "r7.8-adjacent-woods", "rule": "7.8", "citation": "Adjacent hexes are in LOS even when the target is a woods hex.", "firer": "E2", "target": "E1", "expect": "clear", "rule_id": "7.8"},
+    {"id": "r7.7-same-building-through-symbol", "rule": "7.7", "citation": "Units in the same building may not see each other when the LOS crosses a building symbol in an intervening hex. The rulebook example is N3 to N5.", "firer": "C3", "target": "C5", "expect": "blocked", "rule_id": "7.7", "blocking_hex": "C4"},
+    {"id": "r7.7-same-building-past-symbol", "rule": "7.7", "citation": "Units in the same building see each other when the LOS crosses no building symbol in an intervening hex. The rulebook example is N3 to M5.", "firer": "C3", "target": "B5", "expect": "clear"},
+    {"id": "r7.4-over-small-building", "rule": "7.4", "citation": "A unit in a multi-story building fires over a building of 2 hexes or smaller. The rulebook example is T2 over T4 to T6.", "firer": "G6", "target": "G10", "expect": "clear", "rule_id": "7.4"},
+    {"id": "r7.4-blind-hex", "rule": "7.4", "citation": "The hex directly behind the obstacle is a blind hex. The rulebook example is T5 behind T4.", "firer": "G6", "target": "G9", "expect": "blocked", "rule_id": "7.4", "blocking_hex": "G8"},
+    {"id": "r7.4-into-obstacle-hex", "rule": "7.4", "citation": "The unit may fire at the obstacle hex itself. The rulebook example is T4.", "firer": "G6", "target": "G8", "expect": "clear"},
+    {"id": "r7.4-adjacent", "rule": "7.4", "citation": "The unit may fire at the hex before the obstacle. The rulebook example is T3.", "firer": "G6", "target": "G7", "expect": "clear"},
+    {"id": "r7.6-ground-to-multi-story", "rule": "7.6", "citation": "Units on ground level see over intervening obstacles to multi-story buildings.", "firer": "G10", "target": "G6", "expect": "clear"},
+    {"id": "r7.6-from-blind-hex", "rule": "7.6", "citation": "Fire from ground level at a multi-story building cannot come from a blind hex.", "firer": "G9", "target": "G6", "expect": "blocked", "rule_id": "7.6", "blocking_hex": "G8"},
+    {"id": "r7.3-ground-blocked", "rule": "7.3", "citation": "LOS extends into a woods or building symbol but not through it.", "firer": "G10", "target": "G7", "expect": "blocked", "rule_id": "7.3", "blocking_hex": "G8"},
+    {"id": "r7.3-ground-blocked-reverse", "rule": "7.3", "citation": "The same LOS from the other end.", "firer": "G7", "target": "G10", "expect": "blocked", "rule_id": "7.3", "blocking_hex": "G8"},
+    {"id": "r7.3-woods", "rule": "7.3", "citation": "A woods symbol in an intervening hex stops the LOS.", "firer": "E3", "target": "E1", "expect": "blocked", "rule_id": "7.3", "blocking_hex": "E2"},
+    {"id": "r7.5-multi-story-obstructs-all", "rule": "7.5", "citation": "Multi-story buildings obstruct all LOS regardless of elevation, here between two multi-story buildings.", "firer": "C5", "target": "G5", "expect": "blocked", "rule_id": "7.5", "blocking_hex": "E5"},
+    {"id": "r7.2-own-hex-symbol", "rule": "7.2", "citation": "Symbols in the firing or target hex do not obstruct the LOS.", "firer": "G8", "target": "G10", "expect": "clear", "rule_id": "7.2"},
+    {"id": "r11.51-wall-in-the-middle", "rule": "11.51", "citation": "A LOS may not be traced through a wall hexside unless it ends or originates in the hex that hexside forms.", "firer": "F4", "target": "F7", "expect": "blocked", "rule_id": "11.51"},
+    {"id": "r11.51-wall-at-firer", "rule": "11.51", "citation": "The LOS originates in the hex that the wall hexside forms.", "firer": "F5", "target": "F7", "expect": "clear"},
+    {"id": "r11.51-wall-at-target", "rule": "11.51", "citation": "The LOS ends in the hex that the wall hexside forms.", "firer": "F4", "target": "F6", "expect": "clear"},
+    {"id": "r17.7-hexside-choice", "rule": "17.7", "citation": "A LOS traced exactly along a hexside passes through one of the adjoining hexes at the firer's choice. Here H4 is woods and H5 is open.", "firer": "I5", "target": "G5", "expect": "clear", "traced": ["H5"]},
+    {"id": "r17.5-thread-order", "rule": "17.5", "citation": "The hexes crossed by a LOS are in firer-to-target order for penetration. A hex beside the LOS is not on it.", "firer": "G1", "target": "G10", "expect": "blocked", "traced": ["G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9"], "not_traced": ["F5", "H5"]},
+    {"id": "r44-wheat-hindrance-count", "rule": "44", "citation": "Wheat hexes on the LOS are counted as hindrances. The modifier waits for rule 44.", "firer": "I4", "target": "I7", "expect": "clear", "hindrance": 2}
+  ]
+}

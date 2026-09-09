@@ -1,0 +1,38 @@
+{
+  "nationality": "russian",
+  "version": 2,
+  "provenance": [
+    "heavy marks a weapon that rule 27.3 keeps out of the sewers: the heavy machine gun, the mortar, the one hundred and five millimetre gun, and the anti-tank gun.",
+    "Values transcribed from the counter sheet scan described in docs/research/2026-09-07_RV-1_counters_charts.md sections 2 to 4 [S1]. The project writes them in its own layout and ships no counter art (SR-07).",
+    "The HMG value: RV-1 section 4 reads 8-20 B12 from the scan. The discovery notes read 6-20 B12 from the lower-resolution photo. The scan wins until the owner checks the counter. Scenarios 1 to 3A use no Russian HMG.",
+    "Machine gun penetration equals the firepower factor (rules 2.8 and 17.8).",
+    "Rule 18.4: Russian units go berserk on an unmodified morale check roll of 2. The berserk counters are the same types with the berserk flag in the unit state, not different types.",
+    "Vehicle values come from the counter sheet scan described in docs/research/2026-09-07_RV-1_counters_charts.md section 5 [S1]: movement points in the top right, main gun calibre in the bottom left, and the two machine gun factors in the bottom right. gun_he_only is the overscored calibre of rule 28.2 and gun_low_velocity is the asterisk of the same rule. survival is the number on the wreck side, which rule 33.9 uses for the crew. armor_key names the row of rule 33.41 in tables/armor.json. transport_pp is the P number on the counter, and rules 47 and 51 give it its meaning."
+  ],
+  "types": {
+    "4-4-7": {"kind": "squad", "fp": 4, "range": 4, "morale": 7, "broken_morale": 7, "count": 53},
+    "6-2-8": {"kind": "squad", "fp": 6, "range": 2, "morale": 8, "broken_morale": 8, "count": 13, "elite": true},
+    "2-3-7": {"kind": "crew", "fp": 2, "range": 3, "morale": 7, "broken_morale": 7, "count": 10},
+    "10-3": {"kind": "leader", "morale": 10, "leadership": -3},
+    "10-2": {"kind": "leader", "morale": 10, "leadership": -2},
+    "9-2": {"kind": "leader", "morale": 9, "leadership": -2},
+    "9-1": {"kind": "leader", "morale": 9, "leadership": -1},
+    "8-1": {"kind": "leader", "morale": 8, "leadership": -1},
+    "8-0": {"kind": "leader", "morale": 8, "leadership": 0},
+    "7-0": {"kind": "leader", "morale": 7, "leadership": 0},
+    "LMG": {"kind": "sw", "weapon_class": "mg", "fp": 2, "range": 6, "breakdown": 10, "penetration": 2, "pp_squad": 1, "pp_leader": 2, "count": 12},
+    "MMG": {"kind": "sw", "weapon_class": "mg", "fp": 4, "range": 10, "breakdown": 11, "penetration": 4, "pp_squad": 4, "pp_leader": null, "count": 6},
+    "HMG": {"kind": "sw", "weapon_class": "mg", "fp": 8, "range": 20, "breakdown": 12, "penetration": 8, "pp_squad": 5, "pp_leader": null, "heavy": true, "count": 3},
+    "T34": {"kind": "vehicle", "vehicle_class": "tank", "mp": 16, "gun": 76, "mg_ca": 4, "mg_360": 0, "survival": 5, "armor_key": "t34", "count": 6},
+    "SU122": {"kind": "vehicle", "vehicle_class": "sp_gun", "mp": 10, "gun": 122, "gun_he_only": true, "gun_low_velocity": true, "survival": 6, "armor_key": "su122", "count": 3},
+    "SU152": {"kind": "vehicle", "vehicle_class": "sp_gun", "mp": 8, "gun": 152, "gun_he_only": true, "gun_low_velocity": true, "survival": 6, "armor_key": "su152", "count": 2},
+    "M3HT": {"kind": "vehicle", "vehicle_class": "halftrack", "mp": 16, "transport_pp": 5, "survival": 0, "armor_key": "halftrack", "open_top": true, "count": 3},
+    "M3HTMG": {"kind": "vehicle", "vehicle_class": "halftrack", "mp": 16, "transport_pp": 5, "mg_360": 4, "survival": 4, "armor_key": "halftrack", "open_top": true, "count": 2},
+    "Truck": {"kind": "vehicle", "vehicle_class": "truck", "mp": 24, "transport_pp": 7, "survival": 0, "count": 4}
+  },
+  "leaders": [
+    {"name": "Com Dottski", "type": "9-1"}, {"name": "Col Berki", "type": "10-2"}, {"name": "Maj Kirkov", "type": "9-2"},
+    {"name": "Lt Dubovich", "type": "9-1"}, {"name": "Com Cohenov", "type": "8-0"}, {"name": "Lt Eastonov", "type": "8-0"},
+    {"name": "Lt Burnski", "type": "8-0"}
+  ]
+}

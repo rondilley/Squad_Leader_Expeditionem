@@ -1,0 +1,4123 @@
+{
+  "family": "The armor game, rules 28 to 41",
+  "cases": [
+    {
+      "id": "r28.2-an-overscored-gun-fires-high-explosive-only",
+      "rule": "28.2",
+      "type": "valid",
+      "citation": "Rule 28.2 and rule 33.6: a main gun calibre with a line over it fires high explosive only. Every other gun fires armour piercing or high explosive.",
+      "check": "legality",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "sp",
+          "side": "german",
+          "type": "STGIII105",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "e",
+          "side": "russian",
+          "type": "T34",
+          "hex": "F1",
+          "facing": 3
+        }
+      ],
+      "legal": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "sp"
+          ],
+          "hex": "F1",
+          "aim": "vehicle",
+          "ammo": "he"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "sp"
+          ],
+          "hex": "F1",
+          "aim": "vehicle",
+          "ammo": "ap"
+        }
+      ]
+    },
+    {
+      "id": "r29.1-a-vehicle-does-not-stop-in-a-hex-that-holds-a-vehicle",
+      "rule": "29.1",
+      "type": "boundary",
+      "citation": "Rule 29.1 and rule 30.8: any number of vehicles may pass through a hex during the turn, and no two may end their turn in the same hex.",
+      "check": "legality",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "a",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1
+        },
+        {
+          "ref": "b",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D2",
+          "facing": 1,
+          "mp_used": 22
+        }
+      ],
+      "legal": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "a"
+          ],
+          "hex": "E1"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "b"
+          ],
+          "hex": "D1"
+        }
+      ]
+    },
+    {
+      "id": "r29.4-a-tank-that-fires-outside-its-covered-arc-takes-case-d",
+      "rule": "33.31",
+      "type": "valid",
+      "citation": "Rule 29.4 gives the covered arc, and rule 33.31 case D adds two to the to-hit dice roll when a tank fires outside it.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        3,
+        3
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D5",
+          "facing": 3
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "D3"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "D3",
+          "aim": "infantry",
+          "ammo": "he"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "33.3",
+          "kind": "to_hit",
+          "data": {
+            "cases": [
+              "D"
+            ],
+            "modifier": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "r30.1-a-vehicle-does-not-enter-a-stone-building",
+      "rule": "30.1",
+      "type": "invalid",
+      "citation": "Rule 30.1: vehicular counters may not enter stone building hexes under any circumstances.",
+      "check": "legality",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D4",
+          "facing": 1
+        }
+      ],
+      "illegal": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "t"
+          ],
+          "hex": "E4"
+        }
+      ]
+    },
+    {
+      "id": "r30.3-a-vehicle-always-moves-one-hex",
+      "rule": "30.3",
+      "type": "boundary",
+      "citation": "Rule 30.3: vehicles may always move one hex per turn, whatever the cost on the Vehicle Movement Cost Chart.",
+      "check": "legality",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1
+        }
+      ],
+      "legal": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "t"
+          ],
+          "hex": "E2"
+        }
+      ]
+    },
+    {
+      "id": "r30.5-a-vehicle-turns-inside-its-hex",
+      "rule": "30.5",
+      "type": "valid",
+      "citation": "Rule 30.5: vehicles may change their facing, and with it their covered arc.",
+      "check": "effect",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1
+        }
+      ],
+      "apply": [
+        {
+          "action": "vehicle_pivot",
+          "units": [
+            "t"
+          ],
+          "facing": 4
+        }
+      ],
+      "expect_units": {
+        "t": {
+          "facing": 4,
+          "pivoted": true
+        }
+      }
+    },
+    {
+      "id": "r30.2-woods-cost-six-movement-points",
+      "rule": "30.2",
+      "type": "valid",
+      "citation": "Rule 30 Vehicle Movement Cost Chart: a woods hex costs six movement points, and rule 39.1 asks for the breakdown die on the way in.",
+      "check": "effect",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "single_dice": true,
+      "dice": [
+        1
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D2",
+          "facing": 0
+        }
+      ],
+      "apply": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "t"
+          ],
+          "hex": "E2"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "30.2",
+          "kind": "vehicle_move",
+          "data": {
+            "cost_halves": 12
+          }
+        },
+        {
+          "rule_id": "39.1",
+          "kind": "breakdown_roll",
+          "data": {
+            "die": 1,
+            "breaks_on": 5,
+            "immobilized": false
+          }
+        }
+      ],
+      "expect_units": {
+        "t": {
+          "mp_used": 12,
+          "immobilized": false
+        }
+      }
+    },
+    {
+      "id": "r39.1-a-german-vehicle-breaks-down-on-a-five",
+      "rule": "39.1",
+      "type": "boundary",
+      "citation": "Rule 39.1: a roll of six breaks down an American or a Russian vehicle in woods or a wood building, and a five or a six breaks down a German one.",
+      "check": "effect",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "single_dice": true,
+      "dice": [
+        5
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D2",
+          "facing": 0
+        }
+      ],
+      "apply": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "t"
+          ],
+          "hex": "E2"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "39.1",
+          "kind": "breakdown_roll",
+          "data": {
+            "die": 5,
+            "immobilized": true
+          }
+        }
+      ],
+      "expect_units": {
+        "t": {
+          "immobilized": true
+        }
+      }
+    },
+    {
+      "id": "r31.1-one-squad-rides-and-a-second-does-not",
+      "rule": "31.1",
+      "type": "boundary",
+      "citation": "Rule 31.1: an armoured fighting vehicle carries two infantry units at most, of which one may be a squad.",
+      "check": "legality",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1
+        },
+        {
+          "ref": "a",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1",
+          "riding": "t"
+        },
+        {
+          "ref": "b",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1"
+        },
+        {
+          "ref": "l",
+          "side": "german",
+          "type": "8-1",
+          "hex": "D1"
+        }
+      ],
+      "legal": [
+        {
+          "action": "board",
+          "units": [
+            "l"
+          ],
+          "vehicle": "t"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "board",
+          "units": [
+            "b"
+          ],
+          "vehicle": "t"
+        }
+      ]
+    },
+    {
+      "id": "r31.3-a-vehicle-that-was-boarded-does-not-move",
+      "rule": "31.3",
+      "type": "invalid",
+      "citation": "Rule 31.3: the vehicle may not move during the turn in which infantry board it.",
+      "check": "legality",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1,
+          "boarded": true
+        },
+        {
+          "ref": "a",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1",
+          "riding": "t"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "t"
+          ],
+          "hex": "D2"
+        }
+      ]
+    },
+    {
+      "id": "r31.3-a-passenger-costs-the-vehicle-two-movement-points",
+      "rule": "31.3",
+      "type": "valid",
+      "citation": "Rule 31.3: the vehicle must pay a two movement point penalty to allow units to debark.",
+      "check": "effect",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1
+        },
+        {
+          "ref": "a",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1",
+          "riding": "t"
+        }
+      ],
+      "apply": [
+        {
+          "action": "debark",
+          "units": [
+            "a"
+          ],
+          "hex": "D2"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "31.3",
+          "kind": "debark_cost",
+          "data": {
+            "cost_halves": 4
+          }
+        }
+      ],
+      "expect_units": {
+        "t": {
+          "mp_used": 4
+        },
+        "a": {
+          "hex": "D2"
+        }
+      }
+    },
+    {
+      "id": "r31.5-a-passenger-does-not-fire",
+      "rule": "31.5",
+      "type": "invalid",
+      "citation": "Rule 31.5: infantry carried on a tank or a self-propelled gun may not fire while it is being transported.",
+      "check": "legality",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1
+        },
+        {
+          "ref": "a",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1",
+          "riding": "t"
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "D2"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "group_add",
+          "units": [
+            "a"
+          ],
+          "hex": "D2"
+        }
+      ]
+    },
+    {
+      "id": "r31.7-a-vehicle-that-fires-puts-its-passengers-off",
+      "rule": "31.7",
+      "type": "interaction",
+      "citation": "Rule 31.7: if a tank or a self-propelled gun fires any armament while transporting infantry, the riding infantry immediately dismount.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        3,
+        3,
+        3,
+        3
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "a",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "C1",
+          "riding": "t"
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "F1"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "F1",
+          "aim": "infantry",
+          "ammo": "he"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "31.7",
+          "kind": "dismount",
+          "data": {
+            "unit": 1
+          }
+        }
+      ],
+      "expect_units": {
+        "a": {
+          "passenger_of": null,
+          "hex": "C1"
+        }
+      }
+    },
+    {
+      "id": "r31.8-the-passengers-of-a-destroyed-vehicle-are-eliminated",
+      "rule": "31.8",
+      "type": "interaction",
+      "citation": "Rule 31.8: if an armoured fighting vehicle is destroyed all its passengers are eliminated.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        1,
+        1,
+        1,
+        1,
+        6,
+        6
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "e",
+          "side": "russian",
+          "type": "T34",
+          "hex": "G1",
+          "facing": 3
+        },
+        {
+          "ref": "r",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "G1",
+          "riding": "e"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "G1",
+          "aim": "vehicle",
+          "ammo": "ap"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "33.4",
+          "kind": "kill_roll",
+          "data": {
+            "killed": true
+          }
+        },
+        {
+          "rule_id": "31.8",
+          "kind": "passenger_eliminated"
+        }
+      ],
+      "expect_eliminated": [
+        "r"
+      ],
+      "expect_units": {
+        "e": {
+          "wreck": true
+        }
+      }
+    },
+    {
+      "id": "r32.5-infantry-beneath-a-vehicle-counter-takes-a-plus-one",
+      "rule": "32.5",
+      "type": "valid",
+      "citation": "Rule 32.5: units beneath an armoured fighting vehicle counter receive a plus one dice roll modifier to all attacks made against them.",
+      "check": "drm",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "s",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "C1"
+        },
+        {
+          "ref": "e",
+          "side": "russian",
+          "type": "T34",
+          "hex": "F1",
+          "facing": 3
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "F1"
+        }
+      ],
+      "members": [
+        "s"
+      ],
+      "target": "F1",
+      "expect_drm": 1
+    },
+    {
+      "id": "r32.3-a-vehicle-blocks-the-line-of-sight-past-the-hex-behind-it",
+      "rule": "32.3",
+      "type": "boundary",
+      "citation": "Rule 32.3: the line of sight of a firing unit that crosses a vehicle outline is affected as if the vehicle were a stone wall on the second hexside of the vehicle hex.",
+      "check": "legality",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "s",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "B1"
+        },
+        {
+          "ref": "v",
+          "side": "russian",
+          "type": "T34",
+          "hex": "D1",
+          "facing": 3
+        },
+        {
+          "ref": "near",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "E1"
+        },
+        {
+          "ref": "far",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "G1"
+        }
+      ],
+      "legal": [
+        {
+          "action": "group_add",
+          "units": [
+            "s"
+          ],
+          "hex": "E1"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "group_add",
+          "units": [
+            "s"
+          ],
+          "hex": "G1"
+        }
+      ]
+    },
+    {
+      "id": "r33.2-a-tank-fires-its-main-armament-one-time-in-a-player-turn",
+      "rule": "33.2",
+      "type": "boundary",
+      "citation": "Rule 33.2: armoured fighting vehicles may fire their main armament only once per player turn, and the M-10 is the exception.",
+      "check": "legality",
+      "phase": "advancing_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0,
+          "gun_shots": 1
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "F1"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "F1",
+          "aim": "infantry",
+          "ammo": "he"
+        }
+      ],
+      "legal": [
+        {
+          "action": "afv_mg",
+          "units": [
+            "t"
+          ],
+          "hex": "F1"
+        }
+      ]
+    },
+    {
+      "id": "r33.3-the-to-hit-number-comes-from-the-target-type-and-the-range",
+      "rule": "33.3",
+      "type": "valid",
+      "citation": "Rule 33.3: the target type and the range to target are cross indexed to give the hit number, which must be rolled equal to or less than.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "e",
+          "side": "russian",
+          "type": "T34",
+          "hex": "G1",
+          "facing": 3
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "G1",
+          "aim": "vehicle",
+          "ammo": "ap"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "33.3",
+          "kind": "to_hit",
+          "data": {
+            "row": "vehicle_in_other",
+            "needed": 10,
+            "hit": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "r33.4-the-kill-number-comes-from-the-weapon-and-the-target-facing",
+      "rule": "33.4",
+      "type": "valid",
+      "citation": "Rule 33.4: cross index the firing weapon type and ammunition with the target facing to give the kill number.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "e",
+          "side": "russian",
+          "type": "T34",
+          "hex": "G1",
+          "facing": 3
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "G1",
+          "aim": "vehicle",
+          "ammo": "ap"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "33.4",
+          "kind": "kill_roll",
+          "data": {
+            "face": "afv_front",
+            "column": "ap75_76",
+            "needed": 6,
+            "killed": true
+          }
+        },
+        {
+          "rule_id": "40.1",
+          "kind": "wreck"
+        }
+      ],
+      "expect_units": {
+        "e": {
+          "wreck": true
+        }
+      }
+    },
+    {
+      "id": "r33.4-a-shot-into-the-rear-kills-more-easily",
+      "rule": "33.5",
+      "type": "boundary",
+      "citation": "Rule 33.5: target facing is determined by which target hexside the line of sight of the firing unit crosses.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        1,
+        1,
+        5,
+        5
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "e",
+          "side": "russian",
+          "type": "T34",
+          "hex": "G1",
+          "facing": 0
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "G1",
+          "aim": "vehicle",
+          "ammo": "ap"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "33.4",
+          "kind": "kill_roll",
+          "data": {
+            "face": "afv_rear",
+            "needed": 10,
+            "killed": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "r33.9-the-crew-of-a-destroyed-vehicle-can-get-out",
+      "rule": "33.9",
+      "type": "interaction",
+      "citation": "Rule 33.9: whenever a tank or a self-propelled gun is eliminated, roll two dice; a roll equal to or less than the survival number puts a crew counter on the wreck.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "e",
+          "side": "russian",
+          "type": "T34",
+          "hex": "G1",
+          "facing": 3
+        },
+        {
+          "ref": "c",
+          "side": "russian",
+          "type": "2-3-7",
+          "crew_of": "e"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "G1",
+          "aim": "vehicle",
+          "ammo": "ap"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "33.9",
+          "kind": "crew_survival",
+          "data": {
+            "survival": 5,
+            "survived": true
+          }
+        }
+      ],
+      "expect_units": {
+        "c": {
+          "hex": "G1"
+        }
+      }
+    },
+    {
+      "id": "r34.2-a-seventy-six-millimetre-hit-is-eight-firepower-factors",
+      "rule": "34.2",
+      "type": "valid",
+      "citation": "Rule 34.2 and its example: a hit from a 76 millimetre main gun is the equivalent of 8 firepower factors on the Infantry Fire Table.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "russian",
+      "active": "russian",
+      "dice": [
+        1,
+        1,
+        4,
+        4
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "russian",
+          "type": "T34",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "i",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "F1"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "F1",
+          "aim": "infantry",
+          "ammo": "he"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "34.2",
+          "kind": "afv_fire",
+          "data": {
+            "firepower": 8,
+            "column": 8
+          }
+        }
+      ]
+    },
+    {
+      "id": "r34.5-a-hit-at-point-blank-range-is-worth-twice-the-firepower",
+      "rule": "34.5",
+      "type": "boundary",
+      "citation": "Rule 34.5: a tank using Point Blank Fire would have its infantry firepower equivalent doubled.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "russian",
+      "active": "russian",
+      "dice": [
+        1,
+        1,
+        4,
+        4
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "russian",
+          "type": "T34",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "i",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "D1",
+          "aim": "infantry",
+          "ammo": "he"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "34.2",
+          "kind": "afv_fire",
+          "data": {
+            "firepower": 16
+          }
+        }
+      ]
+    },
+    {
+      "id": "r34.3-the-machine-guns-roll-again-after-the-main-armament",
+      "rule": "34.3",
+      "type": "valid",
+      "citation": "Rule 34.3: after resolving the fire effects of the main armament, the vehicle may roll again on the Infantry Fire Table with its machine gun attack factor.",
+      "check": "legality",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0,
+          "gun_shots": 1
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "D1"
+        }
+      ],
+      "legal": [
+        {
+          "action": "afv_mg",
+          "units": [
+            "t"
+          ],
+          "hex": "D1"
+        }
+      ]
+    },
+    {
+      "id": "r34.7-a-machine-gun-is-halved-after-the-vehicle-moved",
+      "rule": "34.7",
+      "type": "boundary",
+      "citation": "Rule 34.7: the covered arc machine gun factor is halved as moving fire if the vehicle moved into a new hex or turned within a hex, and the all-round factor is halved only after a move to a new hex.",
+      "check": "effect",
+      "phase": "advancing_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        4,
+        4
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0,
+          "moved": true
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "D1"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_mg",
+          "units": [
+            "t"
+          ],
+          "hex": "D1"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "34.3",
+          "kind": "afv_mg_fire",
+          "data": {
+            "firepower": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "r38.2-a-twelve-on-the-fire-table-breaks-the-machine-guns",
+      "rule": "38.2",
+      "type": "boundary",
+      "citation": "Rule 38.2: machine guns of a vehicle may malfunction on a twelve on the Infantry Fire Table, and the status applies to all of them.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        6,
+        6
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "D1"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_mg",
+          "units": [
+            "t"
+          ],
+          "hex": "D1"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "38.2",
+          "kind": "mg_malfunction"
+        }
+      ],
+      "expect_units": {
+        "t": {
+          "mg_malfunction": true
+        }
+      }
+    },
+    {
+      "id": "r38.1-a-twelve-on-the-to-hit-dice-breaks-the-main-gun",
+      "rule": "38.1",
+      "type": "boundary",
+      "citation": "Rule 38.1: any time a twelve is rolled before modifiers on a to-hit dice roll, the gun has malfunctioned. The roll is still resolved.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        6,
+        6
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "F1"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "F1",
+          "aim": "infantry",
+          "ammo": "he"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "33.3",
+          "kind": "to_hit",
+          "data": {
+            "raw": 12,
+            "hit": false
+          }
+        },
+        {
+          "rule_id": "38.1",
+          "kind": "gun_malfunction"
+        }
+      ],
+      "expect_units": {
+        "t": {
+          "malfunction": true
+        }
+      }
+    },
+    {
+      "id": "r38.1-a-one-in-the-rally-phase-repairs-the-gun",
+      "rule": "38.1",
+      "type": "valid",
+      "citation": "Rule 38.1: roll one die at the start of each Rally Phase until the gun is repaired or eliminated. A one restores it and a six disables it for the game.",
+      "check": "effect",
+      "phase": "rally",
+      "sub_step": "rally_window",
+      "actor": "phasing",
+      "phasing": "german",
+      "active": "german",
+      "single_dice": true,
+      "dice": [
+        1
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0,
+          "malfunction": true
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_repair",
+          "units": [
+            "t"
+          ],
+          "armament": "main"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "38.1",
+          "kind": "afv_repaired"
+        }
+      ],
+      "expect_units": {
+        "t": {
+          "malfunction": false,
+          "disabled": false
+        }
+      }
+    },
+    {
+      "id": "r38.1-a-six-in-the-rally-phase-disables-the-gun",
+      "rule": "38.1",
+      "type": "boundary",
+      "citation": "Rule 38.1: a die roll of six indicates the disorder cannot be corrected for the duration of the game.",
+      "check": "effect",
+      "phase": "rally",
+      "sub_step": "rally_window",
+      "actor": "phasing",
+      "phasing": "german",
+      "active": "german",
+      "single_dice": true,
+      "dice": [
+        6
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0,
+          "malfunction": true
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_repair",
+          "units": [
+            "t"
+          ],
+          "armament": "main"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "38.1",
+          "kind": "afv_disabled"
+        }
+      ],
+      "expect_units": {
+        "t": {
+          "disabled": true
+        }
+      }
+    },
+    {
+      "id": "r35.1-a-vehicle-overruns-the-infantry-of-the-hex-it-enters",
+      "rule": "35.1",
+      "type": "valid",
+      "citation": "Rule 35.1 and rule 35.3: an overrun is resolved on the Infantry Fire Table as the vehicle enters the hex, and a tank overruns with the equivalent of 16 firepower factors.",
+      "check": "effect",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        3,
+        3
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 1
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "C2"
+        }
+      ],
+      "apply": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "t"
+          ],
+          "hex": "C2"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "35.1",
+          "kind": "overrun",
+          "data": {
+            "firepower": 16
+          }
+        }
+      ],
+      "expect_units": {
+        "t": {
+          "overran": true,
+          "hex": "C2"
+        }
+      }
+    },
+    {
+      "id": "r35.9-a-vehicle-that-overran-fires-nothing",
+      "rule": "35.9",
+      "type": "invalid",
+      "citation": "Rule 35.9: overrunning vehicles may not fire any weapons during the player turn in which they execute an overrun attack.",
+      "check": "legality",
+      "phase": "advancing_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0,
+          "overran": true
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "D1"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "D1",
+          "aim": "infantry",
+          "ammo": "he"
+        },
+        {
+          "action": "afv_mg",
+          "units": [
+            "t"
+          ],
+          "hex": "D1"
+        }
+      ]
+    },
+    {
+      "id": "r38.3-a-twelve-in-an-overrun-detracks-the-vehicle",
+      "rule": "38.3",
+      "type": "boundary",
+      "citation": "Rule 38.3: if while executing an overrun attack a vehicle rolls a twelve before modifiers, the infantry planted a grenade bundle and the vehicle is immobilized for the rest of the scenario.",
+      "check": "effect",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        6,
+        6
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 1
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "C2"
+        }
+      ],
+      "apply": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "t"
+          ],
+          "hex": "C2"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "38.3",
+          "kind": "grenade_bundle"
+        }
+      ],
+      "expect_units": {
+        "t": {
+          "immobilized": true
+        }
+      }
+    },
+    {
+      "id": "r36.1-a-squad-in-the-open-does-not-attack-a-tank",
+      "rule": "36.1",
+      "type": "invalid",
+      "citation": "Rule 36.1: vehicles may be attacked during the Defensive Fire Phase by infantry squads occupying non-open ground hexes which the vehicle was adjacent to during the Movement Phase.",
+      "check": "legality",
+      "phase": "defensive_fire",
+      "sub_step": "fire_window",
+      "phasing": "russian",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "russian",
+          "type": "T34",
+          "hex": "D1",
+          "facing": 0,
+          "moved": true
+        },
+        {
+          "ref": "s",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "C1"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "afv_attack",
+          "units": [
+            "s"
+          ],
+          "hex": "D1"
+        }
+      ]
+    },
+    {
+      "id": "r36.12-a-squad-in-woods-needs-a-four-to-immobilize-a-tank",
+      "rule": "36.12",
+      "type": "valid",
+      "citation": "Rule 36.12 and its chart: a squad in woods or a large building immobilizes the vehicle on a roll of four or less.",
+      "check": "effect",
+      "phase": "defensive_fire",
+      "sub_step": "fire_window",
+      "phasing": "russian",
+      "active": "german",
+      "dice": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "russian",
+          "type": "T34",
+          "hex": "E3",
+          "facing": 0,
+          "moved": true
+        },
+        {
+          "ref": "s",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "E2"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_attack",
+          "units": [
+            "s"
+          ],
+          "hex": "E3"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "36.11",
+          "kind": "pre_afv_check",
+          "data": {
+            "passed": true
+          }
+        },
+        {
+          "rule_id": "36.12",
+          "kind": "immobilize_attempt",
+          "data": {
+            "needed": 4,
+            "immobilized": true
+          }
+        }
+      ],
+      "expect_units": {
+        "t": {
+          "immobilized": true
+        }
+      }
+    },
+    {
+      "id": "r36.23-close-combat-destroys-a-tank-on-the-squad-firepower",
+      "rule": "36.23",
+      "type": "valid",
+      "citation": "Rule 36.23: units which pass the pre-attack morale check and moved onto the vehicle in the Advance Phase may destroy it with any dice roll equal to or less than the squad firepower factor.",
+      "check": "effect",
+      "phase": "close_combat",
+      "sub_step": "cc_declare",
+      "actor": "phasing",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "russian",
+          "type": "T34",
+          "hex": "D1",
+          "facing": 0
+        },
+        {
+          "ref": "s",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1"
+        }
+      ],
+      "apply": [
+        {
+          "action": "cc_afv",
+          "units": [
+            "s"
+          ],
+          "hex": "D1"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "36.11",
+          "kind": "pre_afv_check",
+          "data": {
+            "passed": true
+          }
+        },
+        {
+          "rule_id": "36.23",
+          "kind": "close_combat_vs_afv",
+          "data": {
+            "needed": 4,
+            "killed": true
+          }
+        },
+        {
+          "rule_id": "40.1",
+          "kind": "wreck"
+        }
+      ],
+      "expect_units": {
+        "t": {
+          "wreck": true
+        }
+      }
+    },
+    {
+      "id": "r36.22-enemy-infantry-in-the-hex-takes-the-close-combat-first",
+      "rule": "36.22",
+      "type": "invalid",
+      "citation": "Rule 36.22: if there are enemy infantry in the same hex with the vehicle, the attacking infantry must ignore the vehicle and engage the opposing infantry.",
+      "check": "legality",
+      "phase": "close_combat",
+      "sub_step": "cc_declare",
+      "actor": "phasing",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "russian",
+          "type": "T34",
+          "hex": "D1",
+          "facing": 0
+        },
+        {
+          "ref": "g",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "D1"
+        },
+        {
+          "ref": "s",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "cc_afv",
+          "units": [
+            "s"
+          ],
+          "hex": "D1"
+        }
+      ]
+    },
+    {
+      "id": "r37.31-a-panzerfaust-hits-at-one-hex-on-an-eight",
+      "rule": "37.31",
+      "type": "valid",
+      "citation": "Rule 37.31 and its chart: a panzerfaust at one hex in a prep or defensive fire phase hits on an eight or less.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        4,
+        4,
+        1,
+        1
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "russian",
+          "type": "T34",
+          "hex": "D2",
+          "facing": 0
+        },
+        {
+          "ref": "s",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1"
+        },
+        {
+          "ref": "pf",
+          "side": "german",
+          "type": "PF",
+          "carrier": "s"
+        }
+      ],
+      "apply": [
+        {
+          "action": "at_fire",
+          "units": [
+            "s"
+          ],
+          "weapon": "pf",
+          "hex": "D2"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "37.31",
+          "kind": "at_to_hit",
+          "data": {
+            "needed": 8,
+            "range": 1,
+            "hit": true
+          }
+        },
+        {
+          "rule_id": "37.3",
+          "kind": "panzerfaust_used"
+        },
+        {
+          "rule_id": "33.4",
+          "kind": "kill_roll",
+          "data": {
+            "column": "panzerfaust"
+          }
+        }
+      ],
+      "expect_eliminated": [
+        "pf"
+      ]
+    },
+    {
+      "id": "r37.41-a-bazooka-hits-at-three-hexes-on-a-six",
+      "rule": "37.41",
+      "type": "valid",
+      "citation": "Rule 37.41 and its chart: a bazooka at three hexes in a prep or defensive fire phase hits on a six or less. The American squad holds the German seat here, because the conformance board has two seats and the rule does not depend on which.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        3,
+        3,
+        1,
+        1
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "russian",
+          "type": "T34",
+          "hex": "F1",
+          "facing": 3
+        },
+        {
+          "ref": "s",
+          "side": "german",
+          "type": "6-6-6",
+          "hex": "C1",
+          "army": "american"
+        },
+        {
+          "ref": "bz",
+          "side": "german",
+          "type": "BAZ",
+          "carrier": "s",
+          "army": "american"
+        }
+      ],
+      "apply": [
+        {
+          "action": "at_fire",
+          "units": [
+            "s"
+          ],
+          "weapon": "bz",
+          "hex": "F1"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "37.41",
+          "kind": "at_to_hit",
+          "data": {
+            "needed": 6,
+            "range": 3,
+            "hit": true
+          }
+        },
+        {
+          "rule_id": "33.4",
+          "kind": "kill_roll",
+          "data": {
+            "column": "bazooka"
+          }
+        }
+      ]
+    },
+    {
+      "id": "r37.45-an-eleven-takes-the-bazooka-out-of-play",
+      "rule": "37.45",
+      "type": "boundary",
+      "citation": "Rule 37.45: if a non-modified eleven or twelve is rolled on the to-hit dice, the bazooka is out of ammunition or malfunctions and is removed from play after the attack is resolved. The American squad holds the German seat here, because the conformance board has two seats and the rule does not depend on which.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        5,
+        6
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "russian",
+          "type": "T34",
+          "hex": "F1",
+          "facing": 3
+        },
+        {
+          "ref": "s",
+          "side": "german",
+          "type": "6-6-6",
+          "hex": "C1",
+          "army": "american"
+        },
+        {
+          "ref": "bz",
+          "side": "german",
+          "type": "BAZ",
+          "carrier": "s",
+          "army": "american"
+        }
+      ],
+      "apply": [
+        {
+          "action": "at_fire",
+          "units": [
+            "s"
+          ],
+          "weapon": "bz",
+          "hex": "F1"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "37.45",
+          "kind": "bazooka_spent"
+        }
+      ],
+      "expect_eliminated": [
+        "bz"
+      ]
+    },
+    {
+      "id": "r37.2-a-flamethrower-hits-a-vehicle-without-a-roll",
+      "rule": "37.2",
+      "type": "valid",
+      "citation": "Rule 37.2: flamethrowers may attack vehicles in any fire phase and automatically hit any vehicle within range, then roll on the flamethrower column of the kill table.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        1,
+        1
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "russian",
+          "type": "T34",
+          "hex": "D2",
+          "facing": 0
+        },
+        {
+          "ref": "s",
+          "side": "german",
+          "type": "8-3-8",
+          "hex": "D1"
+        },
+        {
+          "ref": "ft",
+          "side": "german",
+          "type": "FT",
+          "carrier": "s"
+        }
+      ],
+      "apply": [
+        {
+          "action": "at_fire",
+          "units": [
+            "s"
+          ],
+          "weapon": "ft",
+          "hex": "D2"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "37.2",
+          "kind": "flamethrower_hit"
+        },
+        {
+          "rule_id": "33.4",
+          "kind": "kill_roll",
+          "data": {
+            "column": "flamethrower"
+          }
+        }
+      ]
+    },
+    {
+      "id": "r40.1-a-destroyed-vehicle-becomes-a-wreck",
+      "rule": "40.1",
+      "type": "valid",
+      "citation": "Rule 40.1: whenever any vehicle has been destroyed, flip it over so as to replace it with a wreck counter.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        1,
+        1,
+        1,
+        1,
+        6,
+        6
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "e",
+          "side": "russian",
+          "type": "T34",
+          "hex": "G1",
+          "facing": 3
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "G1",
+          "aim": "vehicle",
+          "ammo": "ap"
+        }
+      ],
+      "expect_units": {
+        "e": {
+          "wreck": true,
+          "immobilized": true
+        }
+      },
+      "expect_alive": [
+        "e"
+      ]
+    },
+    {
+      "id": "r40.4-a-vehicle-pushes-a-wreck-out-of-the-way",
+      "rule": "40.4",
+      "type": "valid",
+      "citation": "Rule 40.4: a wreck may be removed during the following Rally Phase by a functioning tank or self-propelled gun which starts its turn in an adjacent hex and neither moves nor fires during that player turn.",
+      "check": "effect",
+      "phase": "rally",
+      "sub_step": "rally_window",
+      "actor": "phasing",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1
+        },
+        {
+          "ref": "w",
+          "side": "russian",
+          "type": "T34",
+          "hex": "D2",
+          "facing": 0,
+          "wreck": true
+        }
+      ],
+      "apply": [
+        {
+          "action": "push_wreck",
+          "units": [
+            "t"
+          ],
+          "hex": "D2"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "40.4",
+          "kind": "wreck_pushed"
+        }
+      ],
+      "expect_eliminated": [
+        "w"
+      ],
+      "expect_units": {
+        "t": {
+          "hex": "D2"
+        }
+      }
+    },
+    {
+      "id": "r41.1-a-vehicle-behind-a-wall-is-hull-down",
+      "rule": "41.1",
+      "type": "valid",
+      "citation": "Rule 41.1: a vehicle is considered hull down if it is directly behind a wall, and rule 33.3 gives a hull down vehicle its own row of the to-hit table.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "F4",
+          "facing": 1
+        },
+        {
+          "ref": "e",
+          "side": "russian",
+          "type": "T34",
+          "hex": "F6",
+          "facing": 0
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "F6",
+          "aim": "vehicle",
+          "ammo": "ap"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "33.3",
+          "kind": "to_hit",
+          "data": {
+            "row": "vehicle_hull_down"
+          }
+        }
+      ]
+    },
+    {
+      "id": "r41.4-a-german-tank-uses-its-smoke-dischargers-one-time",
+      "rule": "41.4",
+      "type": "valid",
+      "citation": "Rule 41.4: all German tanks and self-propelled guns are equipped with smoke dischargers that place smoke in the same hex as the firing tank. Each vehicle's dischargers can be used only once per game.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "D1"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_dischargers",
+          "units": [
+            "t"
+          ]
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "41.4",
+          "kind": "smoke_dischargers"
+        }
+      ],
+      "expect_units": {
+        "t": {
+          "dischargers_used": true
+        }
+      },
+      "expect_smoke_count": 1,
+      "expect_illegal_after": [
+        {
+          "action": "afv_dischargers",
+          "units": [
+            "t"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "r41.3-a-tank-fires-smoke-at-a-hex-that-is-not-adjacent",
+      "rule": "41.3",
+      "type": "boundary",
+      "citation": "Rule 41.3: a tank or self-propelled gun may fire smoke instead of its main armament at the outset of the Prep Fire Phase only, and the target hex cannot be its own or an adjacent hex.",
+      "check": "legality",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "smoke_left": {
+        "german": 2
+      },
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "F1"
+        }
+      ],
+      "legal": [
+        {
+          "action": "afv_smoke",
+          "units": [
+            "t"
+          ],
+          "hex": "F1"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "afv_smoke",
+          "units": [
+            "t"
+          ],
+          "hex": "D1"
+        }
+      ]
+    },
+    {
+      "id": "r34.9-canister-is-twenty-firepower-at-three-hexes",
+      "rule": "34.9",
+      "type": "valid",
+      "citation": "Rule 34.9: the German MkIVF1 may fire canister instead of high explosive. Canister has a range of three hexes and an infantry firepower equivalent of twenty.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        1,
+        1,
+        4,
+        4
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF1",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "E1"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "E1",
+          "aim": "infantry",
+          "ammo": "canister"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "34.2",
+          "kind": "afv_fire",
+          "data": {
+            "firepower": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "r34.92-a-canister-to-hit-roll-of-seven-spends-the-rounds",
+      "rule": "34.9",
+      "type": "boundary",
+      "citation": "Rule 34.92: a to-hit canister dice roll of seven or more results in that gun having no canister rounds for the balance of the scenario.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        3,
+        4
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF1",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "E1"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "E1",
+          "aim": "infantry",
+          "ammo": "canister"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "34.9",
+          "kind": "canister_spent"
+        }
+      ],
+      "expect_illegal_after": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "E1",
+          "aim": "infantry",
+          "ammo": "canister"
+        }
+      ]
+    },
+    {
+      "id": "r28.4-a-machine-gun-does-not-reach-past-sixteen-hexes",
+      "rule": "28.4",
+      "type": "boundary",
+      "citation": "Rule 28.4: all vehicle machine guns have a normal range of eight, and rule 9.2 gives a machine gun twice its normal range at half strength and nothing beyond that.",
+      "check": "legality",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "A1",
+          "facing": 0
+        },
+        {
+          "ref": "near",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "F1"
+        }
+      ],
+      "legal": [
+        {
+          "action": "afv_mg",
+          "units": [
+            "t"
+          ],
+          "hex": "F1"
+        }
+      ]
+    },
+    {
+      "id": "r28.4-a-covered-arc-machine-gun-is-halved-after-a-turn",
+      "rule": "28.4",
+      "type": "interaction",
+      "citation": "Rule 28.4 gives the left number to the covered arc, and rule 34.7 halves it as moving fire when the vehicle turned within its hex.",
+      "check": "effect",
+      "phase": "advancing_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        4,
+        4
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "STGIII75",
+          "hex": "C1",
+          "facing": 0,
+          "pivoted": true
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "D1"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_mg",
+          "units": [
+            "t"
+          ],
+          "hex": "D1"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "34.3",
+          "kind": "afv_mg_fire",
+          "data": {
+            "firepower": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "r28.4-a-vehicle-with-no-all-round-gun-does-not-fire-behind-itself",
+      "rule": "28.4",
+      "type": "invalid",
+      "citation": "Rule 28.4: the left number fires only in the covered arc, and the right number fires in any direction. A self-propelled gun with a dash for the right number has nothing that fires behind it.",
+      "check": "legality",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "STGIII75",
+          "hex": "D5",
+          "facing": 3
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "D3"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "afv_mg",
+          "units": [
+            "t"
+          ],
+          "hex": "D3"
+        }
+      ]
+    },
+    {
+      "id": "r29.2-three-infantry-units-fit-beneath-a-vehicle",
+      "rule": "29.2",
+      "type": "valid",
+      "citation": "Rule 29.2: only three infantry units, of which two may be squads, and up to five portage points of support weapons may stack beneath a vehicle.",
+      "check": "stacking",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "hex": "D1",
+      "side": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1
+        },
+        {
+          "ref": "a",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1"
+        },
+        {
+          "ref": "b",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1"
+        },
+        {
+          "ref": "l",
+          "side": "german",
+          "type": "8-1",
+          "hex": "D1"
+        }
+      ],
+      "expect_load": [
+        3,
+        2,
+        0
+      ],
+      "expect_over_limit": false
+    },
+    {
+      "id": "r29.1-a-second-vehicle-is-not-placed-in-an-occupied-hex",
+      "rule": "29.1",
+      "type": "invalid",
+      "citation": "Rule 29.1: only one vehicle of any type may be placed in the same hex.",
+      "check": "legality",
+      "phase": "setup",
+      "sub_step": "place",
+      "phasing": "german",
+      "active": "german",
+      "setup_index": 0,
+      "units": [
+        {
+          "ref": "a",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "A1",
+          "facing": 0
+        },
+        {
+          "ref": "b",
+          "side": "german",
+          "type": "MkIVF2"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "place",
+          "units": [
+            "b"
+          ],
+          "hex": "A1",
+          "facing": 0
+        }
+      ]
+    },
+    {
+      "id": "r29.4-a-hex-outside-the-covered-arc-costs-two-more",
+      "rule": "29.4",
+      "type": "interaction",
+      "citation": "Rule 29.4 and the Vehicle Movement Cost Chart: any hex outside the covered arc costs 2 movement points on top of the cost of the terrain.",
+      "check": "effect",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D5",
+          "facing": 3
+        }
+      ],
+      "apply": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "t"
+          ],
+          "hex": "D4"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "30.2",
+          "kind": "vehicle_move",
+          "data": {
+            "cost_halves": 6
+          }
+        }
+      ]
+    },
+    {
+      "id": "r30.7-an-enemy-vehicle-hex-costs-four-and-the-terrain",
+      "rule": "30.7",
+      "type": "interaction",
+      "citation": "Rule 30.7: a vehicle must pay double the normal cost, 4 movement points for each vehicle plus the cost of the terrain, to move into a hex occupied by an enemy vehicle.",
+      "check": "effect",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 0
+        },
+        {
+          "ref": "e",
+          "side": "russian",
+          "type": "T34",
+          "hex": "E1",
+          "facing": 3
+        }
+      ],
+      "apply": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "t"
+          ],
+          "hex": "E1"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "30.2",
+          "kind": "vehicle_move",
+          "data": {
+            "cost_halves": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "r32.3-a-shot-past-a-vehicle-is-not-legal",
+      "rule": "32.3",
+      "type": "invalid",
+      "citation": "Rule 32.3: fire into the hex behind a vehicle takes the wall modifier, and fire that goes further is blocked unless it comes from a higher elevation.",
+      "check": "legality",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "s",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "B1"
+        },
+        {
+          "ref": "v",
+          "side": "russian",
+          "type": "T34",
+          "hex": "D1",
+          "facing": 3
+        },
+        {
+          "ref": "far",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "G1"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "group_add",
+          "units": [
+            "s"
+          ],
+          "hex": "G1"
+        }
+      ]
+    },
+    {
+      "id": "r32.6-a-vehicle-that-moved-blocks-nothing-in-the-defensive-fire-phase",
+      "rule": "32.6",
+      "type": "interaction",
+      "citation": "Rule 32.6: vehicles present no line of sight obstacle during the Defensive Fire Phase if they have moved in the preceding Movement Phase.",
+      "check": "legality",
+      "phase": "defensive_fire",
+      "sub_step": "fire_window",
+      "phasing": "russian",
+      "active": "german",
+      "units": [
+        {
+          "ref": "s",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "B1"
+        },
+        {
+          "ref": "v",
+          "side": "russian",
+          "type": "T34",
+          "hex": "D1",
+          "facing": 3,
+          "moved": true
+        },
+        {
+          "ref": "far",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "G1"
+        }
+      ],
+      "legal": [
+        {
+          "action": "group_add",
+          "units": [
+            "s"
+          ],
+          "hex": "G1"
+        }
+      ]
+    },
+    {
+      "id": "r33.7-a-machine-gun-does-not-fire-at-a-tank",
+      "rule": "33.7",
+      "type": "invalid",
+      "citation": "Rule 33.7: a tank or self-propelled gun cannot use its machine gun factors in an attempt to destroy another tank or self-propelled gun.",
+      "check": "legality",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "e",
+          "side": "russian",
+          "type": "T34",
+          "hex": "E1",
+          "facing": 3
+        }
+      ],
+      "illegal": [
+        {
+          "action": "afv_mg",
+          "units": [
+            "t"
+          ],
+          "hex": "E1"
+        }
+      ]
+    },
+    {
+      "id": "r34.8-the-all-round-machine-gun-puts-the-crew-out-of-the-hatch",
+      "rule": "34.8",
+      "type": "interaction",
+      "citation": "Rule 34.8: vehicles which use their all-round machine gun factor are vulnerable to enemy fire in the following enemy fire phase, and rule 36.1 then lets infantry fire at them from any hex.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        4,
+        4
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D5",
+          "facing": 3
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "D3"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_mg",
+          "units": [
+            "t"
+          ],
+          "hex": "D3"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "34.8",
+          "kind": "crew_exposed"
+        }
+      ],
+      "expect_units": {
+        "t": {
+          "crew_exposed": true
+        }
+      }
+    },
+    {
+      "id": "r34.3-a-machine-gun-fires-one-time-in-a-player-turn",
+      "rule": "34.3",
+      "type": "invalid",
+      "citation": "Rule 34.3 with project ruling PR-26: the machine guns of a vehicle roll one time in a player turn.",
+      "check": "legality",
+      "phase": "advancing_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0,
+          "mg_fired": true
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "D1"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "afv_mg",
+          "units": [
+            "t"
+          ],
+          "hex": "D1"
+        }
+      ]
+    },
+    {
+      "id": "r35.3-a-broken-gun-halves-the-overrun",
+      "rule": "35.3",
+      "type": "boundary",
+      "citation": "Rule 35.3: should a vehicle lose either its main armament or its machine gun firepower to a malfunction, its overrun firepower factor is halved.",
+      "check": "effect",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        3,
+        3
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 1,
+          "malfunction": true
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "C2"
+        }
+      ],
+      "apply": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "t"
+          ],
+          "hex": "C2"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "35.1",
+          "kind": "overrun",
+          "data": {
+            "firepower": 8
+          }
+        }
+      ]
+    },
+    {
+      "id": "r35.5-an-overrun-puts-the-passengers-off-first",
+      "rule": "35.5",
+      "type": "interaction",
+      "citation": "Rule 35.5: tanks and self-propelled guns executing overruns may not carry passengers into the target hex.",
+      "check": "effect",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        3,
+        3
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 1
+        },
+        {
+          "ref": "a",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "C1",
+          "riding": "t"
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "C2"
+        }
+      ],
+      "apply": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "t"
+          ],
+          "hex": "C2"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "35.5",
+          "kind": "dismount"
+        },
+        {
+          "rule_id": "35.1",
+          "kind": "overrun"
+        }
+      ],
+      "expect_units": {
+        "a": {
+          "passenger_of": null,
+          "hex": "C1"
+        }
+      }
+    },
+    {
+      "id": "r36.12-a-leader-in-cover-needs-a-two",
+      "rule": "36.12",
+      "type": "boundary",
+      "citation": "Rule 36.12 and its chart: a leader alone in any hex that is not open ground immobilizes the vehicle on a two or less.",
+      "check": "effect",
+      "phase": "defensive_fire",
+      "sub_step": "fire_window",
+      "phasing": "russian",
+      "active": "german",
+      "dice": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "russian",
+          "type": "T34",
+          "hex": "E3",
+          "facing": 0,
+          "moved": true
+        },
+        {
+          "ref": "l",
+          "side": "german",
+          "type": "8-0",
+          "hex": "E2"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_attack",
+          "units": [
+            "l"
+          ],
+          "hex": "E3"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "36.12",
+          "kind": "immobilize_attempt",
+          "data": {
+            "needed": 2,
+            "location": "leader_in_cover"
+          }
+        }
+      ]
+    },
+    {
+      "id": "r36.13-a-failed-immobilize-roll-hits-the-passengers",
+      "rule": "36.13",
+      "type": "interaction",
+      "citation": "Rule 36.13: even if the attempt to immobilize the vehicle fails, the attacker may use the same dice roll on the Infantry Fire Table against any vulnerable passengers.",
+      "check": "effect",
+      "phase": "defensive_fire",
+      "sub_step": "fire_window",
+      "phasing": "russian",
+      "active": "german",
+      "dice": [
+        2,
+        2,
+        5,
+        5
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "russian",
+          "type": "T34",
+          "hex": "E3",
+          "facing": 0,
+          "moved": true
+        },
+        {
+          "ref": "r",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "E3",
+          "riding": "t"
+        },
+        {
+          "ref": "s",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "E2"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_attack",
+          "units": [
+            "s"
+          ],
+          "hex": "E3"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "36.12",
+          "kind": "immobilize_attempt",
+          "data": {
+            "immobilized": false
+          }
+        },
+        {
+          "rule_id": "36.13",
+          "kind": "passenger_fire",
+          "data": {
+            "firepower": 4
+          }
+        }
+      ]
+    },
+    {
+      "id": "r37.2-a-flamethrower-burns-the-crew-and-the-infantry-with-it",
+      "rule": "37.2",
+      "type": "interaction",
+      "citation": "Rule 37.2: regardless of the dice roll of the flamethrower attack on the vehicle, the attacking player may use the same dice roll a second time on the twenty firepower factor column of the Infantry Fire Table.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        3,
+        3,
+        3,
+        3
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "russian",
+          "type": "T34",
+          "hex": "D2",
+          "facing": 0
+        },
+        {
+          "ref": "g",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "D2"
+        },
+        {
+          "ref": "s",
+          "side": "german",
+          "type": "8-3-8",
+          "hex": "D1"
+        },
+        {
+          "ref": "ft",
+          "side": "german",
+          "type": "FT",
+          "carrier": "s"
+        }
+      ],
+      "apply": [
+        {
+          "action": "at_fire",
+          "units": [
+            "s"
+          ],
+          "weapon": "ft",
+          "hex": "D2"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "37.2",
+          "kind": "flamethrower_hit"
+        },
+        {
+          "rule_id": "37.2",
+          "kind": "afv_fire",
+          "data": {
+            "firepower": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "r37.37-a-panzerfaust-is-not-fired-from-inside-a-vehicle",
+      "rule": "37.37",
+      "type": "invalid",
+      "citation": "Rule 37.37: a panzerfaust may not be fired from inside a vehicle or a bunker.",
+      "check": "legality",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "own",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 0
+        },
+        {
+          "ref": "s",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1",
+          "riding": "own"
+        },
+        {
+          "ref": "pf",
+          "side": "german",
+          "type": "PF",
+          "carrier": "s"
+        },
+        {
+          "ref": "t",
+          "side": "russian",
+          "type": "T34",
+          "hex": "D2",
+          "facing": 0
+        }
+      ],
+      "illegal": [
+        {
+          "action": "at_fire",
+          "units": [
+            "s"
+          ],
+          "weapon": "pf",
+          "hex": "D2"
+        }
+      ]
+    },
+    {
+      "id": "r38.1-a-broken-gun-does-not-fire",
+      "rule": "38.1",
+      "type": "invalid",
+      "citation": "Rule 38.1: no subsequent fire can be attempted from the main armament until it is repaired.",
+      "check": "legality",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0,
+          "malfunction": true
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "F1"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "F1",
+          "aim": "infantry",
+          "ammo": "he"
+        }
+      ],
+      "legal": [
+        {
+          "action": "afv_mg",
+          "units": [
+            "t"
+          ],
+          "hex": "F1"
+        }
+      ]
+    },
+    {
+      "id": "r38.2-a-broken-machine-gun-stops-both-factors",
+      "rule": "38.2",
+      "type": "interaction",
+      "citation": "Rule 38.2: the malfunction status applies to all machine gun armament in the vehicle, the covered arc gun and the all-round gun together. The main armament still fires.",
+      "check": "legality",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0,
+          "mg_malfunction": true
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "F1"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "afv_mg",
+          "units": [
+            "t"
+          ],
+          "hex": "F1"
+        }
+      ],
+      "legal": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "F1",
+          "aim": "infantry",
+          "ammo": "he"
+        }
+      ]
+    },
+    {
+      "id": "r39.4-an-immobilized-vehicle-does-not-turn",
+      "rule": "39.4",
+      "type": "valid",
+      "citation": "Rule 39.4: immobilized vehicles may not pivot within a hex, but a turreted vehicle may still fire its main armament outside its covered arc.",
+      "check": "legality",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D5",
+          "facing": 3,
+          "immobilized": true
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "D3"
+        }
+      ],
+      "legal": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "D3",
+          "aim": "infantry",
+          "ammo": "he"
+        }
+      ]
+    },
+    {
+      "id": "r39-an-immobilized-vehicle-does-not-move",
+      "rule": "39",
+      "type": "invalid",
+      "citation": "Rule 39: a broken tank is considered immobilized, and an immobilized counter is placed on it.",
+      "check": "legality",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1,
+          "immobilized": true
+        }
+      ],
+      "illegal": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "t"
+          ],
+          "hex": "D2"
+        },
+        {
+          "action": "vehicle_pivot",
+          "units": [
+            "t"
+          ],
+          "facing": 4
+        }
+      ]
+    },
+    {
+      "id": "r39.2-the-crew-of-an-immobilized-vehicle-can-abandon-it",
+      "rule": "39.2",
+      "type": "interaction",
+      "citation": "Rule 39.2: whenever a vehicle is immobilized its crew must undergo a morale check. If it fails, the crew abandons the vehicle, which becomes a wreck with a crew counter on it.",
+      "check": "effect",
+      "phase": "defensive_fire",
+      "sub_step": "fire_window",
+      "phasing": "russian",
+      "active": "german",
+      "dice": [
+        2,
+        2,
+        2,
+        2,
+        6,
+        6
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "russian",
+          "type": "T34",
+          "hex": "E3",
+          "facing": 0,
+          "moved": true
+        },
+        {
+          "ref": "c",
+          "side": "russian",
+          "type": "2-3-7",
+          "crew_of": "t"
+        },
+        {
+          "ref": "s",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "E2"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_attack",
+          "units": [
+            "s"
+          ],
+          "hex": "E3"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "36.12",
+          "kind": "immobilize_attempt",
+          "data": {
+            "immobilized": true
+          }
+        },
+        {
+          "rule_id": "39.2",
+          "kind": "crew_morale",
+          "data": {
+            "stayed": false
+          }
+        },
+        {
+          "rule_id": "39.2",
+          "kind": "crew_abandons"
+        }
+      ],
+      "expect_units": {
+        "t": {
+          "wreck": true
+        },
+        "c": {
+          "hex": "E3"
+        }
+      }
+    },
+    {
+      "id": "r40.3-a-wreck-costs-two-movement-points-to-drive-through",
+      "rule": "40.3",
+      "type": "boundary",
+      "citation": "Rule 40.3: vehicles may move into wreck hexes at an additional movement cost of 2 movement points per wreck.",
+      "check": "effect",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 0
+        },
+        {
+          "ref": "w",
+          "side": "russian",
+          "type": "T34",
+          "hex": "E1",
+          "facing": 0,
+          "wreck": true
+        }
+      ],
+      "apply": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "t"
+          ],
+          "hex": "E1"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "30.2",
+          "kind": "vehicle_move",
+          "data": {
+            "cost_halves": 6
+          }
+        }
+      ]
+    },
+    {
+      "id": "r40.4-a-vehicle-that-moved-does-not-push-a-wreck",
+      "rule": "40.4",
+      "type": "invalid",
+      "citation": "Rule 40.4: the pushing vehicle neither moves nor fires during that player turn.",
+      "check": "legality",
+      "phase": "rally",
+      "sub_step": "rally_window",
+      "actor": "phasing",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1,
+          "moved": true
+        },
+        {
+          "ref": "w",
+          "side": "russian",
+          "type": "T34",
+          "hex": "D2",
+          "facing": 0,
+          "wreck": true
+        }
+      ],
+      "illegal": [
+        {
+          "action": "push_wreck",
+          "units": [
+            "t"
+          ],
+          "hex": "D2"
+        }
+      ]
+    },
+    {
+      "id": "r40.6-a-vehicle-behind-a-wreck-is-hull-down",
+      "rule": "40.6",
+      "type": "interaction",
+      "citation": "Rule 40.6: whenever anti-tank weapons fire across a wreck at a vehicle, the target is considered hull down, and rule 33.3 gives a hull down vehicle its own row of the to-hit table.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "w",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "E1",
+          "facing": 0,
+          "wreck": true
+        },
+        {
+          "ref": "e",
+          "side": "russian",
+          "type": "T34",
+          "hex": "F1",
+          "facing": 3
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "F1",
+          "aim": "vehicle",
+          "ammo": "ap"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "33.3",
+          "kind": "to_hit",
+          "data": {
+            "row": "vehicle_hull_down"
+          }
+        }
+      ]
+    },
+    {
+      "id": "r41.2-a-crew-counter-fights-as-a-squad",
+      "rule": "41.2",
+      "type": "interaction",
+      "citation": "Rule 41.2: vehicle crews can fight and operate as a normal infantry squad with a firepower factor of two.",
+      "check": "firepower",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "russian",
+      "active": "russian",
+      "units": [
+        {
+          "ref": "c",
+          "side": "russian",
+          "type": "2-3-7",
+          "hex": "D1"
+        },
+        {
+          "ref": "i",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "F1"
+        }
+      ],
+      "unit": "c",
+      "target": "F1",
+      "expect_halves": 4
+    },
+    {
+      "id": "r41.3-a-tank-does-not-fire-smoke-in-the-advancing-fire-phase",
+      "rule": "41.3",
+      "type": "invalid",
+      "citation": "Rule 41.3: a tank or self-propelled gun may fire smoke instead of its main armament at the outset of the Prep Fire Phase only.",
+      "check": "legality",
+      "phase": "advancing_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "smoke_left": {
+        "german": 2
+      },
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "F1"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "afv_smoke",
+          "units": [
+            "t"
+          ],
+          "hex": "F1"
+        }
+      ]
+    },
+    {
+      "id": "r33.2-a-vehicle-that-fired-in-prep-fire-does-not-move",
+      "rule": "33.2",
+      "type": "interaction",
+      "citation": "Rule 33.2: vehicles that fire any weapon in the Prep Fire Phase may not move in the Movement Phase.",
+      "check": "legality",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1,
+          "prep_fired": true
+        },
+        {
+          "ref": "b",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D2",
+          "facing": 1
+        }
+      ],
+      "illegal": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "t"
+          ],
+          "hex": "E1"
+        }
+      ],
+      "legal": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "b"
+          ],
+          "hex": "E2"
+        }
+      ]
+    },
+    {
+      "id": "r31.4-a-unit-that-got-off-keeps-no-movement-factors",
+      "rule": "31.4",
+      "type": "boundary",
+      "citation": "Rule 31.4: infantry may move only to the same or an adjacent non-enemy occupied hex during any Movement Phase in which they debark.",
+      "check": "effect",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1
+        },
+        {
+          "ref": "a",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1",
+          "riding": "t"
+        }
+      ],
+      "apply": [
+        {
+          "action": "debark",
+          "units": [
+            "a"
+          ],
+          "hex": "D2"
+        }
+      ],
+      "expect_units": {
+        "a": {
+          "hex": "D2",
+          "mf_used": 8
+        }
+      },
+      "expect_illegal_after": [
+        {
+          "action": "move",
+          "units": [
+            "a"
+          ],
+          "hex": "D3"
+        }
+      ]
+    },
+    {
+      "id": "r30.8-an-immobilized-vehicle-stays-where-it-stopped",
+      "rule": "30.8",
+      "type": "interaction",
+      "citation": "Rule 30.8: a vehicle may not end its movement in the same hex with another vehicle, unless it is destroyed or immobilized while moving through the hex.",
+      "check": "legality",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "a",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1,
+          "immobilized": true
+        },
+        {
+          "ref": "b",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D2",
+          "facing": 1,
+          "mp_used": 20
+        }
+      ],
+      "legal": [
+        {
+          "action": "end_phase"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "a"
+          ],
+          "hex": "D2"
+        }
+      ]
+    },
+    {
+      "id": "r34.5-a-hit-on-a-concealed-target-is-halved-one-time",
+      "rule": "34.5",
+      "type": "interaction",
+      "citation": "Rule 34.5: if the vehicle fires at a concealed target it is considered area fire and must be halved. Rule 33.31 case H adds two to the to-hit dice roll for the same concealment, and rule 25.8 gives the same cut on the Infantry Fire Table, so the shot takes the cut one time.",
+      "check": "effect",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        1,
+        1,
+        4,
+        4
+      ],
+      "concealment": [
+        {
+          "side": "russian",
+          "hex": "F1"
+        }
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 0
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "F1"
+        }
+      ],
+      "apply": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "F1",
+          "aim": "infantry",
+          "ammo": "he"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "33.3",
+          "kind": "to_hit",
+          "data": {
+            "cases": [
+              "H"
+            ],
+            "modifier": 2
+          }
+        },
+        {
+          "rule_id": "34.2",
+          "kind": "afv_fire",
+          "data": {
+            "firepower": 8
+          }
+        },
+        {
+          "rule_id": "10.5",
+          "kind": "fire_result",
+          "data": {
+            "firepower": 4,
+            "concealed": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "r35.8-infantry-under-a-vehicle-steps-to-one-side",
+      "rule": "35.8",
+      "type": "interaction",
+      "citation": "Rule 35.8: should the vehicle end its Movement Phase in the same hex as an opposing infantry unit, that unit and its support weapons are moved to an adjacent hex of its choice immediately after the current Defensive Fire Phase.",
+      "check": "effect",
+      "phase": "defensive_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "russian",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D2",
+          "facing": 1,
+          "moved": true,
+          "overran": true
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "D2"
+        }
+      ],
+      "apply": [
+        {
+          "action": "end_phase"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "35.8",
+          "kind": "pushed_out",
+          "data": {
+            "unit": 1,
+            "vehicle": 0
+          }
+        }
+      ],
+      "expect_units": {
+        "t": {
+          "hex": "D2"
+        }
+      }
+    },
+    {
+      "id": "r29.2-three-infantry-units-fit-below-a-vehicle-and-a-fourth-does-not",
+      "rule": "29.2",
+      "type": "boundary",
+      "citation": "Rule 29.2: only three infantry units, of which two may be squads, may stack beneath a vehicle. Rule 6.1 lets four stand in a hex with no vehicle in it. The case reads the Advance Phase, because rule 6.3 and project ruling PR-04 let a unit go through a hex that is over a limit during the Movement Phase and the Advance Phase does not.",
+      "check": "legality",
+      "phase": "advance",
+      "sub_step": "advance_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1
+        },
+        {
+          "ref": "a",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1"
+        },
+        {
+          "ref": "b",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1"
+        },
+        {
+          "ref": "l",
+          "side": "german",
+          "type": "8-1",
+          "hex": "D1"
+        },
+        {
+          "ref": "m",
+          "side": "german",
+          "type": "8-0",
+          "hex": "D2"
+        },
+        {
+          "ref": "n",
+          "side": "german",
+          "type": "8-0",
+          "hex": "C2"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "advance",
+          "units": [
+            "m"
+          ],
+          "hex": "D1"
+        }
+      ],
+      "legal": [
+        {
+          "action": "advance",
+          "units": [
+            "m"
+          ],
+          "hex": "D3"
+        }
+      ]
+    },
+    {
+      "id": "r33.1-a-self-propelled-gun-fires-in-its-covered-arc-only",
+      "rule": "33.1",
+      "type": "invalid",
+      "citation": "Rule 33.1: vehicles may fire their main armament only in a forward direction known as their covered arc. Rule 33.34 lets a tank turn its counter and pay case D, and a self-propelled gun has no turret to turn.",
+      "check": "legality",
+      "phase": "prep_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "sp",
+          "side": "german",
+          "type": "STGIII75",
+          "hex": "D5",
+          "facing": 3
+        },
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D6",
+          "facing": 3
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "D3"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "sp"
+          ],
+          "hex": "D3",
+          "aim": "infantry",
+          "ammo": "he"
+        }
+      ],
+      "legal": [
+        {
+          "action": "afv_fire",
+          "units": [
+            "t"
+          ],
+          "hex": "D3",
+          "aim": "infantry",
+          "ammo": "he"
+        }
+      ]
+    }
+  ]
+}

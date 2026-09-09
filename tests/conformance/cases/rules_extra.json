@@ -1,0 +1,592 @@
+{
+ "family": "Cases added after a review of the fire and close combat code",
+ "cases": [
+  {
+   "id": "r8.4-a-squad-fires-a-weapon-at-a-second-hex",
+   "rule": "8.4",
+   "type": "valid",
+   "citation": "Rule 8.4: a squad may never split its own inherent firepower between different hexes, but it may fire one or more of its support weapons separately at a different hex.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    6,
+    6
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "lmg",
+     "side": "german",
+     "type": "LMG",
+     "carrier": "a"
+    },
+    {
+     "ref": "t1",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A2"
+    },
+    {
+     "ref": "t2",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A3"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "A2"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_legal_after": [
+    {
+     "action": "group_add_weapon",
+     "units": [
+      "a"
+     ],
+     "weapon": "lmg",
+     "hex": "A3"
+    }
+   ],
+   "expect_illegal_after": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "A3"
+    }
+   ]
+  },
+  {
+   "id": "r4.2-the-prep-fire-marker-goes-on-at-the-end-of-the-phase",
+   "rule": "4.2",
+   "type": "boundary",
+   "citation": "The Advanced Sequence of Play, step 2.3: the Prep Fire counters are placed after the fire of the phase. Rule 4.3 then stops those units from moving.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    6,
+    6
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "b",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A2"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "A2"
+    },
+    {
+     "action": "group_fire"
+    },
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_units": {
+    "a": {
+     "prep_fired": true
+    },
+    "b": {
+     "prep_fired": false
+    }
+   },
+   "expect_state": {
+    "phase": "movement"
+   }
+  },
+  {
+   "id": "r15.2-a-leader-that-directed-may-not-move",
+   "rule": "15.2",
+   "type": "boundary",
+   "citation": "Rule 15.2: the leadership rating modifies one fire group in a player turn, provided the leader does not move in the Movement Phase after it gave that benefit in the Prep Fire Phase.",
+   "check": "legality",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "lead",
+     "side": "russian",
+     "type": "9-1",
+     "hex": "A1",
+     "directed": true
+    },
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "move",
+     "units": [
+      "lead"
+     ],
+     "hex": "A2"
+    }
+   ],
+   "legal": [
+    {
+     "action": "move",
+     "units": [
+      "a"
+     ],
+     "hex": "A2"
+    }
+   ]
+  },
+  {
+   "id": "r17.6-penetration-hits-friendly-units-too",
+   "rule": "17.6",
+   "type": "interaction",
+   "citation": "Rule 17.6: once the machine gun firepower is used against a target hex, all other hexes beyond it along that line are subject to the same dice roll, whether friendly or enemy units are in them.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    4,
+    4,
+    3,
+    3,
+    3,
+    3
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "mmg",
+     "side": "german",
+     "type": "MMG",
+     "carrier": "a"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A2"
+    },
+    {
+     "ref": "friend",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A3"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add_weapon",
+     "units": [
+      "a"
+     ],
+     "weapon": "mmg",
+     "hex": "A2"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "10.5",
+     "kind": "fire_result",
+     "data": {
+      "target": "A2"
+     }
+    },
+    {
+     "rule_id": "17.5",
+     "kind": "penetration",
+     "data": {
+      "target": "A3"
+     }
+    },
+    {
+     "rule_id": "10.5",
+     "kind": "fire_result",
+     "data": {
+      "target": "A3"
+     }
+    }
+   ]
+  },
+  {
+   "id": "r20.83-fire-into-a-melee-hex-hits-both-sides",
+   "rule": "20.83",
+   "type": "interaction",
+   "citation": "Rule 20.83: a melee hex may be fired on from outside, and such fire affects the friendly and the enemy units alike.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    4,
+    4,
+    3,
+    3,
+    3,
+    3
+   ],
+   "melee": [
+    "A1"
+   ],
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "g1",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "g2",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A2"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "g2"
+     ],
+     "hex": "A1"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "10.5",
+     "kind": "fire_result",
+     "data": {
+      "units": [
+       0,
+       1
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "r20.81-a-unit-in-melee-may-not-move",
+   "rule": "20.81",
+   "type": "invalid",
+   "citation": "Rule 20.81: units locked in melee may not fire out of the hex or conduct any activity other than close combat, and rule 20.8 keeps them in the hex.",
+   "check": "legality",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "melee": [
+    "A1"
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "move",
+     "units": [
+      "a"
+     ],
+     "hex": "A2"
+    }
+   ]
+  },
+  {
+   "id": "r20.9-a-broken-unit-in-a-melee-hex-is-removed",
+   "rule": "20.9",
+   "type": "valid",
+   "citation": "Rule 20.9: broken units play no role in close combat, and one that appears in a melee hex is eliminated.",
+   "check": "effect",
+   "phase": "close_combat",
+   "sub_step": "cc_declare",
+   "actor": "defender",
+   "phasing": "russian",
+   "dice": [
+    6,
+    6
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "broken",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1",
+     "broken": true
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "cc_attack",
+     "units": [
+      "e"
+     ],
+     "targets": [
+      "a"
+     ]
+    },
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "20.9",
+     "kind": "eliminated"
+    }
+   ],
+   "expect_eliminated": [
+    "broken"
+   ],
+   "expect_alive": [
+    "a",
+    "e"
+   ]
+  },
+  {
+   "id": "r16.3-the-unit-goes-back-after-each-defensive-fire",
+   "rule": "16.3",
+   "type": "boundary",
+   "citation": "Rule 16.3: after the resolution of each defensive fire, the units the defender moved back that are not broken go to the positions they held, or to the next hex of their line of march for further defensive fire by other defending units.",
+   "check": "effect",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "actor": "defender",
+   "phasing": "russian",
+   "dice": [
+    6,
+    6
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A4",
+     "moved": true,
+     "track": [
+      "A2",
+      "A3",
+      "A4"
+     ]
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "B2"
+    }
+   ],
+   "apply": [
+    {
+     "action": "track_return",
+     "units": [
+      "a"
+     ],
+     "hex": "A2"
+    },
+    {
+     "action": "group_add",
+     "units": [
+      "e"
+     ],
+     "hex": "A2"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "16.1",
+     "kind": "track_return"
+    },
+    {
+     "rule_id": "10.5",
+     "kind": "fire_result",
+     "data": {
+      "adjusted": 10,
+      "result": "-"
+     }
+    },
+    {
+     "rule_id": "16.3",
+     "kind": "track_return_end"
+    }
+   ],
+   "expect_units": {
+    "a": {
+     "hex": "A4"
+    }
+   },
+   "expect_legal_after": [
+    {
+     "action": "track_return",
+     "units": [
+      "a"
+     ],
+     "hex": "A3"
+    }
+   ]
+  },
+  {
+   "id": "r20.5-a-light-machine-gun-adds-to-the-attack-only",
+   "rule": "20.5",
+   "type": "boundary",
+   "citation": "Rule 20.5: light machine guns are the only support weapons used in close combat. They add to the firepower of an attacking unit and are not counted in the firepower of a defending unit. A Russian squad with a light machine gun attacks with 6 factors against 4, which is 3-2 with a kill number of 6.",
+   "check": "effect",
+   "phase": "close_combat",
+   "sub_step": "cc_declare",
+   "actor": "phasing",
+   "phasing": "russian",
+   "dice": [
+    3,
+    3
+   ],
+   "melee": [
+    "A1"
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "lmg",
+     "side": "russian",
+     "type": "LMG",
+     "carrier": "a"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "elmg",
+     "side": "german",
+     "type": "LMG",
+     "carrier": "e"
+    }
+   ],
+   "apply": [
+    {
+     "action": "cc_attack",
+     "units": [
+      "a"
+     ],
+     "targets": [
+      "e"
+     ]
+    },
+    {
+     "action": "end_phase"
+    },
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "20.3",
+     "kind": "cc_kill",
+     "data": {
+      "attack": 6,
+      "defense": 4,
+      "odds": "3-2",
+      "kill": 6
+     }
+    }
+   ],
+   "expect_eliminated": [
+    "e"
+   ],
+   "expect_alive": [
+    "a"
+   ]
+  }
+ ]
+}

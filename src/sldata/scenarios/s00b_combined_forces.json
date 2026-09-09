@@ -1,0 +1,286 @@
+{
+ "id": "s00b_combined_forces",
+ "title": "Combined forces meeting engagement",
+ "notes": "A project scenario, not a printed scenario. It exists so that a game can start with the three armies of the 1977 counter set: German on one side, Russian and American together on the other. The three 1977 scenarios of year one are German against Russian, and the first printed card with an American force is scenario 7, which needs rules 42 to 52. Those rules wait for later tiers, so this scenario gives the American counters a game inside rules 1 to 27. The board comes from the generator, and the forces are the project's own; no part of it is card text (SR-07, FR-22).",
+ "board": "village",
+ "board_generator": {
+  "seed": 20260908,
+  "board_type": "village",
+  "cols": 33,
+  "rows": 10,
+  "zones": [
+   {
+    "count": 2,
+    "min_hexes": 2,
+    "max_hexes": 6,
+    "min_col": 2,
+    "max_col": 12
+   },
+   {
+    "count": 2,
+    "min_hexes": 2,
+    "max_hexes": 6,
+    "min_col": 17,
+    "max_col": 24
+   }
+  ]
+ },
+ "board_retries": 48,
+ "turns": 6,
+ "first_mover": "axis",
+ "setup_order": [
+  "allied",
+  "axis"
+ ],
+ "rules_used": [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "11",
+  "12",
+  "13",
+  "14",
+  "15",
+  "16",
+  "17",
+  "18",
+  "19",
+  "20",
+  "21",
+  "22",
+  "23",
+  "24",
+  "25",
+  "26"
+ ],
+ "switches": {
+  "predesignation": "basic",
+  "semi_simultaneous": "off"
+ },
+ "smoke_counters": {
+  "axis": 4
+ },
+ "concealment_counters": {
+  "allied": 8,
+  "axis": 6
+ },
+ "sides": [
+  {
+   "side": "axis",
+   "nationality": "german",
+   "groups": [
+    {
+     "id": "a_stahler",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 2,
+      "max_col": 12,
+      "rank": 0
+     },
+     "units": [
+      {
+       "type": "9-2",
+       "name": "Lt Stahler"
+      },
+      {
+       "type": "4-6-7",
+       "count": 3
+      },
+      {
+       "type": "LMG",
+       "count": 2
+      }
+     ]
+    },
+    {
+     "id": "a_pitz",
+     "area": {
+      "zone": "stone_building",
+      "min_col": 2,
+      "max_col": 12,
+      "rank": 1
+     },
+     "units": [
+      {
+       "type": "8-1",
+       "name": "Sgt Pitz"
+      },
+      {
+       "type": "4-6-7",
+       "count": 3
+      },
+      {
+       "type": "MMG",
+       "count": 1
+      },
+      {
+       "type": "DC",
+       "count": 1
+      }
+     ]
+    },
+    {
+     "id": "a_engineers",
+     "area": {
+      "zone": "columns",
+      "min_col": 0,
+      "max_col": 1,
+      "not_terrain": [
+       "stone_building",
+       "wooden_building"
+      ]
+     },
+     "units": [
+      {
+       "type": "8-0",
+       "name": "Cpl Uhl"
+      },
+      {
+       "type": "8-3-8",
+       "count": 2
+      },
+      {
+       "type": "FT",
+       "count": 1
+      },
+      {
+       "type": "DC",
+       "count": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "side": "allied",
+   "nationality": "russian",
+   "groups": [
+    {
+     "id": "l_dubovich",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 17,
+      "max_col": 24,
+      "rank": 0
+     },
+     "units": [
+      {
+       "type": "9-1",
+       "name": "Lt Dubovich"
+      },
+      {
+       "type": "4-4-7",
+       "count": 3
+      },
+      {
+       "type": "LMG",
+       "count": 2
+      }
+     ]
+    },
+    {
+     "id": "l_guards",
+     "area": {
+      "zone": "stone_building",
+      "min_col": 17,
+      "max_col": 24,
+      "rank": 1
+     },
+     "units": [
+      {
+       "type": "10-2",
+       "name": "Col Berki"
+      },
+      {
+       "type": "6-2-8",
+       "count": 3
+      },
+      {
+       "type": "MMG",
+       "count": 1
+      }
+     ]
+    },
+    {
+     "id": "l_robinson",
+     "nationality": "american",
+     "objective": true,
+     "area": {
+      "zone": "columns",
+      "min_col": 29,
+      "max_col": 32
+     },
+     "units": [
+      {
+       "type": "9-2",
+       "name": "Cpt Robinson"
+      },
+      {
+       "type": "6-6-6",
+       "count": 3
+      },
+      {
+       "type": "MMG",
+       "count": 1
+      },
+      {
+       "type": "DC",
+       "count": 1
+      }
+     ]
+    },
+    {
+     "id": "l_shaw",
+     "nationality": "american",
+     "area": {
+      "zone": "columns",
+      "min_col": 26,
+      "max_col": 28
+     },
+     "units": [
+      {
+       "type": "9-1",
+       "name": "Lt Greenwood"
+      },
+      {
+       "type": "8-4-7",
+       "count": 2
+      },
+      {
+       "type": "HMG",
+       "count": 1
+      },
+      {
+       "type": "FT",
+       "count": 1
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "victory": [
+  {
+   "kind": "building_swing",
+   "side": "axis",
+   "margin": 1,
+   "enemy_groups": [
+    "l_dubovich",
+    "l_robinson"
+   ],
+   "own_groups": [
+    "a_stahler"
+   ],
+   "note": "The Axis side wins when it holds one more of the marked buildings than it started with. The Allied side wins when it does not."
+  }
+ ]
+}

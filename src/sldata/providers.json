@@ -1,0 +1,75 @@
+{
+ "version": 1,
+ "notes": [
+  "The provider configuration (IR-01, IR-02, SR-05). A client sends a request only to a host on the allowlist, and the allowlist is here and in no other place. No user interface and no scenario file can set a provider address (SR-05).",
+  "The local endpoint is the llama-server on the owner's network. It is the only private-network entry, which is the exception that SR-05 names. Open question O-01 asked which endpoint is the reference for TR-06, and this is the answer.",
+  "A provider with no key on the machine is unavailable, and a run says so and goes on (SR-02)."
+ ],
+ "allowlist": [
+  "http://tars.uberadmin.com:5150",
+  "https://api.anthropic.com",
+  "https://api.openai.com",
+  "https://generativelanguage.googleapis.com",
+  "https://api.mistral.ai",
+  "https://api.x.ai"
+ ],
+ "providers": [
+  {
+   "name": "local",
+   "kind": "openai_compatible",
+   "endpoint": "http://tars.uberadmin.com:5150/v1",
+   "model": "unsloth/Llama-3.3-70B-Instruct-GGUF",
+   "key": null,
+   "health": "/models",
+   "timeout_seconds": 120,
+   "tier": "v0.4"
+  },
+  {
+   "name": "claude",
+   "kind": "anthropic",
+   "endpoint": "https://api.anthropic.com/v1",
+   "model": "claude-sonnet-4-5",
+   "key": "claude",
+   "version": "2023-06-01",
+   "timeout_seconds": 90,
+   "tier": "v0.4"
+  },
+  {
+   "name": "openai",
+   "kind": "openai_compatible",
+   "endpoint": "https://api.openai.com/v1",
+   "model": "gpt-4.1-mini",
+   "key": "openai",
+   "timeout_seconds": 90,
+   "tier": "rc"
+  },
+  {
+   "name": "mistral",
+   "kind": "openai_compatible",
+   "endpoint": "https://api.mistral.ai/v1",
+   "model": "mistral-small-latest",
+   "key": "mistral",
+   "timeout_seconds": 90,
+   "tier": "rc"
+  },
+  {
+   "name": "xai",
+   "kind": "openai_compatible",
+   "endpoint": "https://api.x.ai/v1",
+   "model": "grok-3-mini",
+   "key": "xai",
+   "timeout_seconds": 90,
+   "tier": "rc"
+  },
+  {
+   "name": "gemini",
+   "kind": "gemini",
+   "endpoint": "https://generativelanguage.googleapis.com/v1beta",
+   "model": "gemini-2.5-flash",
+   "key": "gemini",
+   "health": "/models",
+   "timeout_seconds": 90,
+   "tier": "rc"
+  }
+ ]
+}

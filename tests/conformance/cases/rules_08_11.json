@@ -1,0 +1,618 @@
+{
+ "family": "Fire combat, firepower modifiers, resolution, and terrain effects",
+ "cases": [
+  {
+   "id": "r7.2-a-clear-line-of-sight-across-open-ground",
+   "rule": "7.2",
+   "type": "valid",
+   "citation": "Rule 7.2: the line of sight is unobstructed unless it goes through a woods or building symbol.",
+   "check": "legality",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A4"
+    }
+   ],
+   "legal": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "A4"
+    }
+   ]
+  },
+  {
+   "id": "r8.6-adjacent-hexes-form-a-fire-group",
+   "rule": "8.6",
+   "type": "valid",
+   "citation": "Rule 8.6: units combine their firepower in a fire group only when the firing units are in the same or adjacent hexes.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "b",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A2"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A4"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "A4"
+    }
+   ],
+   "expect_legal_after": [
+    {
+     "action": "group_add",
+     "units": [
+      "b"
+     ],
+     "hex": "A4"
+    }
+   ]
+  },
+  {
+   "id": "r8.6-a-hex-that-is-not-adjacent-may-not-join",
+   "rule": "8.6",
+   "type": "invalid",
+   "citation": "Rule 8.6: a fire group is a chain of hexes that are the same or adjacent.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "b",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A3"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A5"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "A5"
+    }
+   ],
+   "expect_illegal_after": [
+    {
+     "action": "group_add",
+     "units": [
+      "b"
+     ],
+     "hex": "A5"
+    }
+   ]
+  },
+  {
+   "id": "r8.2-a-unit-fires-one-time-in-a-player-turn",
+   "rule": "8.2",
+   "type": "boundary",
+   "citation": "Rule 8.2: no infantry unit uses its inherent and support weapon firepower more than one time in a player turn.",
+   "check": "legality",
+   "phase": "advancing_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1",
+     "fired": true
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A2"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "A2"
+    }
+   ]
+  },
+  {
+   "id": "r8.5-one-hex-fires-at-one-target-in-one-roll",
+   "rule": "8.5",
+   "type": "interaction",
+   "citation": "Rule 8.5: units in the same hex that fire at the same target hex must combine their fire into one dice roll.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "dice": [
+    6,
+    6
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "b",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A4"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "A4"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_illegal_after": [
+    {
+     "action": "group_add",
+     "units": [
+      "b"
+     ],
+     "hex": "A4"
+    }
+   ]
+  },
+  {
+   "id": "r9.1-point-blank-fire-doubles-the-firepower",
+   "rule": "9.1",
+   "type": "valid",
+   "citation": "Rule 9.1: the firepower of a unit is doubled when the target hex is adjacent.",
+   "check": "firepower",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    }
+   ],
+   "unit": "a",
+   "target": "A2",
+   "expect_halves": 16,
+   "expect_modifiers": [
+    "9.1"
+   ]
+  },
+  {
+   "id": "r9.2-long-range-halves-the-firepower",
+   "rule": "9.2",
+   "type": "boundary",
+   "citation": "Rule 9.2: the firepower is halved beyond the printed range, and no attack is allowed beyond double that range. A Russian 4-4-7 has range 4, so 8 hexes is the last legal range.",
+   "check": "firepower",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    }
+   ],
+   "unit": "a",
+   "target": "A9",
+   "expect_halves": 4,
+   "expect_modifiers": [
+    "9.2"
+   ]
+  },
+  {
+   "id": "r9.2-beyond-double-range-is-not-a-target",
+   "rule": "9.2",
+   "type": "invalid",
+   "citation": "Rule 9.2: attacks are not allowed beyond double the printed range.",
+   "check": "firepower",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    }
+   ],
+   "unit": "a",
+   "target": "A10",
+   "expect_halves": null
+  },
+  {
+   "id": "r9.5-moving-fire-and-point-blank-cancel",
+   "rule": "9.5",
+   "type": "interaction",
+   "citation": "Rule 9.5 with its example: a unit that moves next to an enemy has its firepower halved for moving and doubled for point blank, so it fires at its normal firepower.",
+   "check": "firepower",
+   "phase": "advancing_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1",
+     "moved": true
+    }
+   ],
+   "unit": "a",
+   "target": "A2",
+   "moving": true,
+   "expect_halves": 8,
+   "expect_modifiers": [
+    "9.1",
+    "9.3"
+   ]
+  },
+  {
+   "id": "r10.3-the-column-does-not-exceed-the-firepower",
+   "rule": "10.3",
+   "type": "valid",
+   "citation": "Rule 10.3: use the rightmost column that does not exceed the adjusted firepower of the fire group.",
+   "check": "ift",
+   "firepower": 10,
+   "expect_column": 8
+  },
+  {
+   "id": "r10.3-firepower-below-the-first-column",
+   "rule": "10.3",
+   "type": "invalid",
+   "citation": "Rule 10.3: the table starts at 1 firepower factor, so no column serves a group with none.",
+   "check": "ift",
+   "firepower": 0,
+   "expect_column": null
+  },
+  {
+   "id": "r10.6-the-rulebook-example",
+   "rule": "10.6",
+   "type": "boundary",
+   "citation": "The example in rule 10.6: a fire group of 8 firepower factors with an adjusted dice roll of 6 gives a morale check with a modifier of 1.",
+   "check": "ift",
+   "firepower": 8,
+   "roll": 6,
+   "expect_result": "1"
+  },
+  {
+   "id": "r10.5-a-low-roll-on-a-high-column-kills",
+   "rule": "10.5",
+   "type": "interaction",
+   "citation": "Rule 10.5: the adjusted dice roll and the firepower column give the result. A roll of 3 on the 16 column is a kill.",
+   "check": "ift",
+   "firepower": 16,
+   "roll": 3,
+   "expect_result": "KIA"
+  },
+  {
+   "id": "r11.1-a-stone-building-adds-three",
+   "rule": "11.1",
+   "type": "valid",
+   "citation": "Rule 11.1: the terrain of the target hex modifies the dice roll. The rule 17.5 example gives a stone building a modifier of 3.",
+   "check": "drm",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C2"
+    }
+   ],
+   "members": [
+    "a"
+   ],
+   "target": "C3",
+   "expect_drm": 3
+  },
+  {
+   "id": "r11.1-open-ground-adds-nothing",
+   "rule": "11.1",
+   "type": "invalid",
+   "citation": "Rule 11.1: open ground gives no modifier to the dice roll of a non-moving target.",
+   "check": "drm",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    }
+   ],
+   "members": [
+    "a"
+   ],
+   "target": "A2",
+   "expect_drm": 0
+  },
+  {
+   "id": "r11.53-a-wall-hexside-adds-two",
+   "rule": "11.53",
+   "type": "boundary",
+   "citation": "The rulebook appendix for rule 11.5 gives a net modifier of 5 as 2 for a wall and 3 for a stone building, so a wall hexside adds 2.",
+   "check": "drm",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "F4"
+    }
+   ],
+   "members": [
+    "a"
+   ],
+   "target": "F6",
+   "expect_drm": 2
+  },
+  {
+   "id": "r11.6-a-hexside-modifier-needs-every-line",
+   "rule": "11.6",
+   "type": "interaction",
+   "citation": "Rule 11.6: when the lines of sight of a multi-hex fire group do not all cross the hexside terrain, no hexside modifier applies. The unit in F4 fires across the wall and the unit in E6 does not.",
+   "check": "drm",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "F4"
+    },
+    {
+     "ref": "b",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E6"
+    }
+   ],
+   "members": [
+    "a",
+    "b"
+   ],
+   "target": "F6",
+   "expect_drm": 0
+  },
+  {
+   "id": "r15.2-the-leader-modifies-the-fire-group",
+   "rule": "15.2",
+   "type": "valid",
+   "citation": "Rule 15.2: the leadership rating modifies the fire combat dice roll of one fire group in a player turn when the firing units are in the leader's hex.",
+   "check": "drm",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "lead",
+     "side": "russian",
+     "type": "9-1",
+     "hex": "A1"
+    }
+   ],
+   "members": [
+    "a"
+   ],
+   "leader": "lead",
+   "target": "A2",
+   "expect_drm": -1
+  },
+  {
+   "id": "r15.4-two-leaders-do-not-combine",
+   "rule": "15.4",
+   "type": "invalid",
+   "citation": "Rule 15.4: two leaders may not combine their ratings, and no more than one leader directs a fire group.",
+   "check": "drm",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "lead",
+     "side": "russian",
+     "type": "9-1",
+     "hex": "A1"
+    },
+    {
+     "ref": "lead2",
+     "side": "russian",
+     "type": "10-2",
+     "hex": "A1"
+    }
+   ],
+   "members": [
+    "a"
+   ],
+   "leader": "lead2",
+   "target": "A2",
+   "expect_drm": -2
+  },
+  {
+   "id": "r15.1-a-group-may-fire-with-no-leader",
+   "rule": "15.1",
+   "type": "boundary",
+   "citation": "The ruling for rule 15.1: a player may leave a leader's rating out of a fire group in its hex.",
+   "check": "drm",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "lead",
+     "side": "russian",
+     "type": "9-1",
+     "hex": "A1"
+    }
+   ],
+   "members": [
+    "a"
+   ],
+   "target": "A2",
+   "expect_drm": 0
+  },
+  {
+   "id": "r15.6-the-leader-modifies-a-morale-check",
+   "rule": "15.6",
+   "type": "interaction",
+   "citation": "Rule 15.6: the rating of an unbroken leader applies to the morale checks of the other units in its hex. With a 9-1 leader present, a 4-4-7 squad that rolls 8 passes a morale check.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    4,
+    4,
+    4,
+    4
+   ],
+   "units": [
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A2"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "lead",
+     "side": "russian",
+     "type": "9-1",
+     "hex": "A1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "g"
+     ],
+     "hex": "A1"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "10.5",
+     "kind": "fire_result",
+     "data": {
+      "result": "M"
+     }
+    },
+    {
+     "rule_id": "12.1",
+     "kind": "morale_pass"
+    }
+   ],
+   "expect_units": {
+    "t": {
+     "broken": false
+    }
+   }
+  }
+ ]
+}

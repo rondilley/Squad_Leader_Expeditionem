@@ -1,0 +1,41 @@
+{
+  "nationality": "german",
+  "version": 4,
+  "provenance": [
+    "heavy marks a weapon that rule 27.3 keeps out of the sewers: the heavy machine gun, the mortar, the one hundred and five millimetre gun, and the anti-tank gun.",
+    "Values transcribed from the counter sheet scan described in docs/research/2026-09-07_RV-1_counters_charts.md sections 2 to 4 [S1]. The project writes them in its own layout and ships no counter art (SR-07).",
+    "Squad values are firepower-range-morale (rules 2.2 to 2.4). broken_morale is the number on the reverse side, used for rally and for morale checks of a broken unit (rules 13.6, 14.1).",
+    "Machine gun penetration equals the firepower factor: rule 2.8 gives a MMG a penetration factor of 4, and the rule 17.8 example gives the LMG two penetration factors.",
+    "Portage points come from the Support Weapons Chart (RV-1 section 7.3). A null pp_leader means one leader cannot carry the weapon (chart note A: two leaders may carry one MMG or HMG one hex per Movement Phase, not modeled in v0.1).",
+    "breakdown is the lowest dice roll that malfunctions the weapon (B12 is 12, B11+ is 11).",
+    "The flamethrower and the demolition charge come from rules 22 and 23 and from the Support Weapons Chart (RV-1 section 7.3). For the flamethrower the breakdown number is the out of fuel roll of rule 22.6: on 9 or more the weapon leaves the game after the attack. For the charge it is the malfunction roll of rule 23.8.",
+    "Vehicle values come from the counter sheet scan described in docs/research/2026-09-07_RV-1_counters_charts.md section 5 [S1]: movement points in the top right, main gun calibre in the bottom left, and the two machine gun factors in the bottom right. gun_he_only is the overscored calibre of rule 28.2 and gun_low_velocity is the asterisk of the same rule. survival is the number on the wreck side, which rule 33.9 uses for the crew. armor_key names the row of rule 33.41 in tables/armor.json. transport_pp is the P number on the counter, and rules 47 and 51 give it its meaning."
+  ],
+  "types": {
+    "4-6-7": {"kind": "squad", "fp": 4, "range": 6, "morale": 7, "broken_morale": 7, "count": 35},
+    "8-3-8": {"kind": "squad", "fp": 8, "range": 3, "morale": 8, "broken_morale": 8, "count": 7, "elite": true, "assault_engineer": true},
+    "2-4-7": {"kind": "crew", "fp": 2, "range": 4, "morale": 7, "broken_morale": 7, "count": 13},
+    "10-3": {"kind": "leader", "morale": 10, "leadership": -3},
+    "10-2": {"kind": "leader", "morale": 10, "leadership": -2},
+    "9-2": {"kind": "leader", "morale": 9, "leadership": -2},
+    "9-1": {"kind": "leader", "morale": 9, "leadership": -1},
+    "8-1": {"kind": "leader", "morale": 8, "leadership": -1},
+    "8-0": {"kind": "leader", "morale": 8, "leadership": 0},
+    "7-0": {"kind": "leader", "morale": 7, "leadership": 0},
+    "6+1": {"kind": "leader", "morale": 6, "leadership": 1},
+    "LMG": {"kind": "sw", "weapon_class": "mg", "fp": 2, "range": 8, "breakdown": 12, "penetration": 2, "pp_squad": 1, "pp_leader": 2, "count": 19},
+    "MMG": {"kind": "sw", "weapon_class": "mg", "fp": 4, "range": 12, "breakdown": 12, "penetration": 4, "pp_squad": 4, "pp_leader": null, "count": 6},
+    "HMG": {"kind": "sw", "weapon_class": "mg", "fp": 6, "range": 16, "breakdown": 12, "penetration": 6, "pp_squad": 5, "pp_leader": null, "heavy": true, "count": 3},
+    "FT": {"kind": "sw", "weapon_class": "flamethrower", "fp": 20, "range": 2, "breakdown": 9, "penetration": 0, "pp_squad": 2, "pp_leader": 2, "count": 2, "note": "Rule 22. The breakdown number is the out of fuel roll of rule 22.6, and the weapon leaves the game."},
+    "DC": {"kind": "sw", "weapon_class": "demo", "fp": 30, "range": 1, "breakdown": 12, "penetration": 0, "pp_squad": 1, "pp_leader": 1, "count": 4, "note": "Rule 23. The charge is placed in an adjacent hex and explodes in the following Advancing Fire Phase."},
+    "STGIII75": {"kind": "vehicle", "vehicle_class": "sp_gun", "mp": 12, "gun": 75, "mg_ca": 6, "mg_360": 0, "survival": 6, "armor_key": "stg3", "count": 4},
+    "STGIII105": {"kind": "vehicle", "vehicle_class": "sp_gun", "mp": 12, "gun": 105, "gun_he_only": true, "mg_ca": 6, "mg_360": 0, "survival": 6, "armor_key": "stg3", "count": 3},
+    "MkIVF2": {"kind": "vehicle", "vehicle_class": "tank", "mp": 12, "gun": 75, "mg_ca": 4, "mg_360": 2, "survival": 5, "armor_key": "mkiv", "count": 3},
+    "MkIVF1": {"kind": "vehicle", "vehicle_class": "tank", "mp": 12, "gun": 75, "gun_he_only": true, "gun_low_velocity": true, "canister": true, "mg_ca": 4, "mg_360": 2, "survival": 5, "armor_key": "mkiv", "count": 2},
+    "Brummbar": {"kind": "vehicle", "vehicle_class": "sp_gun", "mp": 6, "gun": 150, "gun_he_only": true, "gun_low_velocity": true, "mg_ca": 4, "mg_360": 0, "survival": 7, "armor_key": "brumbar", "count": 2},
+    "SdKfz251": {"kind": "vehicle", "vehicle_class": "halftrack", "mp": 16, "transport_pp": 5, "survival": 0, "armor_key": "halftrack", "open_top": true, "count": 6},
+    "SdKfz251MG": {"kind": "vehicle", "vehicle_class": "halftrack", "mp": 16, "transport_pp": 5, "mg_360": 4, "survival": 4, "armor_key": "halftrack", "open_top": true, "count": 9},
+    "Truck": {"kind": "vehicle", "vehicle_class": "truck", "mp": 24, "transport_pp": 7, "survival": 0, "count": 7},
+    "PF": {"kind": "sw", "weapon_class": "panzerfaust", "fp": 0, "range": 3, "breakdown": 0, "penetration": 0, "pp_squad_half": 1, "pp_leader_half": 2, "count": 16, "note": "Rule 37.3. One anti-tank device, removed after use. Rule 37.35 makes it half a machine gun for portage, and a squad may fire four in one player turn."}
+  }
+}

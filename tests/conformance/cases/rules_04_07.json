@@ -1,0 +1,718 @@
+{
+ "family": "Sequence of play, movement, stacking, and line of sight",
+ "cases": [
+  {
+   "id": "r4.2-prep-fire-marker-stops-movement",
+   "rule": "4.2",
+   "type": "interaction",
+   "citation": "Rule 4.2 puts a Prep Fire marker on each unit that fires, and rule 4.3 lets the attacker move the units that did not fire in the Prep Fire Phase.",
+   "check": "legality",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C1",
+     "prep_fired": true
+    },
+    {
+     "ref": "b",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C1"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "move",
+     "units": [
+      "a"
+     ],
+     "hex": "C2"
+    }
+   ],
+   "legal": [
+    {
+     "action": "move",
+     "units": [
+      "b"
+     ],
+     "hex": "C2"
+    }
+   ]
+  },
+  {
+   "id": "r4.3-movement-command-not-legal-in-prep-fire",
+   "rule": "4.3",
+   "type": "invalid",
+   "citation": "Rule 4.3 puts movement in the Movement Phase.",
+   "check": "legality",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C1"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "move",
+     "units": [
+      "a"
+     ],
+     "hex": "C2"
+    }
+   ]
+  },
+  {
+   "id": "r4.9-attacker-changes-after-close-combat",
+   "rule": "4.9",
+   "type": "boundary",
+   "citation": "Rule 4.9: the defending player becomes the attacking player and repeats the eight phases.",
+   "check": "effect",
+   "phase": "close_combat",
+   "sub_step": "cc_declare",
+   "actor": "defender",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C1"
+    },
+    {
+     "ref": "b",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "J1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "4.9",
+     "kind": "player_turn_end"
+    }
+   ],
+   "expect_state": {
+    "phasing": "german",
+    "phase": "rally",
+    "turn": 1
+   }
+  },
+  {
+   "id": "r4.6-rout-phase-has-a-window-for-each-player",
+   "rule": "4.6",
+   "type": "valid",
+   "citation": "Rule 4.6: broken units of the two sides seek cover, the moving player first. The project ruling PR-01 uses the same sequence in the Rally Phase.",
+   "check": "effect",
+   "phase": "rout",
+   "sub_step": "rout_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C1"
+    },
+    {
+     "ref": "b",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "J1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_state": {
+    "phase": "rout",
+    "active": "german"
+   }
+  },
+  {
+   "id": "r5.5-open-ground-costs-one-factor",
+   "rule": "5.5",
+   "type": "valid",
+   "citation": "Rule 5.5 and the movement cost chart: open ground costs 1 movement factor.",
+   "check": "effect",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "move",
+     "units": [
+      "a"
+     ],
+     "hex": "C2"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "5.5",
+     "kind": "move",
+     "data": {
+      "cost_halves": 2
+     }
+    }
+   ],
+   "expect_units": {
+    "a": {
+     "hex": "C2",
+     "mf_used": 2,
+     "moved": true
+    }
+   }
+  },
+  {
+   "id": "r5.2-a-move-is-one-hex",
+   "rule": "5.2",
+   "type": "invalid",
+   "citation": "Rule 5.2: a unit moves hex by hex and spends its factors for each hex it enters.",
+   "check": "legality",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C1"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "move",
+     "units": [
+      "a"
+     ],
+     "hex": "C3"
+    }
+   ]
+  },
+  {
+   "id": "r5.41-four-factors-and-no-more",
+   "rule": "5.41",
+   "type": "boundary",
+   "citation": "Rule 5.41: every squad counter has 4 movement factors.",
+   "check": "legality",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C1",
+     "mf_used": 8,
+     "moved": true
+    }
+   ],
+   "illegal": [
+    {
+     "action": "move",
+     "units": [
+      "a"
+     ],
+     "hex": "C2"
+    }
+   ]
+  },
+  {
+   "id": "r5.7-portage-above-the-free-points-costs-factors",
+   "rule": "5.7",
+   "type": "interaction",
+   "citation": "Rule 5.7: a squad carries 3 portage points at no cost and loses one movement factor for each point above that. A machine gun of 4 points leaves 3 factors.",
+   "check": "legality",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C1",
+     "mf_used": 6,
+     "moved": true
+    },
+    {
+     "ref": "mmg",
+     "side": "russian",
+     "type": "MMG",
+     "carrier": "a"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "move",
+     "units": [
+      "a"
+     ],
+     "hex": "C2"
+    }
+   ]
+  },
+  {
+   "id": "r5.51-a-wall-hexside-costs-one-more-factor",
+   "rule": "5.51",
+   "type": "valid",
+   "citation": "Rule 5.51: a unit that crosses a wall or hedge hexside pays one movement factor plus the cost of the terrain it enters.",
+   "check": "effect",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "F5"
+    }
+   ],
+   "apply": [
+    {
+     "action": "move",
+     "units": [
+      "a"
+     ],
+     "hex": "F6"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "5.5",
+     "kind": "move",
+     "data": {
+      "cost_halves": 4
+     }
+    }
+   ]
+  },
+  {
+   "id": "r5.52-road-to-road-costs-half-a-factor",
+   "rule": "5.52",
+   "type": "boundary",
+   "citation": "Rule 5.52: a road hex entered through a road hexside costs half a movement factor. The project ruling PR-03 treats two adjacent road hexes as joined by a road hexside.",
+   "check": "effect",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A5"
+    }
+   ],
+   "apply": [
+    {
+     "action": "move",
+     "units": [
+      "a"
+     ],
+     "hex": "A6"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "5.5",
+     "kind": "move",
+     "data": {
+      "cost_halves": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "r5.44-the-leader-bonus-gives-two-more-factors",
+   "rule": "5.44",
+   "type": "valid",
+   "citation": "Rule 5.44: a squad that spends the whole Movement Phase stacked with a leader gets 2 more movement factors.",
+   "check": "effect",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "lead",
+     "side": "russian",
+     "type": "8-0",
+     "hex": "C1"
+    },
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "stack_move",
+     "units": [
+      "lead",
+      "a"
+     ],
+     "hex": "C2"
+    },
+    {
+     "action": "stack_move",
+     "units": [
+      "lead",
+      "a"
+     ],
+     "hex": "C1"
+    },
+    {
+     "action": "stack_move",
+     "units": [
+      "lead",
+      "a"
+     ],
+     "hex": "C2"
+    },
+    {
+     "action": "stack_move",
+     "units": [
+      "lead",
+      "a"
+     ],
+     "hex": "C1"
+    },
+    {
+     "action": "stack_move",
+     "units": [
+      "lead",
+      "a"
+     ],
+     "hex": "C2"
+    },
+    {
+     "action": "stack_move",
+     "units": [
+      "lead",
+      "a"
+     ],
+     "hex": "C1"
+    }
+   ],
+   "expect_units": {
+    "a": {
+     "mf_used": 12
+    },
+    "lead": {
+     "mf_used": 12
+    }
+   }
+  },
+  {
+   "id": "r6.1-four-infantry-units-in-a-hex",
+   "rule": "6.1",
+   "type": "valid",
+   "citation": "Rule 6.1: a hex holds 4 infantry units, of which 3 may be squads, plus 10 portage points.",
+   "check": "legality",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C1"
+    },
+    {
+     "ref": "b",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C2"
+    },
+    {
+     "ref": "c",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C2"
+    },
+    {
+     "ref": "lead",
+     "side": "russian",
+     "type": "8-0",
+     "hex": "C2"
+    }
+   ],
+   "legal": [
+    {
+     "action": "move",
+     "units": [
+      "a"
+     ],
+     "hex": "C2"
+    }
+   ]
+  },
+  {
+   "id": "r6.1-a-fourth-squad-may-not-stay",
+   "rule": "6.1",
+   "type": "invalid",
+   "citation": "Rule 6.1: only 3 of the 4 infantry units in a hex may be squads.",
+   "check": "legality",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C2"
+    },
+    {
+     "ref": "b",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C2"
+    },
+    {
+     "ref": "c",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C2"
+    },
+    {
+     "ref": "d",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C2"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "end_phase"
+    }
+   ]
+  },
+  {
+   "id": "r6.3-a-unit-may-pass-through-an-over-limit-hex",
+   "rule": "6.3",
+   "type": "interaction",
+   "citation": "Rule 6.3: a player may exceed the stacking limits during movement, but not at the end of the Movement Phase. The project ruling PR-04 asks for the factors to leave again.",
+   "check": "legality",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C1"
+    },
+    {
+     "ref": "b",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C2"
+    },
+    {
+     "ref": "c",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C2"
+    },
+    {
+     "ref": "d",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C2"
+    }
+   ],
+   "legal": [
+    {
+     "action": "move",
+     "units": [
+      "a"
+     ],
+     "hex": "C2"
+    }
+   ]
+  },
+  {
+   "id": "r6.1-ten-portage-points-is-the-limit",
+   "rule": "6.1",
+   "type": "boundary",
+   "citation": "Rule 6.1: each player may stack 4 infantry units in a hex, of which 3 may be squads, plus 10 portage points of support weapons.",
+   "check": "stacking",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C2"
+    },
+    {
+     "ref": "m1",
+     "side": "russian",
+     "type": "MMG",
+     "hex": "C2"
+    },
+    {
+     "ref": "m2",
+     "side": "russian",
+     "type": "MMG",
+     "hex": "C2"
+    },
+    {
+     "ref": "l1",
+     "side": "russian",
+     "type": "LMG",
+     "hex": "C2"
+    },
+    {
+     "ref": "l2",
+     "side": "russian",
+     "type": "LMG",
+     "hex": "C2"
+    }
+   ],
+   "hex": "C2",
+   "expect_load": [
+    1,
+    1,
+    10
+   ],
+   "expect_over_limit": false,
+   "side": "russian"
+  },
+  {
+   "id": "r7.8-fire-into-an-adjacent-hex-is-always-legal",
+   "rule": "7.8",
+   "type": "boundary",
+   "citation": "Rule 7.8: units may always fire into an adjacent hex whatever the terrain.",
+   "check": "legality",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C3"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C4"
+    }
+   ],
+   "legal": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "C4"
+    }
+   ]
+  },
+  {
+   "id": "r7.3-no-fire-through-a-building",
+   "rule": "7.3",
+   "type": "invalid",
+   "citation": "Rule 7.3: the line of sight goes into a woods or building symbol but not through it.",
+   "check": "legality",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "G10"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "G7"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "G7"
+    }
+   ]
+  },
+  {
+   "id": "r7.4-a-multi-story-building-fires-over-a-small-one",
+   "rule": "7.4",
+   "type": "interaction",
+   "citation": "Rule 7.4: a unit in a building of 3 hexes or more fires over buildings of 2 hexes or smaller and over woods.",
+   "check": "legality",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "G6"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "G10"
+    }
+   ],
+   "legal": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "G10"
+    }
+   ]
+  }
+ ]
+}

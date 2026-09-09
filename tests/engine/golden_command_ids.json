@@ -1,0 +1,109 @@
+{
+ "source": "JavaScript (Node) canonical encoder and SHA-256 on 2026-09-07; the Python encoder must give the same bytes and IDs",
+ "rows": [
+  {
+   "payload": {
+    "action": "end_phase"
+   },
+   "canonical": "{\"action\":\"end_phase\"}",
+   "id": "ce4b412193200ce5"
+  },
+  {
+   "payload": {
+    "action": "end_setup"
+   },
+   "canonical": "{\"action\":\"end_setup\"}",
+   "id": "58b0d543bb939b27"
+  },
+  {
+   "payload": {
+    "action": "move",
+    "units": [
+     0
+    ],
+    "hex": "A1"
+   },
+   "canonical": "{\"action\":\"move\",\"hex\":\"A1\",\"units\":[0]}",
+   "id": "f10bfdcba8a10e76"
+  },
+  {
+   "payload": {
+    "action": "move",
+    "units": [
+     7
+    ],
+    "hex": "C4"
+   },
+   "canonical": "{\"action\":\"move\",\"hex\":\"C4\",\"units\":[7]}",
+   "id": "603aa572be76ec7a"
+  },
+  {
+   "payload": {
+    "action": "stack_move",
+    "units": [
+     1,
+     2,
+     3
+    ],
+    "hex": "GG10"
+   },
+   "canonical": "{\"action\":\"stack_move\",\"hex\":\"GG10\",\"units\":[1,2,3]}",
+   "id": "08dedeeb41b52726"
+  },
+  {
+   "payload": {
+    "action": "pickup",
+    "units": [
+     4
+    ],
+    "weapon": 9
+   },
+   "canonical": "{\"action\":\"pickup\",\"units\":[4],\"weapon\":9}",
+   "id": "a2c1eb9913c09286"
+  },
+  {
+   "payload": {
+    "action": "drop",
+    "units": [
+     4
+    ],
+    "weapon": 9
+   },
+   "canonical": "{\"action\":\"drop\",\"units\":[4],\"weapon\":9}",
+   "id": "39c1fa6c14ef8470"
+  },
+  {
+   "payload": {
+    "action": "advance",
+    "units": [
+     12
+    ],
+    "hex": "B0"
+   },
+   "canonical": "{\"action\":\"advance\",\"hex\":\"B0\",\"units\":[12]}",
+   "id": "9792b6e531108e10"
+  },
+  {
+   "payload": {
+    "action": "place",
+    "units": [
+     0
+    ],
+    "hex": "F5"
+   },
+   "canonical": "{\"action\":\"place\",\"hex\":\"F5\",\"units\":[0]}",
+   "id": "2bec8f77270c0397"
+  },
+  {
+   "payload": {
+    "action": "place_weapon",
+    "units": [
+     3
+    ],
+    "weapon": 8
+   },
+   "canonical": "{\"action\":\"place_weapon\",\"units\":[3],\"weapon\":8}",
+   "id": "8e6cba836c2ef640"
+  }
+ ]
+}

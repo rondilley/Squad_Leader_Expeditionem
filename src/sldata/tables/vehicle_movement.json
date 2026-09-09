@@ -1,0 +1,43 @@
+{
+  "table": "vehicle_movement",
+  "version": 1,
+  "provenance": [
+    "The Vehicle Movement Cost Chart of rule 30, transcribed from the owner's copy of the 4th edition rulebook, page 11, where the chart is printed as a graphic beside rule 28.1. The project writes it in its own layout and ships no rulebook text (SR-07, DR-01).",
+    "Every cost is in half movement points, so the half point of a road move is the integer 1 and no rule path needs a fraction (NFR-05).",
+    "The chart has two cost columns: one for an armoured fighting vehicle and one for a truck or a jeep. `afv` and `truck` below are those two columns.",
+    "COT in the chart is the cost of the terrain moved into. A row of `terrain` is a COT and a row of `extra` adds to it.",
+    "A star in the chart marks a row that needs the breakdown die roll of rule 39.1, and two stars mark a row that a halftrack may not enter. `breakdown` and `no_halftrack` carry those two marks.",
+    "The chart gives no cost for a stone building hex or a cliff hexside. Both are `null`, which the code reads as not allowed."
+  ],
+  "terrain": {
+    "open": {"afv": 2, "truck": 12},
+    "wheat": {"afv": 2, "truck": 12},
+    "shellhole": {"afv": 2, "truck": 20, "note": "Rule 30: no additional cost for a vehicle, and 4 MP plus the cost of the terrain for a truck."},
+    "woods": {"afv": 12, "truck": null, "breakdown": true, "no_halftrack": true},
+    "wooden_building": {"afv": 8, "truck": null, "breakdown": true, "no_halftrack": true},
+    "stone_building": {"afv": null, "truck": null, "note": "Rule 30.1: a vehicle may not enter a stone building hex under any circumstance."}
+  },
+  "hexsides": {
+    "wall": {"afv": 0, "truck": null},
+    "hedge": {"afv": 0, "truck": null},
+    "cliff": {"afv": null, "truck": null}
+  },
+  "extra": {
+    "road": {"afv": 1, "truck": 1, "replaces_terrain": true, "note": "Rule 30 and rule 5.52: the move goes along the road, through the hexside the road crosses."},
+    "higher_terrain": {"afv": 8, "truck": 8, "note": "Onto higher terrain than the vehicle occupied before."},
+    "each_vehicle_or_wreck": {"afv": 4, "truck": 4, "note": "Rule 29.1 and rule 40.3: 2 MP for each vehicle or wreck in the hex, on top of the terrain."},
+    "smoke": {"afv": 2, "truck": 2},
+    "outside_covered_arc": {"afv": 4, "truck": 8, "note": "Rule 29.4: the hex entered is not in the covered arc the vehicle had."},
+    "unload_passengers": {"afv": 4, "truck": 4, "note": "Rule 31.3: the vehicle pays this to let its passengers get off."},
+    "enemy_afv_hex": {"afv": 8, "truck": null, "note": "Rule 30.7: 4 MP for each vehicle plus the cost of the terrain."}
+  },
+  "rules": {
+    "one_hex_always": "30.3",
+    "no_stone_building": "30.1",
+    "movement_phase_only": "30.4",
+    "facing": "30.5",
+    "friendly_infantry": "30.6",
+    "enemy_hex": "30.7",
+    "end_alone": "30.8"
+  }
+}

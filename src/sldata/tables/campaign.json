@@ -1,0 +1,38 @@
+{
+ "table": "campaign",
+ "version": 1,
+ "provenance": [
+  "The Campaign Game of Game Set IV, rules 2 to 5, and the rank list of rule 3.1. Values transcribed from the owner's copy of the 4th edition rulebook. The project writes them in its own layout and ships no rulebook text (SR-07, DR-01).",
+  "Rule 3.1 gives the seven ranks with the morale and the leadership of the counter that the rank uses. The ranks are the American ranks, which rule 3.1 says it uses for simplicity in each nationality.",
+  "Rule 4.1 gives the Elan points and rule 4.2 gives the Cowardice points. Two Elan items, A and C, need an armoured fighting vehicle, and the armor game waits for a subsequent tier. This file records them with an `awaits` field, and the scorer does not award them.",
+  "Rule 2.4: a performance total of +10 or more promotes one rank and takes 10 off the total. A total of -10 or less demotes one rank and adds 10. Rule 2.6: one rank each scenario, and the rest of the points carry over.",
+  "Rule 2.7: a leader who is killed, or who is busted below Corporal, starts the next scenario as a new Corporal.",
+  "Rule 5.1: one victory point for each scenario won, and one for each rank above Corporal that the leader holds at the end, when that leader survived the last scenario. Rule 5.2 breaks a tie with the performance points that are left."
+ ],
+ "scenarios_in_a_campaign": 6,
+ "promotion_threshold": 10,
+ "ranks": [
+  {"name": "Cpl", "title": "Corporal", "morale": 7, "leadership": 0},
+  {"name": "Sgt", "title": "Sergeant", "morale": 8, "leadership": 0},
+  {"name": "1st Sgt", "title": "First Sergeant", "morale": 8, "leadership": -1},
+  {"name": "2nd Lt", "title": "Second Lieutenant", "morale": 9, "leadership": -1},
+  {"name": "1st Lt", "title": "First Lieutenant", "morale": 9, "leadership": -2},
+  {"name": "CPT", "title": "Captain", "morale": 10, "leadership": -2},
+  {"name": "MAJ", "title": "Major", "morale": 10, "leadership": -3}
+ ],
+ "elan": [
+  {"id": "4.1A", "points": 6, "what": "destroyed an armoured fighting vehicle, or led a squad that did, without an anti-tank weapon", "awaits": "the armor game"},
+  {"id": "4.1B", "points": 3, "what": "close combat that eliminated each enemy unit in the same hex"},
+  {"id": "4.1C", "points": 2, "what": "destroyed an armoured fighting vehicle with an anti-tank weapon", "awaits": "the armor game"},
+  {"id": "4.1D", "points": 1, "what": "rallied a broken squad, for each squad"},
+  {"id": "4.1E", "points": 1, "what": "directed the fire that killed an enemy squad, for each squad"},
+  {"id": "4.1F", "points": 1, "what": "was on the side that won the scenario"}
+ ],
+ "cowardice": [
+  {"id": "4.2A", "points": -8, "what": "total cowardice: the leader left the game on a rally roll of twelve, or broke two times with no rally"},
+  {"id": "4.2B", "points": -3, "what": "a squad in the hex of the leader surrendered on a rally roll of twelve"},
+  {"id": "4.2C", "points": -2, "what": "the break of the leader broke a squad in the same hex, for each squad"},
+  {"id": "4.2D", "points": -1, "what": "a support weapon under the direction of the leader malfunctioned"},
+  {"id": "4.2E", "points": -1, "what": "the leader broke under enemy fire, for each time"}
+ ]
+}

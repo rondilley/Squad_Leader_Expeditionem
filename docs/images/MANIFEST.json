@@ -1,0 +1,50 @@
+{
+  "provenance": "Each picture is the output of this project's own code. The board comes from the generator with the seed below, and the drawing comes from slwindow. No scan and no photograph is in any of them (SR-07).",
+  "tool": "tools/make_docs_images.py",
+  "images": [
+    {
+      "file": "board_village.png",
+      "shows": "A village board: the woods mass, the building plans, the roads, a hill with its crest line, the grain fields, and the wall and hedge hexsides",
+      "tool": "tools/make_docs_images.py",
+      "width": 1440,
+      "height": 900,
+      "board_type": "village",
+      "board_seed": 20260909,
+      "cols": 17,
+      "rows": 10
+    },
+    {
+      "file": "board_city.png",
+      "shows": "A city board: blocks of stone buildings, each with the wall line of one building and the panel lines of its hexes",
+      "tool": "tools/make_docs_images.py",
+      "width": 1440,
+      "height": 900,
+      "board_type": "city",
+      "board_seed": 101,
+      "cols": 17,
+      "rows": 10
+    },
+    {
+      "file": "board_hills.png",
+      "shows": "A hills board: three levels of brown, the crest lines of rule 43.2, and the cliff hexsides of rule 44.1",
+      "tool": "tools/make_docs_images.py",
+      "width": 1440,
+      "height": 900,
+      "board_type": "hills",
+      "board_seed": 4242,
+      "cols": 17,
+      "rows": 10
+    },
+    {
+      "file": "window_armor_probe.png",
+      "shows": "The desktop window in turn 4 of scenario 4: the board, the counters of the two sides with their vehicles, and the panel with the legal commands and the action log",
+      "tool": "tools/make_docs_images.py",
+      "width": 1440,
+      "height": 900,
+      "scenario": "s04_armor_probe",
+      "game_seed": 21,
+      "agent": "v3",
+      "commands": 245
+    }
+  ]
+}

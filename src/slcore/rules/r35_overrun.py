@@ -1,0 +1,161 @@
+"""Rule 35, overruns, with rule 38.3 and rule 42.6.
+
+An overrun is an attack a vehicle makes in the Movement Phase by driving into a hex that
+enemy infantry holds. It is resolved on the Infantry Fire Table the moment the vehicle
+enters (rule 35.1). A vehicle overruns one hex in a player turn, and it must be the first
+enemy hex it enters (rule 35.8). After an overrun the vehicle fires nothing for the rest
+of that player turn (rule 35.9).
+"""
+
+from __future__ import annotations
+
+from slcore import geometry
+from slcore.events import Event
+from slcore.game import PHASE_MOVEMENT, State
+from slcore.geometry import HexRef
+from slcore.rng import roll_2d6
+from slcore.rules import r10_resolution, r28_vehicles, r31_transport, r33_afv_combat
+from slcore.rules.r10_resolution import FireContext
+from slcore.rules.r33_afv_combat import ArmorContext
+from slcore.state import Board
+from slcore.units import CLASS_HALFTRACK, Unit
+
+RULE_35_1 = "35.1"
+RULE_35_3 = "35.3"
+RULE_35_4 = "35.4"
+RULE_35_5 = "35.5"
+RULE_35_8 = "35.8"
+RULE_35_9 = "35.9"
+RULE_38_3 = "38.3"
+RULE_42_6 = "42.6"
+
+# Rule 35.3: sixteen firepower factors for a tank or a self-propelled gun, eight for an
+# armed halftrack, and half of that when one weapon is out of order.
+TANK_FIREPOWER = 16
+HALFTRACK_FIREPOWER = 8
+# Rule 35.3: an overrun on a truck or a jeep takes a minus five on the dice roll.
+SOFT_TARGET_MODIFIER = -5
+# Rule 38.3: an unmodified twelve detracks the vehicle for the rest of the scenario.
+GRENADE_BUNDLE_ROLL = 12
+
+
+def firepower(ctx: ArmorContext, vehicle: Unit) -> int:
+    """Rule 35.3: the firepower factors of this overrun, or zero when nothing works."""
+    kind = ctx.types[vehicle.type_key]
+    base = HALFTRACK_FIREPOWER if kind.vehicle_class == CLASS_HALFTRACK else TANK_FIREPOWER
+    has_gun = kind.gun > 0
+    has_mg = kind.mg_ca > 0 or kind.mg_360 > 0
+    gun_out = has_gun and (vehicle.malfunction or vehicle.disabled)
+    mg_out = has_mg and (vehicle.mg_malfunction or vehicle.mg_disabled)
+    if (not has_gun or gun_out) and (not has_mg or mg_out):
+        return 0
+    if gun_out or mg_out:
+        return base // 2
+    return base
+
+
+def targets_in(state: State, hex_ref: HexRef, player: int) -> list[Unit]:
+    """Rule 35.1: enemy infantry in the hex. A vehicle is never overrun."""
+    return [
+        u
+        for u in state.units_in(hex_ref)
+        if u.player != player and u.is_infantry and not u.riding
+    ]
+
+
+def may_overrun(state: State, vehicle: Unit, hex_ref: HexRef) -> bool:
+    """Rules 35.1 and 35.8: one overrun a turn, against the first enemy hex entered."""
+    if vehicle.overran:
+        return False
+    if r28_vehicles.vehicle_in(state, hex_ref) is not None:
+        return False
+    return bool(targets_in(state, hex_ref, vehicle.player))
+
+
+def resolve(
+    ctx: ArmorContext,
+    fire_ctx: FireContext,
+    state: State,
+    vehicle_id: int,
+    hex_ref: HexRef,
+) -> tuple[State, list[Event]]:
+    """Rules 35.1, 35.3, 35.4, and 38.3: the attack the vehicle makes as it drives in."""
+    vehicle = state.units[vehicle_id]
+    factors = firepower(ctx, vehicle)
+    state = state.with_unit(state.units[vehicle_id].with_(overran=True))
+    if factors <= 0:
+        return state, [
+            Event(RULE_35_3, "overrun_unarmed", {"unit": vehicle_id, "hex": geometry.hex_id(*hex_ref)})
+        ]
+    rng, dice = roll_2d6(state.rng)
+    state = state.with_(rng=rng)
+    raw = dice[0] + dice[1]
+    # Rule 35.4: the terrain modifiers apply, and the minus two for infantry moving in the
+    # open does not, because that one belongs to the Defensive Fire Phase.
+    from slcore.rules import r11_terrain
+
+    drm = r11_terrain.target_hex_modifier(ctx.board, hex_ref)
+    parts = [{"rule": RULE_35_4, "value": drm, "cause": ctx.board.hex(hex_ref).terrain}]
+    events = [
+        Event(
+            RULE_35_1,
+            "overrun",
+            {
+                "unit": vehicle_id,
+                "hex": geometry.hex_id(*hex_ref),
+                "firepower": factors,
+                "column": r10_resolution.column_label(ctx.ift, factors),
+                "dice": list(dice),
+                "modifiers": parts,
+                "adjusted": raw + drm,
+            },
+        )
+    ]
+    state, hit = r10_resolution.apply_to_hex(
+        fire_ctx, state, hex_ref, factors * 2, raw, drm, PHASE_MOVEMENT, vehicle.player
+    )
+    events.extend(hit)
+    if raw == GRENADE_BUNDLE_ROLL:
+        state, ev = r33_afv_combat.immobilize(ctx, state, vehicle_id, "a grenade bundle in an overrun")
+        events.append(Event(RULE_38_3, "grenade_bundle", {"unit": vehicle_id, "roll": raw}))
+        events.extend(ev)
+    return state, events
+
+
+def push_out(
+    board: Board, state: State, vehicle_id: int
+) -> tuple[State, list[Event]]:
+    """Rule 35.8: infantry left under a vehicle at the end of movement steps to one side.
+
+    A unit with no hex to step into is eliminated, which is what the rule says for a unit
+    the board edge, the stacking limit, a cliff, or an enemy unit pins in place.
+    """
+    vehicle = state.units[vehicle_id]
+    if vehicle.hex is None or vehicle.wreck:
+        return state, []
+    events: list[Event] = []
+    changed = {}
+    for unit in targets_in(state, vehicle.hex, vehicle.player):
+        dst = None
+        for neighbour in board.neighbors(vehicle.hex):
+            if not any(u.player != unit.player and not u.is_weapon for u in state.units_in(neighbour)):
+                dst = neighbour
+                break
+        if dst is None:
+            changed[unit.id] = unit.with_(eliminated=True, hex=None)
+            for weapon in state.carried_by(unit.id):
+                changed[weapon.id] = weapon.with_(eliminated=True, hex=None, carrier=None)
+            events.append(Event(RULE_35_8, "crushed", {"unit": unit.id, "vehicle": vehicle_id}))
+            continue
+        changed[unit.id] = unit.with_(hex=dst)
+        for weapon in state.carried_by(unit.id):
+            changed[weapon.id] = weapon.with_(hex=dst)
+        events.append(
+            Event(RULE_35_8, "pushed_out", {"unit": unit.id, "vehicle": vehicle_id, "hex": geometry.hex_id(*dst)})
+        )
+    return (state.with_units(changed) if changed else state), events
+
+
+def carries_passengers(state: State, vehicle_id: int) -> bool:
+    """Rule 35.5: a vehicle with passengers may not drive them into an overrun."""
+    return bool(r31_transport.riders(state, vehicle_id))

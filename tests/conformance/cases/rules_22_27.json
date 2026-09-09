@@ -1,0 +1,1928 @@
+{
+ "family": "rules 22 to 27: flamethrowers, demolition charges, smoke, concealment, fanaticism, and sewer movement",
+ "cases": [
+  {
+   "id": "r22.4-an-assault-engineer-may-fire-a-flamethrower",
+   "rule": "22.4",
+   "type": "valid",
+   "citation": "Rule 22.4: only an assault engineer squad, or a leader with a leadership modifier of minus two or minus three, may operate a flamethrower.",
+   "check": "legality",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "D5"
+    },
+    {
+     "ref": "ft",
+     "side": "german",
+     "type": "FT",
+     "carrier": "e"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D4"
+    }
+   ],
+   "legal": [
+    {
+     "action": "ft_fire",
+     "units": [
+      "e"
+     ],
+     "weapon": "ft",
+     "hex": "D4"
+    }
+   ]
+  },
+  {
+   "id": "r22.4-a-line-squad-may-not-fire-a-flamethrower",
+   "rule": "22.4",
+   "type": "invalid",
+   "citation": "Rule 22.4: a squad that is not an assault engineer may not operate a flamethrower.",
+   "check": "legality",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "D5"
+    },
+    {
+     "ref": "ft",
+     "side": "german",
+     "type": "FT",
+     "carrier": "s"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D4"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "ft_fire",
+     "units": [
+      "s"
+     ],
+     "weapon": "ft",
+     "hex": "D4"
+    }
+   ]
+  },
+  {
+   "id": "r22.1-the-flamethrower-range-is-two-hexes-and-there-is-no-long-range",
+   "rule": "22.1",
+   "type": "boundary",
+   "citation": "Rule 22.1: a flamethrower has a range of two hexes. It has no long range band, so a target three hexes away cannot be attacked.",
+   "check": "legality",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "A1"
+    },
+    {
+     "ref": "ft",
+     "side": "german",
+     "type": "FT",
+     "carrier": "e"
+    },
+    {
+     "ref": "near",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B2"
+    },
+    {
+     "ref": "far",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C1"
+    },
+    {
+     "ref": "away",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D2"
+    }
+   ],
+   "legal": [
+    {
+     "action": "ft_fire",
+     "units": [
+      "e"
+     ],
+     "weapon": "ft",
+     "hex": "B2"
+    },
+    {
+     "action": "ft_fire",
+     "units": [
+      "e"
+     ],
+     "weapon": "ft",
+     "hex": "C1"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "ft_fire",
+     "units": [
+      "e"
+     ],
+     "weapon": "ft",
+     "hex": "D2"
+    }
+   ]
+  },
+  {
+   "id": "r22.2-a-flamethrower-attack-has-no-dice-roll-modifier",
+   "rule": "22.2",
+   "type": "valid",
+   "citation": "Rule 22.2: a flamethrower attack is resolved on the Infantry Fire Table but receives no dice roll modifier of any kind, including the modifier that the terrain of the target hex normally gives.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    3,
+    3
+   ],
+   "units": [
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "D5"
+    },
+    {
+     "ref": "ft",
+     "side": "german",
+     "type": "FT",
+     "carrier": "e"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E5"
+    }
+   ],
+   "apply": [
+    {
+     "action": "ft_fire",
+     "units": [
+      "e"
+     ],
+     "weapon": "ft",
+     "hex": "E5"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "22.2",
+     "kind": "fire",
+     "data": {
+      "firepower": 20,
+      "adjusted": 6,
+      "modifiers": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "r22.6-a-roll-of-nine-empties-the-fuel",
+   "rule": "22.6",
+   "type": "boundary",
+   "citation": "Rule 22.6: when the dice roll for a flamethrower attack is nine or more the weapon is out of fuel and leaves the game after that attack is resolved.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    4,
+    5
+   ],
+   "units": [
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "D5"
+    },
+    {
+     "ref": "ft",
+     "side": "german",
+     "type": "FT",
+     "carrier": "e"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D4"
+    }
+   ],
+   "apply": [
+    {
+     "action": "ft_fire",
+     "units": [
+      "e"
+     ],
+     "weapon": "ft",
+     "hex": "D4"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "22.6",
+     "kind": "out_of_fuel",
+     "data": {
+      "roll": 9
+     }
+    }
+   ],
+   "expect_eliminated": [
+    "ft"
+   ]
+  },
+  {
+   "id": "r22.6-a-roll-of-eight-keeps-the-fuel",
+   "rule": "22.6",
+   "type": "boundary",
+   "citation": "Rule 22.6: a dice roll of eight leaves the flamethrower in the game.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    4,
+    4
+   ],
+   "units": [
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "D5"
+    },
+    {
+     "ref": "ft",
+     "side": "german",
+     "type": "FT",
+     "carrier": "e"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D4"
+    }
+   ],
+   "apply": [
+    {
+     "action": "ft_fire",
+     "units": [
+      "e"
+     ],
+     "weapon": "ft",
+     "hex": "D4"
+    }
+   ],
+   "expect_alive": [
+    "ft"
+   ],
+   "expect_no_events_of_rule": [
+    "22.6"
+   ]
+  },
+  {
+   "id": "r22.7-a-flamethrower-in-the-target-hex-helps-the-attacker",
+   "rule": "22.7",
+   "type": "interaction",
+   "citation": "Rule 22.7: when a flamethrower is in the target hex, the fire group attacking that hex gets one more point of dice roll modifier in its favour.",
+   "check": "drm",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "active": "russian",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D4"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "D5"
+    },
+    {
+     "ref": "ft",
+     "side": "german",
+     "type": "FT",
+     "carrier": "e"
+    }
+   ],
+   "expect_drm": -1,
+   "target": "D5",
+   "members": [
+    "a"
+   ]
+  },
+  {
+   "id": "r23.2-an-assault-engineer-may-place-a-demolition-charge",
+   "rule": "23.2",
+   "type": "valid",
+   "citation": "Rule 23.2: only an assault engineer squad, or a leader with a leadership modifier of minus two or minus three, may place a demolition charge.",
+   "check": "legality",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "D5"
+    },
+    {
+     "ref": "dc",
+     "side": "german",
+     "type": "DC",
+     "carrier": "e"
+    }
+   ],
+   "legal": [
+    {
+     "action": "place_demo",
+     "units": [
+      "e"
+     ],
+     "weapon": "dc",
+     "hex": "D4"
+    }
+   ]
+  },
+  {
+   "id": "r23.2-a-line-squad-may-not-place-a-demolition-charge",
+   "rule": "23.2",
+   "type": "invalid",
+   "citation": "Rule 23.2: a squad that is not an assault engineer may not place a demolition charge.",
+   "check": "legality",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "D5"
+    },
+    {
+     "ref": "dc",
+     "side": "german",
+     "type": "DC",
+     "carrier": "s"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "place_demo",
+     "units": [
+      "s"
+     ],
+     "weapon": "dc",
+     "hex": "D4"
+    }
+   ]
+  },
+  {
+   "id": "r23.3-a-charge-goes-on-an-adjacent-hex-and-not-further",
+   "rule": "23.3",
+   "type": "boundary",
+   "citation": "Rule 23.3: a demolition charge is placed on the target hex from an adjacent hex.",
+   "check": "legality",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "D5"
+    },
+    {
+     "ref": "dc",
+     "side": "german",
+     "type": "DC",
+     "carrier": "e"
+    }
+   ],
+   "legal": [
+    {
+     "action": "place_demo",
+     "units": [
+      "e"
+     ],
+     "weapon": "dc",
+     "hex": "E5"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "place_demo",
+     "units": [
+      "e"
+     ],
+     "weapon": "dc",
+     "hex": "F5"
+    }
+   ]
+  },
+  {
+   "id": "r23.1-a-charge-explodes-with-thirty-factors-and-the-cover-of-the-hex",
+   "rule": "23.1",
+   "type": "valid",
+   "citation": "Rule 23.1 with rule 23.5: the charge explodes with a force of thirty factors on the Infantry Fire Table, and the dice roll modifiers for protective cover such as a stone building are used.",
+   "check": "effect",
+   "phase": "advancing_fire",
+   "sub_step": "demo_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    3,
+    4
+   ],
+   "units": [
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "D5"
+    },
+    {
+     "ref": "dc",
+     "side": "german",
+     "type": "DC",
+     "hex": "E5"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E5"
+    }
+   ],
+   "demo": [
+    {
+     "side": "german",
+     "hex": "E5",
+     "placer": "e",
+     "from": "D5",
+     "weapon": "dc",
+     "armed": true
+    }
+   ],
+   "apply": [
+    {
+     "action": "explode_demo",
+     "hex": "E5",
+     "charge": 0
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "23.1",
+     "kind": "demo_explode",
+     "data": {
+      "firepower": 30,
+      "adjusted": 10
+     }
+    }
+   ]
+  },
+  {
+   "id": "r23.8-a-roll-of-twelve-is-a-dud",
+   "rule": "23.8",
+   "type": "boundary",
+   "citation": "Rule 23.8: a demolition charge, like every support weapon, malfunctions on an effects dice roll of twelve.",
+   "check": "effect",
+   "phase": "advancing_fire",
+   "sub_step": "demo_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    6,
+    6
+   ],
+   "units": [
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "D5"
+    },
+    {
+     "ref": "dc",
+     "side": "german",
+     "type": "DC",
+     "hex": "E5"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E5"
+    }
+   ],
+   "demo": [
+    {
+     "side": "german",
+     "hex": "E5",
+     "placer": "e",
+     "from": "D5",
+     "weapon": "dc",
+     "armed": true
+    }
+   ],
+   "apply": [
+    {
+     "action": "explode_demo",
+     "hex": "E5",
+     "charge": 0
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "23.8",
+     "kind": "demo_dud"
+    }
+   ],
+   "expect_alive": [
+    "t"
+   ]
+  },
+  {
+   "id": "r23.3-a-charge-whose-placer-broke-does-not-explode",
+   "rule": "23.3",
+   "type": "interaction",
+   "citation": "Rule 23.3: the unit that placed the charge must live through the Defensive Fires against the placement hex without breaking. If it breaks in that hex the charge stays there and does not explode. Project ruling PR-14 treats a placer that left the hex or was eliminated in the same way.",
+   "check": "effect",
+   "phase": "advancing_fire",
+   "sub_step": "demo_window",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "D5",
+     "broken": true
+    },
+    {
+     "ref": "dc",
+     "side": "german",
+     "type": "DC",
+     "hex": "E5"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E5"
+    }
+   ],
+   "demo": [
+    {
+     "side": "german",
+     "hex": "E5",
+     "placer": "e",
+     "from": "D5",
+     "weapon": "dc",
+     "armed": false
+    }
+   ],
+   "apply": [],
+   "expect_illegal_after": [
+    {
+     "action": "explode_demo",
+     "hex": "E5",
+     "charge": 0
+    }
+   ]
+  },
+  {
+   "id": "r24.2-only-an-assault-engineer-places-smoke",
+   "rule": "24.2",
+   "type": "invalid",
+   "citation": "Rule 24.2: only an assault engineer squad may place a smoke counter.",
+   "check": "legality",
+   "phase": "prep_fire",
+   "sub_step": "smoke_window",
+   "phasing": "german",
+   "active": "german",
+   "smoke_left": {
+    "german": 6
+   },
+   "units": [
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "D5"
+    },
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "D4"
+    }
+   ],
+   "legal": [
+    {
+     "action": "place_smoke",
+     "units": [
+      "e"
+     ],
+     "hex": "D5"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "place_smoke",
+     "units": [
+      "s"
+     ],
+     "hex": "D4"
+    }
+   ]
+  },
+  {
+   "id": "r24.3-smoke-goes-in-the-hex-of-the-engineer-or-next-to-it",
+   "rule": "24.3",
+   "type": "boundary",
+   "citation": "Rule 24.3: smoke may be placed in any hex in or adjacent to the engineer squad.",
+   "check": "legality",
+   "phase": "prep_fire",
+   "sub_step": "smoke_window",
+   "phasing": "german",
+   "active": "german",
+   "smoke_left": {
+    "german": 6
+   },
+   "units": [
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "D5"
+    }
+   ],
+   "legal": [
+    {
+     "action": "place_smoke",
+     "units": [
+      "e"
+     ],
+     "hex": "D5"
+    },
+    {
+     "action": "place_smoke",
+     "units": [
+      "e"
+     ],
+     "hex": "E5"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "place_smoke",
+     "units": [
+      "e"
+     ],
+     "hex": "F5"
+    }
+   ]
+  },
+  {
+   "id": "r24.2-one-counter-for-each-squad-in-a-turn",
+   "rule": "24.2",
+   "type": "boundary",
+   "citation": "Rule 24.2: each assault engineer squad may place one smoke counter in a turn.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "smoke_window",
+   "phasing": "german",
+   "active": "german",
+   "smoke_left": {
+    "german": 6
+   },
+   "units": [
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "D5"
+    }
+   ],
+   "apply": [
+    {
+     "action": "place_smoke",
+     "units": [
+      "e"
+     ],
+     "hex": "D5"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "24.3",
+     "kind": "smoke",
+     "data": {
+      "left": 5
+     }
+    }
+   ],
+   "expect_units": {
+    "e": {
+     "made_smoke": true
+    }
+   },
+   "expect_illegal_after": [
+    {
+     "action": "place_smoke",
+     "units": [
+      "e"
+     ],
+     "hex": "E5"
+    }
+   ]
+  },
+  {
+   "id": "r24.1-a-side-with-no-counter-left-places-none",
+   "rule": "24.1",
+   "type": "invalid",
+   "citation": "Rule 24.1: the scenario says how many smoke counters a side has, and the side places no more than that.",
+   "check": "legality",
+   "phase": "prep_fire",
+   "sub_step": "smoke_window",
+   "phasing": "german",
+   "active": "german",
+   "smoke_left": {
+    "german": 0
+   },
+   "units": [
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "D5"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "place_smoke",
+     "units": [
+      "e"
+     ],
+     "hex": "D5"
+    }
+   ]
+  },
+  {
+   "id": "r25.8-a-concealed-target-is-attacked-at-half-firepower",
+   "rule": "25.8",
+   "type": "valid",
+   "citation": "Rule 25.8: a fire group that fires into a hex with a concealment counter does so with halved firepower, under the area fire provision of rule 9.4.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    6,
+    6
+   ],
+   "concealment": [
+    {
+     "side": "russian",
+     "hex": "D4"
+    }
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "D5"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D4"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "D4"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "10.5",
+     "kind": "fire_result",
+     "data": {
+      "firepower": 4,
+      "concealed": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "r25.41-an-unconcealed-unit-in-the-hex-is-attacked-at-full-firepower",
+   "rule": "25.41",
+   "type": "interaction",
+   "citation": "Rule 25.41: a unit that moved into a hex with concealed units is fired on at full strength, and the concealed units of that hex undergo the same dice roll at half firepower.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    6,
+    6
+   ],
+   "concealment": [
+    {
+     "side": "russian",
+     "hex": "D4"
+    }
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "D5"
+    },
+    {
+     "ref": "hidden",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D4"
+    },
+    {
+     "ref": "open",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "D4"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "D4"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "10.5",
+     "kind": "fire_result",
+     "data": {
+      "firepower": 4,
+      "concealed": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "r25.4-a-unit-that-fires-loses-its-counter",
+   "rule": "25.4",
+   "type": "valid",
+   "citation": "Rule 25.4: a concealment counter is removed immediately when a unit below it fires.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    6,
+    6
+   ],
+   "concealment": [
+    {
+     "side": "german",
+     "hex": "D5"
+    }
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "D5"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D4"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "D4"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "25.4",
+     "kind": "unconcealed",
+     "data": {
+      "hex": "D5"
+     }
+    }
+   ],
+   "expect_concealment_count": 0
+  },
+  {
+   "id": "r25.42-one-unit-that-moves-takes-the-counter-off-the-hex",
+   "rule": "25.42",
+   "type": "interaction",
+   "citation": "Rule 25.42: when one concealed unit of a hex moves, every unit in that hex loses its concealment.",
+   "check": "effect",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "german",
+   "active": "german",
+   "concealment": [
+    {
+     "side": "german",
+     "hex": "D5"
+    }
+   ],
+   "units": [
+    {
+     "ref": "mover",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "D5"
+    },
+    {
+     "ref": "stayer",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "D5"
+    }
+   ],
+   "apply": [
+    {
+     "action": "move",
+     "units": [
+      "mover"
+     ],
+     "hex": "D4"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "25.4",
+     "kind": "unconcealed",
+     "data": {
+      "hex": "D5"
+     }
+    }
+   ],
+   "expect_concealment_count": 0
+  },
+  {
+   "id": "r25.9-an-attack-with-a-result-removes-the-counters",
+   "rule": "25.9",
+   "type": "interaction",
+   "citation": "Rule 25.9: every concealment counter in a target hex is removed when an attack on that hex gives any result other than no effect.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    1,
+    1
+   ],
+   "concealment": [
+    {
+     "side": "russian",
+     "hex": "D4"
+    }
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "D5"
+    },
+    {
+     "ref": "b",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "D5"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D4"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "D4"
+    },
+    {
+     "action": "group_add",
+     "units": [
+      "b"
+     ],
+     "hex": "D4"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "25.9",
+     "kind": "unconcealed",
+     "data": {
+      "hex": "D4"
+     }
+    }
+   ],
+   "expect_concealment_count": 0
+  },
+  {
+   "id": "r26.1-a-fanatic-unit-checks-morale-with-one-point-in-its-favour",
+   "rule": "26.1",
+   "type": "valid",
+   "citation": "Rule 26.1: a fanatic unit receives a dice roll modifier of minus one on every Morale Check and Rally Attempt, which is the same as one more point of morale.",
+   "check": "morale",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    4,
+    4
+   ],
+   "fanatic": {
+    "side": "russian",
+    "hexes": [
+     "E5"
+    ]
+   },
+   "units": [
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E5"
+    }
+   ],
+   "unit": "t",
+   "expect_events": [
+    {
+     "rule_id": "12.1",
+     "kind": "morale_pass",
+     "data": {
+      "fanatic": -1,
+      "adjusted": 7
+     }
+    }
+   ],
+   "expect_units": {
+    "t": {
+     "broken": false
+    }
+   }
+  },
+  {
+   "id": "r26.2-a-unit-outside-the-place-is-not-fanatic",
+   "rule": "26.2",
+   "type": "boundary",
+   "citation": "Rule 26.2: the fanaticism benefit is gained and lost by occupation of the building, so a unit of the same side outside it has no benefit.",
+   "check": "morale",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    4,
+    4
+   ],
+   "fanatic": {
+    "side": "russian",
+    "hexes": [
+     "E5"
+    ]
+   },
+   "units": [
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E4"
+    }
+   ],
+   "unit": "t",
+   "expect_events": [
+    {
+     "rule_id": "12.3",
+     "kind": "broken",
+     "data": {
+      "fanatic": 0,
+      "adjusted": 8
+     }
+    }
+   ],
+   "expect_units": {
+    "t": {
+     "broken": true
+    }
+   }
+  },
+  {
+   "id": "r27.21-a-squad-needs-a-leader-to-use-the-sewer",
+   "rule": "27.21",
+   "type": "invalid",
+   "citation": "Rule 27.21: squads must be accompanied by a leader to use Sewer Movement.",
+   "check": "legality",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C5"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "sewer_move",
+     "units": [
+      "s"
+     ],
+     "hex": "E5"
+    }
+   ]
+  },
+  {
+   "id": "r27.2-a-leader-and-a-squad-go-down-together",
+   "rule": "27.2",
+   "type": "valid",
+   "citation": "Rule 27.2 with rule 27.1: a stack that starts its Movement Phase on a sewer entrance hex may move to another sewer entrance within three hexes.",
+   "check": "legality",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {
+     "ref": "l",
+     "side": "german",
+     "type": "9-1",
+     "hex": "C5"
+    },
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C5"
+    }
+   ],
+   "legal": [
+    {
+     "action": "sewer_move",
+     "units": [
+      "l",
+      "s"
+     ],
+     "hex": "E5"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "sewer_move",
+     "units": [
+      "l",
+      "s"
+     ],
+     "hex": "G6"
+    }
+   ]
+  },
+  {
+   "id": "r27.6-a-charge-closes-a-sewer-entrance",
+   "rule": "27.6",
+   "type": "interaction",
+   "citation": "Rule 27.6: a sewer entrance is unusable for the rest of the scenario when a demolition charge explodes in that hex.",
+   "check": "effect",
+   "phase": "advancing_fire",
+   "sub_step": "demo_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    3,
+    4
+   ],
+   "units": [
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "D5"
+    },
+    {
+     "ref": "dc",
+     "side": "german",
+     "type": "DC",
+     "hex": "E5"
+    }
+   ],
+   "demo": [
+    {
+     "side": "german",
+     "hex": "E5",
+     "placer": "e",
+     "from": "D5",
+     "weapon": "dc",
+     "armed": true
+    }
+   ],
+   "apply": [
+    {
+     "action": "explode_demo",
+     "hex": "E5",
+     "charge": 0
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "27.6",
+     "kind": "sewer_closed",
+     "data": {
+      "hex": "E5"
+     }
+    }
+   ]
+  },
+  {
+   "id": "r27.1-a-closed-entrance-is-not-a-destination",
+   "rule": "27.1",
+   "type": "boundary",
+   "citation": "Rule 27.1 with rule 27.6: a sewer entrance that a demolition charge has closed is not an entrance any more.",
+   "check": "legality",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "german",
+   "active": "german",
+   "sewer_closed": [
+    "E5"
+   ],
+   "units": [
+    {
+     "ref": "l",
+     "side": "german",
+     "type": "9-1",
+     "hex": "C5"
+    },
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C5"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "sewer_move",
+     "units": [
+      "l",
+      "s"
+     ],
+     "hex": "E5"
+    }
+   ]
+  },
+  {
+   "id": "r24.8-smoke-goes-at-the-next-prep-fire-phase-of-its-owner",
+   "rule": "24.8",
+   "type": "valid",
+   "citation": "Rule 24.8: once played, a smoke counter stays in place until the beginning of the next Prep Fire Phase of the player who laid it, and it is removed at that time.",
+   "check": "effect",
+   "phase": "rally",
+   "sub_step": "rally_window",
+   "actor": "defender",
+   "phasing": "german",
+   "active": "russian",
+   "smoke": [
+    {
+     "side": "german",
+     "hex": "D4"
+    },
+    {
+     "side": "russian",
+     "hex": "E4"
+    }
+   ],
+   "units": [
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A2"
+    }
+   ],
+   "apply": [
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "24.8",
+     "kind": "smoke_gone",
+     "data": {
+      "hex": "D4"
+     }
+    }
+   ],
+   "expect_smoke_count": 1
+  },
+  {
+   "id": "r24.6-smoke-on-the-line-of-sight-adds-one-die-to-the-fire",
+   "rule": "24.6",
+   "type": "interaction",
+   "citation": "Rule 24.6 with rule 24.7: a fire group whose line of sight goes into, out of, or through a smoke filled hex adds the roll of one die to its fire combat dice roll, and the roll belongs to that fire group alone.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "smoke": [
+    {
+     "side": "german",
+     "hex": "D4"
+    }
+   ],
+   "units": [
+    {
+     "ref": "a",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "D5"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D4"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "D4"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "24.6",
+     "kind": "smoke_modifier",
+     "data": {
+      "target": "D4"
+     }
+    },
+    {
+     "rule_id": "10.5",
+     "kind": "fire_result"
+    }
+   ]
+  },
+  {
+   "id": "r25.3-a-counter-goes-on-a-building-hex-and-not-on-open-ground",
+   "rule": "25.3",
+   "type": "boundary",
+   "citation": "Rule 25.3: the placement of concealment counters is limited to woods hexes and building hexes.",
+   "check": "conceal",
+   "phase": "close_combat",
+   "sub_step": "cc_declare",
+   "actor": "phasing",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {
+     "ref": "u",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    }
+   ],
+   "unit": "u",
+   "expect_conceal": false
+  },
+  {
+   "id": "r25.3-a-quiet-unit-in-a-building-gets-a-counter",
+   "rule": "25.3",
+   "type": "valid",
+   "citation": "Rule 25.3: a concealment counter can be placed on a squad or a leader at the end of a complete player turn in which it has neither moved, fired, made smoke, been fired upon resulting in a Morale Check, nor been adjacent to an enemy unit.",
+   "check": "conceal",
+   "phase": "close_combat",
+   "sub_step": "cc_declare",
+   "actor": "phasing",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {
+     "ref": "u",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C3"
+    }
+   ],
+   "unit": "u",
+   "expect_conceal": true
+  },
+  {
+   "id": "r25.3-a-unit-next-to-an-enemy-gets-no-counter",
+   "rule": "25.3",
+   "type": "invalid",
+   "citation": "Rule 25.3: a unit that was adjacent to an enemy unit during the player turn does not get a concealment counter.",
+   "check": "conceal",
+   "phase": "close_combat",
+   "sub_step": "cc_declare",
+   "actor": "phasing",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {
+     "ref": "u",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C3"
+    },
+    {
+     "ref": "enemy",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C4"
+    }
+   ],
+   "unit": "u",
+   "expect_conceal": false
+  },
+  {
+   "id": "r25.5-a-broken-enemy-next-to-the-hex-leaves-the-counter",
+   "rule": "25.5",
+   "type": "interaction",
+   "citation": "Rule 25.5: a concealment counter does not have to be removed for an opposing unit in an adjacent hex when that unit was eliminated or broken by Defensive Fire.",
+   "check": "effect",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "active": "german",
+   "concealment": [
+    {
+     "side": "russian",
+     "hex": "C3"
+    }
+   ],
+   "units": [
+    {
+     "ref": "u",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C3"
+    },
+    {
+     "ref": "enemy",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C4",
+     "broken": true
+    }
+   ],
+   "apply": [
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_concealment_count": 1
+  },
+  {
+   "id": "r25.4-an-unbroken-enemy-next-to-the-hex-takes-the-counter",
+   "rule": "25.4",
+   "type": "interaction",
+   "citation": "Rule 25.4: a concealment counter is removed when a unit below it becomes adjacent to an enemy infantry unit at the end of a Defensive Fire Phase or an Advance Phase.",
+   "check": "effect",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "active": "german",
+   "concealment": [
+    {
+     "side": "russian",
+     "hex": "C3"
+    }
+   ],
+   "units": [
+    {
+     "ref": "u",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C3"
+    },
+    {
+     "ref": "enemy",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C4"
+    }
+   ],
+   "apply": [
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "25.4",
+     "kind": "unconcealed",
+     "data": {
+      "hex": "C3"
+     }
+    }
+   ],
+   "expect_concealment_count": 0
+  },
+  {
+   "id": "r26.1-the-other-side-in-the-same-hex-is-not-fanatic",
+   "rule": "26.1",
+   "type": "invalid",
+   "citation": "Rule 26.1 with rule 26.2: fanaticism belongs to the side and the place that the scenario names, so a unit of the other side in that place has no benefit.",
+   "check": "morale",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "active": "russian",
+   "dice": [
+    4,
+    4
+   ],
+   "fanatic": {
+    "side": "russian",
+    "hexes": [
+     "E5"
+    ]
+   },
+   "units": [
+    {
+     "ref": "t",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E5"
+    }
+   ],
+   "unit": "t",
+   "expect_events": [
+    {
+     "rule_id": "12.3",
+     "kind": "broken",
+     "data": {
+      "fanatic": 0,
+      "adjusted": 8
+     }
+    }
+   ],
+   "expect_units": {
+    "t": {
+     "broken": true
+    }
+   }
+  },
+  {
+   "id": "r26.1-fanaticism-and-a-leader-both-help-the-check",
+   "rule": "26.1",
+   "type": "interaction",
+   "citation": "Rule 26.1 with rule 15.4: the fanaticism modifier of minus one and the leadership modifier of the leader in the hex both apply to the Morale Check.",
+   "check": "morale",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [
+    4,
+    5
+   ],
+   "fanatic": {
+    "side": "russian",
+    "hexes": [
+     "E5"
+    ]
+   },
+   "units": [
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E5"
+    },
+    {
+     "ref": "l",
+     "side": "russian",
+     "type": "9-2",
+     "hex": "E5"
+    }
+   ],
+   "unit": "t",
+   "expect_events": [
+    {
+     "rule_id": "12.1",
+     "kind": "morale_pass",
+     "data": {
+      "fanatic": -1,
+      "leadership": -2,
+      "adjusted": 6
+     }
+    }
+   ],
+   "expect_units": {
+    "t": {
+     "broken": false
+    }
+   }
+  },
+  {
+   "id": "r27.3-a-heavy-machine-gun-stays-in-the-entrance-hex",
+   "rule": "27.3",
+   "type": "interaction",
+   "citation": "Rule 27.3: all support weapons may be carried through the sewers with the exception of heavy machine guns, mortars, one hundred and five millimetre guns, and anti-tank guns.",
+   "check": "effect",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "german",
+   "active": "german",
+   "single_dice": true,
+   "dice": [
+    1
+   ],
+   "units": [
+    {
+     "ref": "l",
+     "side": "german",
+     "type": "9-1",
+     "hex": "C5"
+    },
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C5"
+    },
+    {
+     "ref": "hmg",
+     "side": "german",
+     "type": "HMG",
+     "carrier": "s"
+    },
+    {
+     "ref": "lmg",
+     "side": "german",
+     "type": "LMG",
+     "carrier": "s"
+    }
+   ],
+   "apply": [
+    {
+     "action": "sewer_move",
+     "units": [
+      "l",
+      "s"
+     ],
+     "hex": "E5"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "27.3",
+     "kind": "left_behind"
+    },
+    {
+     "rule_id": "27.22",
+     "kind": "sewer_move",
+     "data": {
+      "to": "E5"
+     }
+    }
+   ],
+   "expect_units": {
+    "s": {
+     "hex": "E5"
+    },
+    "hmg": {
+     "hex": "C5",
+     "carrier": null
+    },
+    "lmg": {
+     "hex": "E5"
+    }
+   }
+  },
+  {
+   "id": "r27.22-a-roll-of-five-loses-the-stack-in-the-sewer",
+   "rule": "27.22",
+   "type": "boundary",
+   "citation": "Rule 27.22: the owning player moves the stack to the entrance of his choice when he rolls a four or less with one die. A roll of five or six loses the units, and they end the Movement Phase off the board.",
+   "check": "effect",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "german",
+   "active": "german",
+   "single_dice": true,
+   "dice": [
+    5
+   ],
+   "units": [
+    {
+     "ref": "l",
+     "side": "german",
+     "type": "9-1",
+     "hex": "C5"
+    },
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C5"
+    }
+   ],
+   "apply": [
+    {
+     "action": "sewer_move",
+     "units": [
+      "l",
+      "s"
+     ],
+     "hex": "E5"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "27.22",
+     "kind": "sewer_lost",
+     "data": {
+      "die": 5
+     }
+    }
+   ],
+   "expect_units": {
+    "s": {
+     "hex": null
+    },
+    "l": {
+     "hex": null
+    }
+   },
+   "expect_sewer_lost_count": 1
+  },
+  {
+   "id": "r27.22-a-roll-of-four-brings-the-stack-up",
+   "rule": "27.22",
+   "type": "valid",
+   "citation": "Rule 27.22: a dice roll of four or less brings the stack up at the entrance the owner chose.",
+   "check": "effect",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "german",
+   "active": "german",
+   "single_dice": true,
+   "dice": [
+    4
+   ],
+   "units": [
+    {
+     "ref": "l",
+     "side": "german",
+     "type": "9-1",
+     "hex": "C5"
+    },
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C5"
+    }
+   ],
+   "apply": [
+    {
+     "action": "sewer_move",
+     "units": [
+      "l",
+      "s"
+     ],
+     "hex": "E5"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "27.22",
+     "kind": "sewer_move",
+     "data": {
+      "die": 4
+     }
+    }
+   ],
+   "expect_units": {
+    "s": {
+     "hex": "E5",
+     "sewer_move": true
+    },
+    "l": {
+     "hex": "E5"
+    }
+   },
+   "expect_sewer_lost_count": 0
+  }
+ ]
+}

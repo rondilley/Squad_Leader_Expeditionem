@@ -1,0 +1,35 @@
+{
+  "table": "infantry_fire_table",
+  "version": 1,
+  "provenance": [
+    "Rule 10.3 to 10.6. Transcribed from the data card image described in docs/research/2026-09-07_RV-1_counters_charts.md section 7.1, and checked against the rulebook example in rule 10.6 (8 firepower, adjusted roll 6, result +1 morale check).",
+    "Columns are firepower factors. Use the rightmost column that does not exceed the adjusted firepower of the fire group (rule 10.3). Rows are the adjusted dice roll; a roll below 2 uses the row 2 result and a roll above 15 has no effect.",
+    "Result codes: KIA eliminates all squads and leaders in the hex (rule 8.8). M is a morale check with no modifier. A number is a morale check with that modifier (rule 12.21). A dash is no effect.",
+    "The project writes this table in its own layout (SR-07)."
+  ],
+  "columns": [1, 2, 4, 6, 8, 12, 16, 20, 24, 30, 36],
+  "rows": {
+    "2": ["1", "KIA", "KIA", "KIA", "KIA", "KIA", "KIA", "KIA", "KIA", "KIA", "KIA"],
+    "3": ["1", "1", "2", "KIA", "KIA", "KIA", "KIA", "KIA", "KIA", "KIA", "KIA"],
+    "4": ["M", "1", "1", "2", "2", "3", "KIA", "KIA", "KIA", "KIA", "KIA"],
+    "5": ["-", "M", "1", "1", "2", "2", "3", "4", "KIA", "KIA", "KIA"],
+    "6": ["-", "-", "M", "1", "1", "2", "2", "3", "4", "KIA", "KIA"],
+    "7": ["-", "-", "-", "M", "1", "1", "2", "2", "3", "4", "KIA"],
+    "8": ["-", "-", "-", "-", "M", "1", "1", "2", "2", "3", "4"],
+    "9": ["-", "-", "-", "-", "-", "M", "1", "1", "2", "2", "3"],
+    "10": ["-", "-", "-", "-", "-", "-", "M", "1", "1", "2", "2"],
+    "11": ["-", "-", "-", "-", "-", "-", "-", "M", "1", "1", "2"],
+    "12": ["-", "-", "-", "-", "-", "-", "-", "-", "M", "1", "1"],
+    "13": ["-", "-", "-", "-", "-", "-", "-", "-", "-", "M", "1"],
+    "14": ["-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "M"],
+    "15": ["-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"]
+  },
+  "row_below_2": "KIA",
+  "modifiers": {
+    "point_blank": {"rule": "9.1", "multiplier": [2, 1], "note": "target hex adjacent to the firing unit"},
+    "long_range": {"rule": "9.2", "multiplier": [1, 2], "note": "target beyond the printed range and within double range"},
+    "moving_fire": {"rule": "9.3", "multiplier": [1, 2], "note": "the firing unit moved this player turn"},
+    "area_fire": {"rule": "9.4", "multiplier": [1, 2], "note": "the target is concealed (rule 25.8)"},
+    "moving_in_open": {"rule": "16.5", "drm": -2, "note": "Defensive Fire Phase, units that moved in an open ground target hex"}
+  }
+}

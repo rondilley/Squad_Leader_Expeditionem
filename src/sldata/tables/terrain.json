@@ -1,0 +1,79 @@
+{
+ "table": "terrain",
+ "version": 1,
+ "provenance": [
+  "Terrain Effects Modifiers (rule 11.1) and Infantry Movement Costs (rule 5.5): transcribed from the data card image described in docs/research/2026-09-07_RV-1_counters_charts.md section 7.4.",
+  "The stone building modifier is not visible on that image. Its value +3 comes from the rulebook text: the rule 17.5 example says units in a building hex on board 1 receive the +3 modifier of the building, and the rule 3.8 example gives +3 for a two-terrain hex.",
+  "Movement costs are stored in half movement factors so that the rules stay in integer arithmetic (NFR-05). A road entered from a road hexside costs one half.",
+  "LOS classes come from rule 7.2 (woods and building symbols block) and rule 44 (wheatfields, Scale). Slice 1 records the wheat hindrance count only; the modifier waits for rule 44.",
+  "The project writes these rows in its own layout. No card text or card layout is reproduced (SR-07)."
+ ],
+ "terrain": {
+  "open": {
+   "tem": 0,
+   "mf_halves": 2,
+   "los": "clear",
+   "note": "Open ground, non-moving 0. Moving in open ground is -2 in the Defensive Fire Phase (rules 11.3, 16.5), applied by rule 16, not by this row."
+  },
+  "shellhole": {
+   "tem": 1,
+   "mf_halves": 2,
+   "los": "clear",
+   "note": "Shellhole +1, 1 MF (rule 44.31). Rule 44.32: a unit fired on while it moved through a shellhole takes minus one and not the minus two of rule 16.5."
+  },
+  "wheat": {
+   "tem": 0,
+   "mf_halves": 2,
+   "los": "hinder",
+   "note": "Wheatfield 0, 1 MF. Rule 44.21: a unit sees into a wheatfield hex and not through it. Fire that goes through one is half strength as Area Fire, and a height advantage takes that away. Rule 44.23 keeps the minus two of rule 16.5 off a unit that moved in one. Rule 44.24 makes the crop seasonal, and out of season the hex is open ground."
+  },
+  "woods": {
+   "tem": 1,
+   "mf_halves": 4,
+   "los": "block",
+   "note": "Woods +1, 2 MF. Blocks LOS (rule 7.2)."
+  },
+  "wooden_building": {
+   "tem": 2,
+   "mf_halves": 4,
+   "los": "block",
+   "building": true,
+   "note": "Wooden building +2, 2 MF to enter and 2 MF for each hex inside. Blocks LOS (rule 7.2)."
+  },
+  "stone_building": {
+   "tem": 3,
+   "mf_halves": 4,
+   "los": "block",
+   "building": true,
+   "note": "Stone building +3 (rule 17.5 example), 2 MF to enter and 2 MF for each hex inside. Blocks LOS (rule 7.2)."
+  }
+ },
+ "road": {
+  "mf_halves_from_road_hexside": 1,
+  "mf_halves_from_other_hexside": 2,
+  "note": "Rule 11.4: the other terrain in a road hex decides the terrain effects on combat."
+ },
+ "hexsides": {
+  "wall": {
+   "tem": 2,
+   "mf_extra_halves": 2,
+   "los": "block_unless_end",
+   "passable": true,
+   "note": "Rule 11.2 and 11.53: +2 when the LOS crosses the wall into the target hex. The value comes from the rulebook appendix example for 11.5, which gives a net +5 as +2 wall plus +3 stone building. The data card image gives +1 for a hedge. Rule 11.51: the LOS may cross a wall hexside only if it ends or originates in the hex that the hexside forms, or with a height advantage. Movement: 1 MF plus the cost of the terrain entered."
+  },
+  "hedge": {
+   "tem": 1,
+   "mf_extra_halves": 2,
+   "los": "block_unless_end",
+   "passable": true,
+   "note": "+1 from the data card image. The LOS and movement rules are the same as a wall (11.5)."
+  },
+  "cliff": {
+   "tem": 0,
+   "mf_extra_halves": 0,
+   "los": "clear",
+   "passable": false,
+   "note": "Rule 44 (Scale). Movement across a cliff hexside is not allowed."
+  }
+ }
+}

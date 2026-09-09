@@ -1,0 +1,184 @@
+{
+ "id": "s04_armor_probe",
+ "title": "Armor probe at the crossroads",
+ "notes": "A project scenario, not a printed scenario. It is the first game that plays the armor rules 28 to 41: tanks and self-propelled guns, their covered arcs, their guns against infantry and against each other, the overrun, the panzerfaust, and the wrecks they leave. The board comes from the generator and the forces are the project's own, so no part of it is card text (SR-07, FR-22). Rules 47 and 51 hold the halftrack, the truck, and the jeep, and project ruling PR-20 keeps them out until then.",
+ "board": "village",
+ "board_generator": {
+  "seed": 20260909,
+  "board_type": "village",
+  "cols": 25,
+  "rows": 10,
+  "zones": [
+   {
+    "count": 1,
+    "min_hexes": 2,
+    "max_hexes": 6,
+    "min_col": 2,
+    "max_col": 9
+   },
+   {
+    "count": 1,
+    "min_hexes": 2,
+    "max_hexes": 6,
+    "min_col": 15,
+    "max_col": 22
+   }
+  ]
+ },
+ "board_retries": 48,
+ "turns": 6,
+ "first_mover": "axis",
+ "setup_order": [
+  "allied",
+  "axis"
+ ],
+ "rules_used": [
+  "28",
+  "29",
+  "30",
+  "31",
+  "32",
+  "33",
+  "34",
+  "35",
+  "36",
+  "37",
+  "38",
+  "39",
+  "40",
+  "41"
+ ],
+ "switches": {
+  "predesignation": "basic",
+  "semi_simultaneous": "off"
+ },
+ "smoke_counters": {
+  "axis": 2
+ },
+ "sides": [
+  {
+   "side": "axis",
+   "nationality": "german",
+   "groups": [
+    {
+     "id": "a_stahler",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 2,
+      "max_col": 9,
+      "rank": 0
+     },
+     "units": [
+      {
+       "type": "9-2",
+       "name": "Lt Stahler"
+      },
+      {
+       "type": "4-6-7",
+       "count": 3
+      },
+      {
+       "type": "LMG",
+       "count": 1
+      },
+      {
+       "type": "PF",
+       "count": 2
+      }
+     ]
+    },
+    {
+     "id": "a_tanks",
+     "area": {
+      "zone": "columns",
+      "min_col": 0,
+      "max_col": 2,
+      "not_terrain": [
+       "stone_building",
+       "wooden_building",
+       "woods"
+      ]
+     },
+     "units": [
+      {
+       "type": "MkIVF2",
+       "count": 2
+      },
+      {
+       "type": "STGIII75",
+       "count": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "side": "allied",
+   "nationality": "russian",
+   "groups": [
+    {
+     "id": "l_dubovich",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 15,
+      "max_col": 22,
+      "rank": 0
+     },
+     "units": [
+      {
+       "type": "9-1",
+       "name": "Lt Dubovich"
+      },
+      {
+       "type": "4-4-7",
+       "count": 3
+      },
+      {
+       "type": "LMG",
+       "count": 1
+      }
+     ]
+    },
+    {
+     "id": "l_tanks",
+     "area": {
+      "zone": "columns",
+      "min_col": 22,
+      "max_col": 24,
+      "not_terrain": [
+       "stone_building",
+       "wooden_building",
+       "woods"
+      ]
+     },
+     "units": [
+      {
+       "type": "T34",
+       "count": 2
+      },
+      {
+       "type": "SU122",
+       "count": 1
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "victory": [
+  {
+   "kind": "building_swing",
+   "side": "axis",
+   "margin": 1,
+   "enemy_groups": [
+    "l_dubovich"
+   ],
+   "own_groups": [
+    "a_stahler"
+   ],
+   "note": "The Axis side wins when it holds one more of the marked buildings than it started with. The Allied side wins when it does not."
+  }
+ ]
+}

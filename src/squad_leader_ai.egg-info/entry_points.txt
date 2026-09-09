@@ -1,0 +1,2 @@
+[console_scripts]
+sl-cli = slcli.main:main
