@@ -7,8 +7,13 @@ nothing else, and its observation holds no unit that the acting player cannot se
 
 from __future__ import annotations
 
-import numpy as np
 import pytest
+
+pytest.importorskip("numpy")
+pytest.importorskip("gymnasium")
+pytest.importorskip("pettingzoo")
+
+import numpy as np
 
 from slagents.learned import encoding
 from slagents.learned.env import SquadLeaderEnv, make_env
@@ -118,8 +123,8 @@ def test_the_observation_of_a_player_hides_a_concealed_enemy(engine):
     assert after["units"][enemy.id + 1].sum() == 0, "the unit row of a concealed enemy is empty"
 
 
-def test_the_reward_is_the_result_of_the_game(engine):
-    """The reward is the victory condition of the scenario and nothing else."""
+def test_the_result_is_the_victory_condition_of_the_game(engine):
+    """The result of a game is the victory condition of the scenario and nothing else."""
     env = make_env(engine, seed=11)
     sides = engine.scenario.players()
     assert env._result_reward(env.agent_of(0), sides[0]) == 1.0
@@ -138,9 +143,17 @@ def test_a_game_reaches_its_end_and_gives_a_reward(engine):
         triples = sorted(env.groups)
         env.step(triples[int(rng.integers(len(triples)))])
     assert env.state_.game_over, "the game reached its end"
+    results = [env.results[a] for a in env.possible_agents]
+    assert sum(results) == 0.0, "one side wins what the other loses"
+    assert any(r != 0.0 for r in results) or env.state_.result == "draw"
     rewards = [env._cumulative_rewards[a] for a in env.possible_agents]
-    assert sum(rewards) == 0.0, "one side wins what the other loses"
-    assert any(r != 0.0 for r in rewards) or env.state_.result == "draw"
+    # The shaped terms are zero-sum, and the step cost is what each command took from the
+    # side that gave it. So the two totals add up to minus the step cost of the game.
+    # The counts are zero-sum, and each side weighs them by its own doctrine, so the two
+    # totals differ. The win and the loss dominate: the winner has the larger total.
+    winner = max(range(2), key=lambda p: results[p])
+    if results[winner] > 0:
+        assert rewards[winner] > rewards[1 - winner], "the winner has the larger total"
 
 
 def test_the_command_triple_names_the_same_command_in_each_state(engine):

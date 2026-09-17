@@ -4,6 +4,7 @@ pyproject.toml
 src/slagents/__init__.py
 src/slagents/base.py
 src/slagents/learned/__init__.py
+src/slagents/learned/agent.py
 src/slagents/learned/encoding.py
 src/slagents/learned/env.py
 src/slagents/learned/league.py

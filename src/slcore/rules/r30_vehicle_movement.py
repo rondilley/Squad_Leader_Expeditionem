@@ -245,8 +245,15 @@ def arrival_facing(direction: int) -> int:
 
 
 def pivots_for(ctx: VehicleContext, state: State, vehicle: Unit) -> list[Command]:
-    """Rule 30.5 and rule 33.31 case E: a turn inside the hex, which the fire rules charge."""
-    if vehicle.hex is None or vehicle.immobilized:
+    """Rule 30.5 and rule 33.31 case E: a turn inside the hex, which the fire rules charge.
+
+    PR-30: at most one free pivot in a movement phase. A pivot costs no movement point
+    (rule 33.32), so without this limit a vehicle turns back and forth without end and the
+    game never terminates. One pivot reads a facing straight from the payload and reaches
+    any of the six facings, so a second pivot is never necessary. The `pivoted` flag resets
+    on the per-turn movement reset (engine), so a vehicle pivots once each player turn.
+    """
+    if vehicle.hex is None or vehicle.immobilized or vehicle.pivoted:
         return []
     return [
         Command("vehicle_pivot", units=(vehicle.id,), extra=(("facing", facing),))

@@ -121,25 +121,34 @@ class League:
 
     def take_snapshot(self, policy: Policy, directory: Path, step: int, config: NetConfig) -> Path:
         """A copy of the policy as it is now, for a later opponent and for the artifact."""
-        directory.mkdir(parents=True, exist_ok=True)
-        path = directory / f"{SNAPSHOT_PREFIX}{step}.pt"
-        torch.save(
-            {
-                "step": step,
-                "state_dict": policy.state_dict(),
-                "net": config.to_dict(),
-                "spaces": {
-                    "units": policy.spaces.units,
-                    "actions": policy.spaces.actions,
-                    "targets": policy.spaces.targets,
-                    "cols": policy.spaces.cols,
-                    "rows": policy.spaces.rows,
-                },
-            },
-            path,
-        )
+        path = write_snapshot(policy, directory / f"{SNAPSHOT_PREFIX}{step}.pt", step, config)
         self.snapshots += 1
         return path
+
+
+def write_snapshot(policy: Policy, path: Path, step: int, config: NetConfig, extra: dict | None = None) -> Path:
+    """A policy on disk with the shape it needs to load again.
+
+    The trainer writes one at each snapshot step, and the imitation fit writes one as the
+    start of a run. `extra` is a record the writer adds, as the imitation record.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    saved = {
+        "step": step,
+        "state_dict": policy.state_dict(),
+        "net": config.to_dict(),
+        "spaces": {
+            "units": policy.spaces.units,
+            "actions": policy.spaces.actions,
+            "targets": policy.spaces.targets,
+            "cols": policy.spaces.cols,
+            "rows": policy.spaces.rows,
+        },
+    }
+    if extra:
+        saved.update(extra)
+    torch.save(saved, path)
+    return path
 
 
 def load_snapshot(path: Path, policy: Policy) -> Policy:

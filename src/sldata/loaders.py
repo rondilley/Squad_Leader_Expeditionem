@@ -192,14 +192,25 @@ def _zones_in_the_subset(
     if columns is None or not params.zones:
         return params
     lo, hi = columns
+
+    def shifted(min_col: int | None, max_col: int | None) -> tuple[int, int]:
+        if min_col is None and max_col is None:
+            return lo, hi
+        low = lo if min_col is None else min(hi, lo + min_col)
+        high = hi if max_col is None else min(hi, lo + max_col)
+        return low, high
+
     zones = []
     for z in params.zones:
-        if z.min_col is None and z.max_col is None:
-            zones.append(replace(z, min_col=lo, max_col=hi))
-            continue
-        low = lo if z.min_col is None else min(hi, lo + z.min_col)
-        high = hi if z.max_col is None else min(hi, lo + z.max_col)
-        zones.append(replace(z, min_col=low, max_col=high))
+        low, high = shifted(z.min_col, z.max_col)
+        near = z.near
+        if near:
+            band = dict(near)
+            near_low, near_high = shifted(band.get("min_col"), band.get("max_col"))
+            band["min_col"] = near_low
+            band["max_col"] = near_high
+            near = tuple(sorted(band.items()))
+        zones.append(replace(z, min_col=low, max_col=high, near=near))
     return replace(params, zones=tuple(zones))
 
 

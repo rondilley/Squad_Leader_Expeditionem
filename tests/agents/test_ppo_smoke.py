@@ -11,6 +11,11 @@ import math
 from pathlib import Path
 
 import pytest
+
+pytest.importorskip("torch")
+pytest.importorskip("gymnasium")
+pytest.importorskip("pettingzoo")
+
 import torch
 
 from slagents.learned import ppo
@@ -18,7 +23,9 @@ from slagents.learned.env import make_env
 from slagents.learned.league import League, Member, load_snapshot
 from slagents.learned.nets import NetConfig, Policy
 from slcli.play import build_engine
-from slcli.train import LEARNER, build_league, run_training
+from slagents.learned.encoding import command_triple
+from slcli.play import make_agent
+from slcli.train import LEARNER, build_league, run_training, scripted_member
 
 SCENARIO = "s01_guards_counterattack"
 SMOKE_STEPS = 10000
@@ -89,10 +96,12 @@ def test_the_advantage_of_a_won_game_is_positive():
         rollout.done.append(0.0)
     rollout.reward[-1] = 1.0
     rollout.done[-1] = 1.0
-    adv, returns = ppo.advantages(rollout, ppo.PpoConfig())
-    assert adv[-1] == pytest.approx(1.0)
+    config = ppo.PpoConfig()
+    adv, returns = ppo.advantages(rollout, config)
+    # The update reads the reward divided by the scale, so a win of one hundred is ten.
+    assert adv[-1] == pytest.approx(1.0 / config.reward_scale)
     assert all(a > 0 for a in adv), "each decision of a won game has a positive advantage"
-    assert returns[-1] == pytest.approx(1.0)
+    assert returns[-1] == pytest.approx(1.0 / config.reward_scale)
 
 
 def test_the_league_samples_the_opponent_that_wins_more_often():
@@ -113,7 +122,7 @@ def test_the_league_samples_the_opponent_that_wins_more_often():
 def test_the_elo_table_has_an_entry_for_each_member(tmp_path: Path):
     """TC-19: each member of the league and the learner are in the table."""
     engine = build_engine(SCENARIO)
-    league = build_league(engine, seed=1, opponent_player=1)
+    league = build_league(engine, seed=1)
     member = league.members[0]
     league.record(member, 1.0, LEARNER)
     table = league.table(LEARNER)
@@ -162,8 +171,18 @@ def test_the_evaluation_gives_a_win_rate_with_an_interval(tmp_path: Path):
         assert row["games"] == 2
         assert 0.0 <= row["win_rate"] <= 1.0
         assert row["confidence_low"] <= row["win_rate"] <= row["confidence_high"]
-        assert set(row["results"]) == {"win", "loss", "draw"}
+        assert set(row["results"]) == {"win", "loss", "draw", "truncated", "repeated"}, "a truncated game and a cycle each have their own count"
+        assert sum(row["results"].values()) == row["games"]
+        assert set(row["by_side"]) == {"player_0", "player_1"}, "each side the learner held has its own counts"
+        for side in row["by_side"].values():
+            assert set(side) == set(row["results"])
+        assert all(
+            sum(side[key] for side in row["by_side"].values()) == row["results"][key] for key in row["results"]
+        ), "the two sides sum to the whole"
     assert "TC-18" in art.stats["passed"]
+    reward = art.config["reward"]
+    assert reward["player_0"]["loss"] < 0 < reward["player_0"]["win"], "the artifact records the reward weights"
+    assert reward["player_0"]["nation"] == "soviet" and reward["player_1"]["nation"] == "german", "each side has its army's weights"
 
 
 def test_the_run_artifact_records_the_agent_versions_and_the_algorithm(tmp_path: Path):
@@ -188,3 +207,61 @@ def test_the_run_artifact_records_the_agent_versions_and_the_algorithm(tmp_path:
     assert any(name.startswith("scripted-scripted-v") for name in config["opponents"])
     assert any(name.startswith("scripted-engineer-v") for name in config["opponents"])
     assert config["board_source"] == "generated"
+
+
+def test_the_scripted_member_plays_the_side_of_the_frame():
+    """A scripted opponent plans for the side the frame names, on each side.
+
+    The evaluation of the third 1 million step run built the member for the opponent of
+    the learner and then changed the sides, so the German plan moved the Russians in each
+    odd game. The member now holds an agent for each side.
+    """
+    engine = build_engine(SCENARIO)
+    env = make_env(engine, seed=11)
+    member = scripted_member(engine, "v1", 11)
+    right = {player: make_agent("v1", engine, 11, player) for player in (0, 1)}
+    wrong_side_choices = 0
+    sides_seen = set()
+    for _ in range(120):
+        agent = env.agent_selection
+        if env.terminations[agent] or env.truncations[agent]:
+            break
+        player = env.frame.player
+        sides_seen.add(player)
+        chosen = member.act(env, env.observe(agent))
+        expected = env.frame.by_id(right[player].select(env.state_, env.frame))
+        assert chosen == command_triple(expected.command, env.hexes), f"the member played a plan of the other side for player {player}"
+        other = env.frame.by_id(right[1 - player].select(env.state_, env.frame))
+        if command_triple(other.command, env.hexes) != chosen:
+            wrong_side_choices += 1
+        env.step(chosen)
+    assert sides_seen == {0, 1}, "the game reached a decision of each side"
+    assert wrong_side_choices > 0, "an agent built for the other side gives a different command, so the side matters"
+
+
+def test_the_learner_changes_sides_at_each_new_game():
+    """`--player both`: one policy plays the attack and the defence in turn."""
+    torch.manual_seed(0)
+    engine = build_engine(SCENARIO)
+    env = make_env(engine, seed=4, max_commands=40)
+    policy = Policy(env.spaces_record)
+    generator = torch.Generator().manual_seed(0)
+    games_ended = 0
+    opponent_sides: list[set[int]] = [set()]
+
+    def opponent(env, observation):
+        opponent_sides[-1].add(env.frame.player)
+        return ppo.random_opponent(env, observation)
+
+    def on_game_end(_: float) -> None:
+        nonlocal games_ended
+        games_ended += 1
+        opponent_sides.append(set())
+
+    rollout = ppo.collect(env, policy, 0, opponent, 100, generator, on_game_end, alternate_sides=True)
+    assert games_ended >= 3, "the short games gave several games in one collection"
+    for game, sides in enumerate(opponent_sides[:games_ended]):
+        assert sides == {1 - (game % 2)}, f"in game {game} the opponent held side {sides}, so the learner did not change sides"
+    assert rollout.next_learner == games_ended % 2, "the next collection starts on the side after the last game"
+    fixed = ppo.collect(make_env(engine, seed=4, max_commands=40), policy, 0, ppo.random_opponent, 100, generator)
+    assert fixed.next_learner == 0, "without the switch the learner keeps its side"

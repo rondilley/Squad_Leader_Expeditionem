@@ -87,7 +87,7 @@ async def wait_for_frame(page, timeout_ms: int = 20000) -> None:
 # pixels it drew.
 TERRAIN_COLOURS = {
     "open ground": (158, 176, 104),
-    "stone building": (132, 132, 128),
+    "stone building": (198, 154, 112),
     "woods": (92, 128, 68),
 }
 COUNTER_COLOURS = {

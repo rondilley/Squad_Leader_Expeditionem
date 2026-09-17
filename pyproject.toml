@@ -25,6 +25,9 @@ browser = [
 desktop = [
     "pygame-ce>=2.5",
 ]
+view3d = [
+    "panda3d>=1.10",
+]
 train = [
     "torch>=2.4",
     "numpy>=2.0",

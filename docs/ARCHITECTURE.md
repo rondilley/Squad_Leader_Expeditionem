@@ -301,7 +301,7 @@ The style record of FR-26 gives the density of each feature, and `STYLE_DEFAULTS
 
 A set up area is a zone: a predicate on the hexes of the board (FR-21). Three zones cover the forms that RV-2 section 6 reads off the cards.
 
-`stone_building` gives one building of a column band, by rank. `columns` gives each hex of a column band. `edge` gives each hex in a depth from one named edge. The last two also apply a terrain test: a terrain type, a road flag, or one hill level.
+`stone_building` gives one building of a band, by rank. The band is a range of columns, a range of rows, or the two. A `near` parameter adds a distance: the building must be within that many hexes of a stone building of another band. `columns` gives each hex of a column band. `edge` gives each hex in a depth from one named edge. The last two also apply a terrain test: a terrain type, a road flag, or one hill level.
 
 Two rules hold for each board type. First, the outer ring of the board stays on ground level. A seam between two levels is a step that no rule describes, and two boards must connect along an edge. Second, no slope is steeper than one level. A step of two levels is a cliff hexside (rule 44.1), and an impassable hexside can cut a board in two.
 
@@ -426,6 +426,22 @@ The answer, measured on 2026-09-08 with the slice 6 generator: yes for the struc
 The condition came from a defect that the prototype found. Zone resolution by position alone gave the Russian guards a three-hex building on some seeds, and twelve squads do not stack in three hexes (rule 6.1). Two changes correct it. The zone parameters have `min_hexes`, and the generator constraints have the same number. Thus pass 2 makes a board that holds the group.
 
 What the answer does not cover: the balance. Ten games of the v1 scripted agent against itself on each of eight boards gave the Russians between 0 and 7 wins of 10. The board changes the result. A weak agent is a weak measure of balance. Thus the balance question stays open, and it belongs with the agent work and the look rubric (TC-14b).
+
+### 7.2 The front of scenario 1 runs along the rows
+
+The first zone form of scenario 1 gave the Russians the west band of columns and the Germans the east band. On the card the front runs along the rows. The German buildings are in rows 5 to 9 and the Russian buildings in rows 2 to 4. Each Russian building is two to five hexes from a German one.
+
+The column bands put the two sides six to twelve hexes apart. On that board no agent won the Russian attack against a German who fired at range six. The v6 agent won 1 to 5 games of 20, and three learned policies of 1 million steps won none.
+
+The balance record of the printed scenario is 50 percent (RV-2 section 3).
+
+The correction, on 2026-09-13, is in the scenario data and in the generator. The German zone is the rows 5 to 7 of the west half, which is the front of the card. The Russian zones are the rows 1 to 4, three hexes or less from a stone building of the German band. They are four small buildings and the guards building of four hexes or more.
+
+The generator puts the zone buildings on the board before the free pass. The cause is room: a board that the free pass filled has no room for a building of four hexes in a band of three rows. The buildings of the other band are also necessary before a `near` zone can put its own on the board.
+
+The starts of a zone that a `near` zone anchors on stay in the distance of that zone's band. Then no German building is deeper than the Russians can get to. A record with no `near` zone takes the earlier path and builds the same board as before.
+
+The measure after the correction: on 200 seeds, 172 satisfy the zones at the first try. On each of 60 seeds, each Russian group is five hexes or less from a German group. The v6 Russian wins 8 of 20 against the v1 German, from 1 to 5 before, and 19 of 20 against a random German.
 
 ## 8. Topology: host, client, and LAN
 

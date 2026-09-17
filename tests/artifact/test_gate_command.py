@@ -59,10 +59,11 @@ def test_the_manifest_of_a_generated_board_carries_the_parameters_that_built_it(
     generator = config["generator"]
     assert generator["board_type"] == "city"
     assert generator["version"] == GENERATOR_VERSION
+    front = {"min_col": 0, "max_col": 15, "min_row": 5, "max_row": 7, "max_distance": 3}
     assert generator["zones"] == [
-        {"count": 5, "min_hexes": 2, "max_hexes": 6, "min_col": 0, "max_col": 7},
-        {"count": 1, "min_hexes": 4, "max_hexes": 6, "min_col": 0, "max_col": 7},
-        {"count": 5, "min_hexes": 2, "max_hexes": 6, "min_col": 8, "max_col": 15},
+        {"count": 5, "min_hexes": 2, "max_hexes": 6, "min_col": 0, "max_col": 15, "min_row": 5, "max_row": 7},
+        {"count": 4, "min_hexes": 2, "max_hexes": 3, "min_col": 0, "max_col": 15, "min_row": 1, "max_row": 4, "near": front},
+        {"count": 1, "min_hexes": 4, "max_hexes": 6, "min_col": 0, "max_col": 15, "min_row": 1, "max_row": 4, "near": front},
     ]
 
     directory = art.write(tmp_path)

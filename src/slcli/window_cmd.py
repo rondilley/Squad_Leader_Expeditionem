@@ -114,7 +114,7 @@ def add_parser(subparsers: Any) -> None:
     p.add_argument("--connect", default=None, help="the address of a host that already runs, as ws://host:port/")
     p.add_argument("--room-code", default=None, help="the room code of that host, or a code for the host this starts")
     p.add_argument("--lan", action="store_true", help="one seat for each connection instead of hot seat")
-    p.add_argument("--agent", default=None, choices=("random", "v0", "v1", "v2", "v3"), help="give one side to a computer opponent")
+    p.add_argument("--agent", default=None, choices=("random", "v0", "v1", "v2", "v3", "v4", "v5", "v6"), help="give one side to a computer opponent")
     p.add_argument("--agents", default=None, help="give each side to a computer opponent, as two names: v1,v2")
     p.add_argument("--agent-side", default=None, help="the side name the computer opponent holds")
     p.add_argument(

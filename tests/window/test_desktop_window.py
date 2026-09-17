@@ -152,14 +152,24 @@ def test_the_outline_of_a_building_follows_the_whole_building(game, fonts):
         if same(hexagon, building, 2) and not same(hexagon, building, -2):
             pairs.append(hexagon)
     assert pairs, "this board has no building of two hexes above each other to check"
+    # A block reaches the full step to a hex of the same building below it, so the seam sits
+    # at the full hexside. It pulls in on the open top, so the outside line sits inset.
     half_y = camera.scale * layout.ROOT_THREE
+    top_y = half_y * render.BUILDING_INSET
+
+    def near(a, b):
+        # The line meets the roof and the ground at the inset edge, so one pixel of it can
+        # blend by a step. The ground and the roof are far from the line, so a near match
+        # still says the line is there and not the fill.
+        return all(abs(int(a[i]) - int(b[i])) <= 3 for i in range(3))
+
     for hexagon in pairs:
         line = theme.BUILDING[hexagon["terrain"]]["line"]
         x, y = camera.to_screen(*hexagon["center"])
         seam = [surface.get_at((int(x), int(round(y + half_y)) + d))[:3] for d in (-1, 0, 1)]
         assert line not in seam, f"the hexside inside the building at {hexagon['id']} carries a wall line"
-        top = [surface.get_at((int(x), int(round(y - half_y)) + d))[:3] for d in (-2, -1, 0, 1, 2)]
-        assert line in top, f"the outside of the building at {hexagon['id']} carries no wall line"
+        top = [surface.get_at((int(x), int(round(y - top_y)) + d))[:3] for d in range(-3, 4)]
+        assert any(near(line, pixel) for pixel in top), f"the outside of the building at {hexagon['id']} carries no wall line"
 
 
 def test_a_large_building_is_marked_as_a_large_one(game, fonts):

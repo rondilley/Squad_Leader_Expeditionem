@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping, Sequence
 
 from slcore import geometry
 from slcore.geometry import HexRef
@@ -45,6 +45,79 @@ class SetupArea:
             if b is not None:
                 return b.id
         return None
+
+
+def in_band(hexes: Sequence[HexRef], params: Mapping[str, Any]) -> bool:
+    """True when each hex of a building is inside the column and row band of `params`.
+
+    The keys are `min_col`, `max_col`, `min_row`, and `max_row`, and each one is optional.
+
+    The column test reads each hex: a building that crosses a column line is outside the
+    band, because a scenario that plays on part of a board cuts the building at that line
+    and its hex count changes. The row test reads the north hex of the building only, so
+    that two bands that divide the rows between them give each building to one side. A
+    building that crosses the row line is not cut by it, and on the printed board of
+    scenario 1 the two sides hold buildings that are one hexside apart.
+    """
+    low_col = params.get("min_col")
+    high_col = params.get("max_col")
+    low_row = params.get("min_row")
+    high_row = params.get("max_row")
+    if low_col is not None and any(ref[0] < int(low_col) for ref in hexes):
+        return False
+    if high_col is not None and any(ref[0] > int(high_col) for ref in hexes):
+        return False
+    north = min(ref[1] for ref in hexes)
+    if low_row is not None and north < int(low_row):
+        return False
+    if high_row is not None and north > int(high_row):
+        return False
+    return True
+
+
+def near_band(
+    hexes: Sequence[HexRef],
+    buildings: Iterable[Sequence[HexRef]],
+    near: Mapping[str, Any],
+) -> bool:
+    """True when a building is within `max_distance` hexes of a stone building of another band.
+
+    `near` holds the band keys of `in_band` and `max_distance`. The distance is the least
+    hex distance between a hex of this building and a hex of a building of the band. This
+    is how a card puts an attacker on top of a defender: the guards of scenario 1 set up
+    in the building next to the one the Germans hold, and a band of columns alone cannot
+    say that.
+    """
+    limit = int(near.get("max_distance", 2))
+    for other in buildings:
+        if other is hexes or not in_band(other, near):
+            continue
+        if min(geometry.distance(a, b) for a in hexes for b in other) <= limit:
+            return True
+    return False
+
+
+def band_text(params: Mapping[str, Any]) -> str:
+    """The band of `params` in words, for an error message."""
+    parts = []
+    low_col = params.get("min_col")
+    high_col = params.get("max_col")
+    if low_col is not None or high_col is not None:
+        parts.append(_band_text(low_col, high_col))
+    low_row = params.get("min_row")
+    high_row = params.get("max_row")
+    if low_row is not None and high_row is not None:
+        parts.append(f"in rows {int(low_row)} to {int(high_row)}")
+    elif low_row is not None:
+        parts.append(f"in the rows from {int(low_row)}")
+    elif high_row is not None:
+        parts.append(f"in the rows up to {int(high_row)}")
+    near = params.get("near")
+    if near and not isinstance(near, Mapping):
+        near = dict(near)
+    if near:
+        parts.append(f"within {int(near.get('max_distance', 2))} hexes of a stone building {band_text(near)}")
+    return " ".join(parts) if parts else "on the board"
 
 
 def stone_buildings(board: Board) -> list[tuple[str, tuple[HexRef, ...]]]:
@@ -149,6 +222,11 @@ def resolve_zone(board: Board, zone: str, params: Mapping[str, Any]) -> tuple[He
 
     - `min_col` and `max_col`: the band of columns the side sets up in. The band, and not
       an index from an end of the board, keeps the two sides apart on every board.
+    - `min_row` and `max_row`: the band of rows, for a card whose front runs along the
+      rows. Scenario 1 is one: the Russians hold rows 2 to 4 and the Germans rows 5 to 9.
+    - `near`: a band of the same keys and a `max_distance`. The building must be within
+      that distance of a stone building of the other band. This puts an attacker in the
+      building next to a defender, which the card of scenario 1 does.
     - `rank`: which building of the band the group takes. The band is sorted by hex count
       first, from the largest, and then from the west. So rank 0 is the largest building,
       and the scenario gives it to its largest group.
@@ -164,20 +242,23 @@ def resolve_zone(board: Board, zone: str, params: Mapping[str, Any]) -> tuple[He
         return resolve_edge(board, params)
     if zone != "stone_building":
         raise NotImplementedError(f"zone {zone!r} is not one of {ZONES}")
-    low_col = params.get("min_col")
-    high_col = params.get("max_col")
+    buildings = stone_buildings(board)
+    shapes = [hexes for _, hexes in buildings]
+    near = params.get("near")
+    if near and not isinstance(near, Mapping):
+        near = dict(near)
     band = []
-    for name, hexes in stone_buildings(board):
-        if low_col is not None and any(ref[0] < int(low_col) for ref in hexes):
+    for name, hexes in buildings:
+        if not in_band(hexes, params):
             continue
-        if high_col is not None and any(ref[0] > int(high_col) for ref in hexes):
+        if near and not near_band(hexes, shapes, near):
             continue
         band.append((name, hexes))
     if int(params.get("max_hexes", 99)) < 99:
         band = [b for b in band if len(b[1]) <= int(params["max_hexes"])]
     band.sort(key=lambda item: (-len(item[1]), item[1][0]))
     rank = int(params.get("rank", 0))
-    where = _band_text(low_col, high_col)
+    where = band_text(params)
     if rank >= len(band):
         raise ValueError(
             f"the board has {len(band)} stone buildings {where}, and the set up area asks for rank {rank}"
@@ -320,8 +401,15 @@ def _area_from_dict(d: Mapping[str, Any]) -> SetupArea:
         building=None if d.get("building") is None else str(d["building"]),
         hexes=tuple(geometry.parse_hex_id(str(h)) for h in d.get("hexes", [])),
         zone=None if d.get("zone") is None else str(d["zone"]),
-        params=tuple(sorted((k, v) for k, v in d.items() if k not in known)),
+        params=tuple(sorted((k, _frozen(v)) for k, v in d.items() if k not in known)),
     )
+
+
+def _frozen(value: Any) -> Any:
+    """A parameter value that a frozen record can hold: a mapping becomes sorted pairs."""
+    if isinstance(value, Mapping):
+        return tuple(sorted((str(k), _frozen(v)) for k, v in value.items()))
+    return value
 
 
 def _counts(d: Mapping[str, Any], key: str) -> tuple[tuple[str, int], ...]:

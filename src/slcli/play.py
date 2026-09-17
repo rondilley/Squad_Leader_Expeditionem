@@ -13,6 +13,9 @@ from slagents.scripted.v0 import ScriptedV0
 from slagents.scripted.v1 import ScriptedV1
 from slagents.scripted.v2 import ScriptedV2
 from slagents.scripted.v3 import ScriptedV3
+from slagents.scripted.v4 import ScriptedV4, profile_for
+from slagents.scripted.v5 import ScriptedV5, profile_for as profile_for_v5
+from slagents.scripted.v6 import ScriptedV6, profile_for as profile_for_v6
 from slagents.tuned.traces import TraceWriter, board_source
 from slcore.commands import Command
 from slcore.engine import Engine
@@ -22,6 +25,17 @@ from slboards.reference import source_of
 from sldata.loaders import DataError, board_and_parameters, load_all_counters, load_board, load_hexsides, load_scenario, load_tables, load_terrain
 
 MAX_COMMANDS = 20000
+
+LEARNED_PREFIX = "learned:"
+
+
+class LearnedNotInstalled(Exception):
+    """The learned agent needs torch, which is the `train` extra, and it is not installed."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "the learned agent needs torch. Install it with: pip install -e \".[train]\""
+        )
 
 
 @dataclass
@@ -125,13 +139,46 @@ def make_agent(kind: str, engine: Engine, seed: int, player: int) -> Agent:
         return ScriptedV2(engine, player)
     if kind == "v3":
         return ScriptedV3(engine, player)
+    if kind == "v4":
+        return ScriptedV4(engine, player)
+    if kind.startswith("v4:"):
+        return ScriptedV4(engine, player, profile_for(kind.split(":", 1)[1]))
+    if kind == "v5":
+        return ScriptedV5(engine, player)
+    if kind.startswith("v5:"):
+        return ScriptedV5(engine, player, profile_for_v5(kind.split(":", 1)[1]))
+    if kind == "v6":
+        return ScriptedV6(engine, player)
+    if kind.startswith("v6:"):
+        return ScriptedV6(engine, player, profile_for_v6(kind.split(":", 1)[1]))
     if kind.startswith("model:"):
         return make_model_agent(kind.split(":", 1)[1], engine, seed, player)
     if kind.startswith("tuned:"):
         return make_model_agent(kind.split(":", 1)[1], engine, seed, player, tuned=True)
+    if kind.startswith(LEARNED_PREFIX):
+        return make_learned_agent(kind[len(LEARNED_PREFIX):], engine, seed, player)
     raise ValueError(
-        f"unknown agent kind {kind!r}; use random, v0, v1, v2, v3, model:<providers>, or tuned:<providers>"
+        f"unknown agent kind {kind!r}; use random, v0, v1, v2, v3, v4, v4:<nation>, v5, v5:<nation>, v6, v6:<nation>, "
+        "model:<providers>, tuned:<providers>, or learned:<snapshot>"
     )
+
+
+def make_learned_agent(snapshot_path: str, engine: Engine, seed: int, player: int) -> Agent:
+    """A trained PPO snapshot as a computer opponent (FR-51, FR-52).
+
+    The snapshot is a file that `sl-cli train` wrote. Torch is the `train` extra, so the
+    import is late and its absence gives the typed error of this boundary, the way the
+    desktop and finetune commands do.
+    """
+    if not snapshot_path:
+        raise ValueError("a learned agent needs a snapshot path, as learned:<path>")
+    try:
+        import torch  # noqa: F401  the boundary of an optional dependency
+    except ImportError as exc:
+        raise LearnedNotInstalled() from exc
+    from slagents.learned.agent import LearnedAgent
+
+    return LearnedAgent(engine, snapshot_path, seed=None)
 
 
 def make_model_agent(providers: str, engine: Engine, seed: int, player: int, tuned: bool = False) -> Agent:
@@ -245,8 +292,8 @@ def add_parser(subparsers: Any) -> None:
     p.add_argument("--board", default=None)
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--games", type=int, default=1)
-    p.add_argument("--agent-a", default="v1", choices=("random", "v0", "v1", "v2", "v3"))
-    p.add_argument("--agent-b", default="v1", choices=("random", "v0", "v1", "v2", "v3"))
+    p.add_argument("--agent-a", default="v1", choices=("random", "v0", "v1", "v2", "v3", "v4", "v5", "v6"))
+    p.add_argument("--agent-b", default="v1", choices=("random", "v0", "v1", "v2", "v3", "v4", "v5", "v6"))
     p.add_argument("--headless", action="store_true", help="accepted for the documented command line; play is headless only in v0.1")
     p.add_argument("--verify", action="store_true", help="replay each game and compare the hash sequence")
     p.add_argument("--out", default=None, help="directory for the game records")
