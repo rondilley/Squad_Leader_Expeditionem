@@ -17,6 +17,14 @@ worth more than a loss (`docs/reports/2026-09-12_training_run_1m.md`). A truncat
 a defeat now. The result of the game on its own is in `results`, for the league and the
 evaluation, because a win is a win whatever the shaped total says. A repeated state ends
 the game as a defeat of the side that repeated it, because a repeated state is a cycle.
+
+A state with one legal command is not a decision. The environment applies that command
+itself and asks the agent at the next state that has two or more, because a decision
+with one choice is a quarter of a game of scenario 1 (173 of 756 commands of a game of
+v6 against v1, most of them `end_phase` and the `group_fire` of a group with one target),
+and each one was a step of the rollout, a row of the demonstrations, and a step cost, for
+nothing the policy could learn. The scripted agents give the same game with and without
+this, because an agent given one legal command gives that command.
 """
 
 from __future__ import annotations
@@ -61,11 +69,15 @@ class SquadLeaderEnv(AECEnv):
         seed: int = 1,
         max_commands: int = MAX_COMMANDS,
         weights: RewardWeights | tuple[RewardWeights, RewardWeights] | None = None,
+        skip_forced: bool = True,
     ) -> None:
         super().__init__()
         self.engine = engine
         self.seed_value = seed
         self.max_commands = max_commands
+        # A frame with one legal command is applied by the environment, not decided.
+        self.skip_forced = skip_forced
+        self.forced_applied = 0
         # Each side weighs the same events by the doctrine of the army it fields (RV-9,
         # table B). One RewardWeights serves both sides when a caller gives one.
         if weights is None:
@@ -78,6 +90,7 @@ class SquadLeaderEnv(AECEnv):
         self.progress: tuple[int, int] = (0, 0)
         self.spaces_record = encoding.spaces_for(engine.board, len(engine.new_game(seed).units))
         self.hexes = encoding.hex_slots(engine.board)
+        self.objectives = encoding.objectives_for(engine)
         self.possible_agents = list(AGENT_NAMES)
         self.agents: list[str] = []
         self.state_: State | None = None
@@ -117,10 +130,12 @@ class SquadLeaderEnv(AECEnv):
         self.results = {a: 0.0 for a in self.agents}
         self.state_ = self.engine.new_game(self.seed_value)
         self.commands_applied = 0
+        self.forced_applied = 0
         self.seen = {position_key(self.state_)}
         self.repeated = False
         self.progress = objective_progress(self.engine, self.state_)
         self._refresh()
+        self._apply_forced()
 
     def observe(self, agent: str) -> dict[str, np.ndarray]:
         player = self.player_of(agent)
@@ -132,9 +147,14 @@ class SquadLeaderEnv(AECEnv):
         if player != frame.player:
             unit_mask = np.zeros_like(unit_mask)
             action_mask = np.zeros_like(action_mask)
+        legal_units = [int(i) for i in np.flatnonzero(unit_mask)]
         return {
-            "board": encoding.board_tensor(self.engine.board, state, self.engine.types, player, self.spaces_record),
-            "units": encoding.unit_tensor(state, self.engine.types, player, self.spaces_record, self.engine.board),
+            "board": encoding.board_tensor(
+                self.engine.board, state, self.engine.types, player, self.spaces_record, self.objectives
+            ),
+            "units": encoding.unit_tensor(
+                state, self.engine.types, player, self.spaces_record, self.engine.board, legal_units
+            ),
             "scalars": encoding.scalar_vector(state, frame, player),
             "unit_mask": unit_mask,
             "action_mask": action_mask.reshape(-1),
@@ -150,15 +170,8 @@ class SquadLeaderEnv(AECEnv):
         legal = self.groups.get(triple)
         if legal is None:
             raise ValueError(f"the command {triple} is not legal in this state; read the masks")
-        before = self._state()
-        state, events = self.engine.apply(before, legal.command, self.frame)
-        self.state_ = state
-        self.commands_applied += 1
-        digest = position_key(state)
-        repeated = digest in self.seen
-        self.seen.add(digest)
-        self._rewards_and_ends(before, events, self.player_of(agent), repeated)
-        self._refresh()
+        self._apply(legal, self.player_of(agent))
+        self._apply_forced()
 
     def target_mask(self, unit: int, action: int) -> np.ndarray:
         """The third head: which hexes this unit and this action allow (FR-50)."""
@@ -179,6 +192,34 @@ class SquadLeaderEnv(AECEnv):
         if self.state_ is None:
             raise RuntimeError("the environment has no state; call reset first")
         return self.state_
+
+    def _apply(self, legal: Any, acted: int) -> None:
+        """One legal command of the side `acted` onto the state, with its rewards and ends."""
+        before = self._state()
+        state, events = self.engine.apply(before, legal.command, self.frame)
+        self.state_ = state
+        self.commands_applied += 1
+        digest = position_key(state)
+        repeated = digest in self.seen
+        self.seen.add(digest)
+        self._rewards_and_ends(before, events, acted, repeated)
+        self._refresh()
+
+    def _apply_forced(self) -> None:
+        """Apply each frame that holds one legal command, until a frame holds a choice.
+
+        The command goes to the side the frame names, with its step cost, and the rewards
+        of what it gives accrue to the decision before it, which is the decision that led
+        here. A loop and not a recursion, because a run of forced frames has no bound.
+        """
+        if not self.skip_forced:
+            return
+        while len(self.groups) == 1 and not self._ended():
+            self.forced_applied += 1
+            self._apply(next(iter(self.groups.values())), self.frame.player)
+
+    def _ended(self) -> bool:
+        return any(self.terminations.values()) or any(self.truncations.values())
 
     def _refresh(self) -> None:
         state = self._state()
@@ -237,7 +278,8 @@ def make_env(
     seed: int = 1,
     max_commands: int = MAX_COMMANDS,
     weights: RewardWeights | tuple[RewardWeights, RewardWeights] | None = None,
+    skip_forced: bool = True,
 ) -> SquadLeaderEnv:
-    env = SquadLeaderEnv(engine, seed=seed, max_commands=max_commands, weights=weights)
+    env = SquadLeaderEnv(engine, seed=seed, max_commands=max_commands, weights=weights, skip_forced=skip_forced)
     env.reset(seed=seed)
     return env

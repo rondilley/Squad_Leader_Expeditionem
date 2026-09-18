@@ -127,6 +127,7 @@ class LearnedAgent:
                 f"{self.board.cols}x{self.board.rows}; the snapshot must be trained on this scenario"
             )
         self.hexes = encoding.hex_slots(self.board)
+        self.objectives = encoding.objectives_for(engine)
         self._generator = None
         if seed is not None:
             import torch
@@ -162,10 +163,10 @@ class LearnedAgent:
         groups = encoding.group_commands(frame, self.hexes)
         device = next(self.policy.parameters()).device
         board = torch.from_numpy(
-            encoding.board_tensor(self.board, state, self.types, player, self.spaces)
+            encoding.board_tensor(self.board, state, self.types, player, self.spaces, self.objectives)
         ).unsqueeze(0).to(device)
         units = torch.from_numpy(
-            encoding.unit_tensor(state, self.types, player, self.spaces, self.board)
+            encoding.unit_tensor(state, self.types, player, self.spaces, self.board, sorted({u for u, _, _ in groups}))
         ).unsqueeze(0).to(device)
         scalars = torch.from_numpy(encoding.scalar_vector(state, frame, player)).unsqueeze(0).to(device)
         with torch.no_grad():
@@ -207,51 +208,51 @@ class LearnedAgent:
     def _scores(self, trunk, unit_embeddings, groups: Mapping[tuple[int, int, int], LegalCommand], torch, device) -> dict[tuple[int, int, int], float]:
         """The composed log probability of each legal triple.
 
-        The unit head is read once. The action head is read once for each legal unit slot, and
-        the target head once for each legal unit and action. So the whole set is scored with a
-        few forward calls, and not one for each command.
+        Three forward calls score the whole set: the unit head once, the action head once
+        for all the legal unit slots as one batch, and the target head once for all the
+        legal unit and action pairs as one batch. The log probabilities come to the
+        processor once. The loop before this made one call and three waits for each
+        triple, which was 45 ms a decision on the card and an hour for an evaluation of
+        160 games (2026-09-16).
         """
-        unit_mask = torch.zeros(self.spaces.units, dtype=torch.float32, device=device)
-        for u, _, _ in groups:
-            unit_mask[u] = 1.0
-        u_logits = self.policy.unit_logits(trunk, unit_embeddings, unit_mask.unsqueeze(0))
-        u_logp = torch.log_softmax(u_logits.squeeze(0), dim=-1)
+        import numpy as np
 
-        action_logp: dict[int, object] = {}
-        target_logp: dict[tuple[int, int], object] = {}
-        scores: dict[tuple[int, int, int], float] = {}
-        for triple in sorted(groups):
-            unit, action, target = triple
-            if unit not in action_logp:
-                a_mask = torch.zeros(self.spaces.actions, dtype=torch.float32, device=device)
-                for u2, a2, _ in groups:
-                    if u2 == unit:
-                        a_mask[a2] = 1.0
-                a_logits = self.policy.action_logits(
-                    trunk,
-                    unit_embeddings,
-                    torch.tensor([unit], dtype=torch.long, device=device),
-                    a_mask.unsqueeze(0),
-                )
-                action_logp[unit] = torch.log_softmax(a_logits.squeeze(0), dim=-1)
-            key = (unit, action)
-            if key not in target_logp:
-                t_mask = torch.zeros(self.spaces.targets, dtype=torch.float32, device=device)
-                for u2, a2, t2 in groups:
-                    if u2 == unit and a2 == action:
-                        t_mask[t2] = 1.0
-                t_logits = self.policy.target_logits(
-                    trunk,
-                    unit_embeddings,
-                    torch.tensor([unit], dtype=torch.long, device=device),
-                    torch.tensor([action], dtype=torch.long, device=device),
-                    t_mask.unsqueeze(0),
-                )
-                target_logp[key] = torch.log_softmax(t_logits.squeeze(0), dim=-1)
-            scores[triple] = float(
-                u_logp[unit].item() + action_logp[unit][action].item() + target_logp[key][target].item()
-            )
-        return scores
+        spaces = self.spaces
+        triples = sorted(groups)
+        units = sorted({u for u, _, _ in triples})
+        pairs = sorted({(u, a) for u, a, _ in triples})
+        unit_index = {u: i for i, u in enumerate(units)}
+        pair_index = {pair: i for i, pair in enumerate(pairs)}
+        unit_mask = np.zeros(spaces.units, dtype=np.float32)
+        action_mask = np.zeros((len(units), spaces.actions), dtype=np.float32)
+        target_mask = np.zeros((len(pairs), spaces.targets), dtype=np.float32)
+        for u, a, t in triples:
+            unit_mask[u] = 1.0
+            action_mask[unit_index[u], a] = 1.0
+            target_mask[pair_index[(u, a)], t] = 1.0
+        u_logits = self.policy.unit_logits(trunk, unit_embeddings, torch.from_numpy(unit_mask).unsqueeze(0).to(device))
+        u_logp = torch.log_softmax(u_logits.squeeze(0), dim=-1).cpu().numpy()
+        n = len(units)
+        a_logits = self.policy.action_logits(
+            trunk.expand(n, -1),
+            unit_embeddings.expand(n, -1, -1),
+            torch.tensor(units, dtype=torch.long, device=device),
+            torch.from_numpy(action_mask).to(device),
+        )
+        a_logp = torch.log_softmax(a_logits, dim=-1).cpu().numpy()
+        m = len(pairs)
+        t_logits = self.policy.target_logits(
+            trunk.expand(m, -1),
+            unit_embeddings.expand(m, -1, -1),
+            torch.tensor([u for u, _ in pairs], dtype=torch.long, device=device),
+            torch.tensor([a for _, a in pairs], dtype=torch.long, device=device),
+            torch.from_numpy(target_mask).to(device),
+        )
+        t_logp = torch.log_softmax(t_logits, dim=-1).cpu().numpy()
+        return {
+            (u, a, t): float(u_logp[u] + a_logp[unit_index[u], a] + t_logp[pair_index[(u, a)], t])
+            for u, a, t in triples
+        }
 
     def _sample(self, scores: dict[tuple[int, int, int], float], groups, torch) -> LegalCommand:
         """A seeded draw over the legal triples, weighted by the composed log probability.

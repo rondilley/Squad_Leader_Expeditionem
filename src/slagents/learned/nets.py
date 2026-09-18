@@ -136,6 +136,29 @@ class Policy(nn.Module):
 
     # ------------------------------------------------------------- the whole
 
+    def head_logits(
+        self,
+        board: torch.Tensor,
+        units: torch.Tensor,
+        scalars: torch.Tensor,
+        unit_mask: torch.Tensor,
+        action_mask: torch.Tensor,
+        target_mask: torch.Tensor,
+        unit: torch.Tensor,
+        action: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """The masked logits of the three heads along the chosen unit and action, and the value.
+
+        The update reads them for the log probability and the entropy, and again from the
+        anchor policy for the KL divergence, so the two policies read the same masks.
+        """
+        trunk, unit_embeddings = self.encode(board, units, scalars)
+        u_logits = self.unit_logits(trunk, unit_embeddings, unit_mask)
+        a_mask = action_mask.gather(1, unit.view(-1, 1, 1).expand(-1, 1, action_mask.shape[-1])).squeeze(1)
+        a_logits = self.action_logits(trunk, unit_embeddings, unit, a_mask)
+        t_logits = self.target_logits(trunk, unit_embeddings, unit, action, target_mask)
+        return u_logits, a_logits, t_logits, self.value(trunk)
+
     def evaluate(
         self,
         board: torch.Tensor,
@@ -149,14 +172,12 @@ class Policy(nn.Module):
         target: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """The log probability of the chosen command, the entropy, and the value."""
-        trunk, unit_embeddings = self.encode(board, units, scalars)
-        u_logits = self.unit_logits(trunk, unit_embeddings, unit_mask)
+        u_logits, a_logits, t_logits, value = self.head_logits(
+            board, units, scalars, unit_mask, action_mask, target_mask, unit, action
+        )
         u_dist = torch.distributions.Categorical(logits=u_logits)
-        a_mask = action_mask.gather(1, unit.view(-1, 1, 1).expand(-1, 1, action_mask.shape[-1])).squeeze(1)
-        a_logits = self.action_logits(trunk, unit_embeddings, unit, a_mask)
         a_dist = torch.distributions.Categorical(logits=a_logits)
-        t_logits = self.target_logits(trunk, unit_embeddings, unit, action, target_mask)
         t_dist = torch.distributions.Categorical(logits=t_logits)
         log_prob = u_dist.log_prob(unit) + a_dist.log_prob(action) + t_dist.log_prob(target)
         entropy = u_dist.entropy() + a_dist.entropy() + t_dist.entropy()
-        return log_prob, entropy, self.value(trunk)
+        return log_prob, entropy, value

@@ -1,9 +1,11 @@
 slagents
 slboards
 slcampaign
+slcards
 slcli
 slcore
 sldata
 slhost
 slruns
 slwindow
+slwindow3d

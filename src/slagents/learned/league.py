@@ -10,7 +10,10 @@ opponent and samples between them:
 
 The sampling is by loss rate: an opponent that beats the learner more often is selected
 more often. That is the rule the sibling project used, and it keeps the learner on the
-opponents it has not solved.
+opponents it has not solved. A cap on the share of one member holds the rule back where
+it sends most of the games to an opponent the learner cannot beat at all: in the 10
+million step run of 2026-09-17 the v6 agent got the most games of the scripted members,
+and the learner won the Russian attack against it in 0 to 3 of 50 at each snapshot.
 
 The Elo table has one entry for each opponent and each snapshot (TC-19). It uses the same
 Elo code as the tournament, so one number means the same thing in the two places.
@@ -40,6 +43,9 @@ class Member:
     name: str
     kind: str
     act: Callable[[SquadLeaderEnv, Any], tuple[int, int, int]]
+    # What a worker process builds this member from: the agent kind of a scripted member
+    # (`v5`) or the snapshot path of a snapshot member. Empty for the random member.
+    spec: str = ""
     games: int = 0
     losses: int = 0
     wins: int = 0
@@ -78,6 +84,9 @@ class League:
     members: list[Member] = field(default_factory=list)
     elo: EloTable = field(default_factory=EloTable)
     snapshots: int = 0
+    # The largest share of the games one member gets, or none. The weights above the cap
+    # are cut to it and the rest spread over the others, until no member is above it.
+    share_cap: float | None = None
 
     def add(self, member: Member) -> Member:
         self.members.append(member)
@@ -90,8 +99,16 @@ class League:
         return None
 
     def weights(self) -> list[float]:
-        """Rule of the league: the loss rate, with a floor so no opponent disappears."""
-        return [max(MINIMUM_WEIGHT, m.loss_rate) for m in self.members]
+        """Rule of the league: the loss rate, with a floor so no opponent disappears.
+
+        With `share_cap` the weights are shares that add to one, and no member's share is
+        above the cap (unless the cap is below one over the member count, in which case
+        the shares are equal).
+        """
+        raw = [max(MINIMUM_WEIGHT, m.loss_rate) for m in self.members]
+        if self.share_cap is None:
+            return raw
+        return capped_shares(raw, self.share_cap)
 
     def sample(self, generator: torch.Generator) -> Member:
         weights = torch.tensor(self.weights(), dtype=torch.float32)
@@ -124,6 +141,38 @@ class League:
         path = write_snapshot(policy, directory / f"{SNAPSHOT_PREFIX}{step}.pt", step, config)
         self.snapshots += 1
         return path
+
+
+def capped_shares(weights: list[float], cap: float) -> list[float]:
+    """The weights as shares of one, with no share above `cap`.
+
+    Each share above the cap is set to the cap, and the excess goes to the members below
+    it in proportion to their weight. The loop repeats until no share is above the cap,
+    which takes at most one pass for each member. A cap at or below one over the member
+    count gives equal shares.
+    """
+    n = len(weights)
+    if n == 0:
+        return []
+    if cap <= 1.0 / n:
+        return [1.0 / n] * n
+    total = sum(weights)
+    shares = [w / total for w in weights]
+    fixed: set[int] = set()
+    while True:
+        over = [i for i in range(n) if i not in fixed and shares[i] > cap + 1e-12]
+        if not over:
+            return shares
+        excess = sum(shares[i] - cap for i in over)
+        for i in over:
+            shares[i] = cap
+            fixed.add(i)
+        free = [i for i in range(n) if i not in fixed]
+        if not free:
+            return shares
+        free_total = sum(shares[i] for i in free)
+        for i in free:
+            shares[i] += excess * (shares[i] / free_total if free_total > 0 else 1.0 / len(free))
 
 
 def write_snapshot(policy: Policy, path: Path, step: int, config: NetConfig, extra: dict | None = None) -> Path:

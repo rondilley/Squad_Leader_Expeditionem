@@ -50,7 +50,7 @@ def scripted_member(engine, kind: str, seed: int) -> Member:
         return agent_triple(agents[env.frame.player], env)
 
     first = agents[0]
-    return Member(name=f"scripted-{first.name}-v{first.version}", kind="scripted", act=act)
+    return Member(name=f"scripted-{first.name}-v{first.version}", kind="scripted", act=act, spec=kind)
 
 
 def agent_triple(agent, env) -> tuple[int, int, int]:
@@ -74,7 +74,7 @@ def snapshot_member(path: Path, policy_shape: Policy, generator: torch.Generator
     """A snapshot of the learner as an opponent, on the same device as the learner."""
     copy = Policy(policy_shape.spaces, policy_shape.config).to(ppo.policy_device(policy_shape))
     load_snapshot(path, copy)
-    return Member(name=f"snapshot-{step}", kind="snapshot", act=ppo.policy_opponent(copy, generator))
+    return Member(name=f"snapshot-{step}", kind="snapshot", act=ppo.policy_opponent(copy, generator), spec=str(path))
 
 
 def run_training(
@@ -92,26 +92,43 @@ def run_training(
     device: str = "auto",
     alternate_sides: bool = False,
     start_from: Path | None = None,
+    workers: int = 1,
+    opponent_cap: float | None = None,
 ) -> artifact.RunArtifact:
     """The training loop. It gives a run artifact, whether it finished or stopped early.
 
     `learner_player` is the side the learner holds first. With `alternate_sides` it takes
     the other side at each new game (`--player both`). `start_from` is a snapshot whose
     weights the policy starts with, as the one `sl-cli imitate` writes; its shape replaces
-    `net`, because the weights fit one shape.
+    `net`, because the weights fit one shape. With `workers` above one the games play in
+    that many worker processes and the policy answers them in one batch (`--workers`).
+    `opponent_cap` is the largest share of the games one league member gets
+    (`--opponent-cap`).
     """
+    from slagents.learned.workers import WorkerPool, member_spec
+
     engine, board_record = build_engine_with_record(scenario)
     env = make_env(engine, seed=seed)
     compute = ppo.resolve_device(device)
     if start_from is not None:
         net = snapshot_net(start_from, env.spaces_record)
     policy = Policy(env.spaces_record, net).to(compute)
+    anchor: Policy | None = None
     if start_from is not None:
         load_snapshot(start_from, policy)
         policy.train()
+        if config.anchor_kl > 0.0:
+            # The frozen start, which the KL term of the update holds the policy near.
+            anchor = Policy(env.spaces_record, net).to(compute)
+            load_snapshot(start_from, anchor)
+            for parameter in anchor.parameters():
+                parameter.requires_grad_(False)
+    elif config.anchor_kl > 0.0:
+        raise ValueError("--anchor-kl needs --start-from, because the anchor is the policy the run starts from")
     optimizer = torch.optim.Adam(policy.parameters(), lr=config.learning_rate)
     generator = torch.Generator().manual_seed(seed)
     league = build_league(engine, seed)
+    league.share_cap = opponent_cap
     writer = _tensorboard(log_dir)
     art = artifact.RunArtifact(
         kind="train",
@@ -134,6 +151,8 @@ def run_training(
             "device": str(compute),
             "parameters": sum(p.numel() for p in policy.parameters()),
             "opponents": [m.name for m in league.members],
+            "workers": workers,
+            "opponent_cap": opponent_cap,
             "criteria": ["TC-13", "TC-18", "TC-19", "IR-07"],
         },
     )
@@ -147,24 +166,60 @@ def run_training(
     rates: list[dict[str, float]] = []
     stopped = "the step count is complete"
     side = learner_player
+    pool = None
+    if workers > 1:
+        pool = WorkerPool(scenario, workers, seed, env.max_commands, env.spaces_record)
+        # With both sides the workers start on the two sides in turn, so each rollout
+        # holds the attack and the defence.
+        for w in pool.workers:
+            w.learner = (learner_player + w.index) % 2 if alternate_sides else learner_player
+    games_started = 0
+
+    def next_member() -> tuple[tuple[str, ...], str]:
+        member = league.sample(generator)
+        return member_spec(member), member.name
+
+    def next_seed() -> int:
+        nonlocal games_started
+        games_started += 1
+        return seed + games_started
+
+    def record_result(member_name: str, result: float) -> None:
+        member = league.by_name(member_name)
+        if member is None:
+            raise RuntimeError(f"a worker played {member_name}, which is not in the league")
+        league.record(member, result, LEARNER)
+
     try:
         while done < steps and (deadline is None or time.perf_counter() < deadline):
             member = league.sample(generator)
             results: list[float] = []
-            rollout = ppo.collect(
-                env,
-                policy,
-                side,
-                member.act,
-                min(config.steps_per_update, steps - done),
-                generator,
-                results.append,
-                alternate_sides=alternate_sides,
-            )
-            side = rollout.next_learner
-            for reward in results:
-                league.record(member, reward, LEARNER)
-            stats = ppo.update(policy, optimizer, rollout, config, env.spaces_record)
+            if pool is not None:
+                rollout = ppo.collect_parallel(
+                    pool,
+                    policy,
+                    min(config.steps_per_update, steps - done),
+                    generator,
+                    next_member,
+                    next_seed,
+                    record_result,
+                    alternate_sides=alternate_sides,
+                )
+            else:
+                rollout = ppo.collect(
+                    env,
+                    policy,
+                    side,
+                    member.act,
+                    min(config.steps_per_update, steps - done),
+                    generator,
+                    results.append,
+                    alternate_sides=alternate_sides,
+                )
+                side = rollout.next_learner
+                for reward in results:
+                    league.record(member, reward, LEARNER)
+            stats = ppo.update(policy, optimizer, rollout, config, env.spaces_record, anchor)
             done += len(rollout)
             updates += 1
             now = time.perf_counter()
@@ -179,10 +234,13 @@ def run_training(
                 snapshots.append({"step": done, "path": str(path)})
     except KeyboardInterrupt:
         stopped = "a keyboard interrupt"
+    finally:
+        if pool is not None:
+            pool.close()
     seconds = time.perf_counter() - started
     if not rates:
         rates.append({"step": done, "seconds": round(seconds, 1), "steps_per_second": round(done / max(1e-9, seconds), 1)})
-    evaluation = evaluate(env, policy, league, learner_player, eval_games) if eval_games else []
+    evaluation = evaluate(env, policy, league, learner_player, eval_games, workers, scenario) if eval_games else []
     art.stats = {
         "steps": done,
         "updates": updates,
@@ -210,6 +268,8 @@ def evaluate(
     league: League,
     learner_player: int,
     games: int,
+    workers: int = 1,
+    scenario: str | None = None,
 ) -> list[dict[str, Any]]:
     """TC-18: the win rate of the learner against each constant opponent.
 
@@ -217,12 +277,28 @@ def evaluate(
     the number. The policy plays through `LearnedAgent`, the wrapper a tournament and a
     real game use: the argmax of the composed score, with the repeat guard, and no
     sampling, because the measure is what the policy learned and not what it explores.
+    With `workers` above one the games play in a process pool, each with its own copy of
+    the policy, and `scenario` names the engine each process builds.
     """
+    from slagents.learned.workers import evaluation_parallel, member_spec
+
     rows: list[dict[str, Any]] = []
     learner = LearnedAgent.from_policy(env.engine, policy)
-    for member in league.members:
-        if member.kind == "snapshot":
-            continue
+    members = [m for m in league.members if m.kind != "snapshot"]
+    outcomes: dict[str, list[tuple[float, bool, bool]]] = {}
+    if workers > 1:
+        if scenario is None:
+            raise ValueError("a parallel evaluation needs the scenario name for its workers")
+        tasks = []
+        for member in members:
+            for game in range(games):
+                player = learner_player if game % 2 == 0 else 1 - learner_player
+                tasks.append((member_spec(member), player, env.seed_value + 1 + len(tasks)))
+        played_games = evaluation_parallel(scenario, policy, tasks, workers, env.max_commands)
+        for member in members:
+            outcomes[member.name] = played_games[: games]
+            played_games = played_games[games:]
+    for member in members:
         wins = 0.0
         played = 0
         results = {"win": 0, "loss": 0, "draw": 0, "truncated": 0, "repeated": 0}
@@ -234,9 +310,13 @@ def evaluate(
         by_side = {f"player_{player}": dict(results) for player in (0, 1)}
         for game in range(games):
             player = learner_player if game % 2 == 0 else 1 - learner_player
-            result, truncated = _play_one(env, learner, member, player)
+            if workers > 1:
+                result, truncated, repeated = outcomes[member.name][game]
+            else:
+                result, truncated = _play_one(env, learner, member, player)
+                repeated = env.repeated
             played += 1
-            if truncated and env.repeated:
+            if truncated and repeated:
                 # A cycle: a command undid the one before it, and the environment stopped
                 # the game there as a defeat of the side that made the cycle.
                 outcome = "repeated"
@@ -327,6 +407,7 @@ def _log(writer, stats: dict[str, float], league: League, step: int, rate: float
     writer.add_scalar("loss/policy", stats["policy_loss"], step)
     writer.add_scalar("loss/value", stats["value_loss"], step)
     writer.add_scalar("policy/entropy", stats["entropy"], step)
+    writer.add_scalar("policy/anchor_kl", stats.get("anchor_kl", 0.0), step)
     writer.add_scalar("run/steps_per_second", rate, step)
     writer.add_scalar("elo/learner", league.elo.rating(LEARNER), step)
     for other in league.members:
@@ -344,6 +425,7 @@ def run(args: Any) -> int:
         learning_rate=args.learning_rate,
         entropy_coefficient=args.entropy,
         discount=args.discount,
+        anchor_kl=args.anchor_kl,
     )
     net = NetConfig(channels=args.channels, hidden=args.hidden)
     art = run_training(
@@ -361,6 +443,8 @@ def run(args: Any) -> int:
         eval_games=args.eval_games,
         device=args.device,
         start_from=Path(args.start_from) if args.start_from else None,
+        workers=args.workers,
+        opponent_cap=args.opponent_cap,
     )
     stats = art.stats
     print(f"device {art.config['device']}")
@@ -411,9 +495,22 @@ def add_parser(subparsers: Any) -> None:
     p.add_argument("--entropy", type=float, default=0.01)
     p.add_argument("--discount", type=float, default=1.0, help="the discount of a later reward, 1.0 for none")
     p.add_argument("--device", default="auto", help="auto, cpu, cuda, or cuda:0 (auto takes the GPU when there is one)")
+    p.add_argument("--workers", type=int, default=1, help="worker processes that play the games; 1 plays them in this process")
+    p.add_argument(
+        "--opponent-cap",
+        type=float,
+        default=None,
+        help="the largest share of the games one league member gets, as 0.05; none for the loss-rate rule alone",
+    )
     p.add_argument("--channels", type=int, default=32, help="convolution channels of the board encoder")
     p.add_argument("--hidden", type=int, default=256, help="width of the trunk and the heads")
     p.add_argument("--start-from", default=None, help="a snapshot the policy starts from, as sl-cli imitate writes")
+    p.add_argument(
+        "--anchor-kl",
+        type=float,
+        default=0.0,
+        help="the weight of the KL divergence from the start snapshot, which holds the policy near it; 0 for none",
+    )
     p.add_argument("--snapshot-every", type=int, default=20000, help="0 for no snapshot")
     p.add_argument("--out", default="runs/train", help="directory for the snapshots")
     p.add_argument("--tensorboard", default=None, help="directory for the TensorBoard scalars (IR-07)")

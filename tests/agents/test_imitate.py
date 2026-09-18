@@ -153,3 +153,131 @@ def test_the_command_runs_end_to_end_on_the_processor(tmp_path: Path):
     assert art.stats["games"] == 1 and art.stats["decisions"] > 100
     assert (tmp_path / "snapshot-0.pt").exists()
     assert art.config["snapshot"] == str(tmp_path / "snapshot-0.pt")
+
+
+def test_the_labels_parse_as_one_teacher_for_each_side():
+    assert imitate.parse_labels("0=v5,1=v6") == {0: "v5", 1: "v6"}
+    assert imitate.parse_labels(" 1=v6 , 0=v4 ") == {0: "v4", 1: "v6"}
+    with pytest.raises(ValueError):
+        imitate.parse_labels("0=v5")
+    with pytest.raises(ValueError):
+        imitate.parse_labels("2=v5,1=v6")
+
+
+def test_the_label_teacher_of_a_side_names_the_command_and_the_actor_plays(engine):
+    """With labels the pool plays the game, and the label teacher of each side gives the record.
+
+    The label of a decision is legal in the state, the label teacher of side 0 is built for
+    each game, and on some decisions it disagrees with the actor, which is what the labels
+    are for.
+    """
+    env = make_env(engine, seed=31)
+    built: list[tuple[str, int]] = []
+    actors_chose: list[tuple[int, int, int]] = []
+
+    def make_teacher(kind: str, seed: int, player: int):
+        built.append((kind, player))
+        agent = make_agent(kind, engine, seed, player)
+        if kind == "v1" and player == 0:
+            original = agent.select
+
+            def select(state, frame):
+                chosen = original(state, frame)
+                actors_chose.append(imitate.command_triple(frame.by_id(chosen).command, env.hexes))
+                return chosen
+
+            agent.select = select
+        return agent
+
+    data = imitate.collect_demonstrations(env, make_teacher, ["v1"], games=1, seed=31, labels={0: "v5", 1: "v1"})
+    assert ("v5", 0) in built, "the label teacher of side 0 was built"
+    assert ("v5", 1) not in built, "side 1 is labelled by its own actor"
+    assert data.games == 1 and len(data) > 100
+    spaces = env.spaces_record
+    for i in range(len(data)):
+        assert data.unit_mask[i][data.unit[i]] == 1
+        assert data.action_mask[i].reshape(spaces.units, spaces.actions)[data.unit[i], data.action[i]] == 1
+        assert data.target_mask[i][data.target[i]] == 1
+    side_0 = [(data.unit[i], data.action[i], data.target[i]) for i in range(len(data)) if data.player[i] == 0]
+    assert len(side_0) == len(actors_chose)
+    assert any(label != chosen for label, chosen in zip(side_0, actors_chose)), "v5 and v1 differ in some state"
+
+
+def test_a_dagger_round_records_the_policy_s_states_with_the_teacher_s_labels(engine):
+    """The policy plays each side in turn, and each state has the label teacher's command."""
+    torch.manual_seed(0)
+    env = make_env(engine, seed=37, max_commands=120)
+    policy = Policy(env.spaces_record, SMALL)
+    generator = torch.Generator().manual_seed(0)
+    sides: list[int] = []
+
+    def make_teacher(kind: str, seed: int, player: int):
+        return make_agent(kind, engine, seed, player)
+
+    data = imitate.collect_corrections(
+        env, policy, make_teacher, {0: "v5", 1: "v1"}, ["v1"], games=2, seed=37, generator=generator,
+        on_game=lambda game, side, kind, result: sides.append(side),
+    )
+    assert sides == [0, 1], "the policy held side 0 and then side 1"
+    assert data.games == 2 and len(data) > 20
+    assert set(data.player) == {0, 1}
+    spaces = env.spaces_record
+    for i in range(len(data)):
+        assert data.unit_mask[i][data.unit[i]] == 1
+        assert data.action_mask[i].reshape(spaces.units, spaces.actions)[data.unit[i], data.action[i]] == 1
+        assert data.target_mask[i][data.target[i]] == 1
+    assert len(data.value) == len(data)
+    before = len(data)
+    more = imitate.Demonstrations()
+    more.extend(data)
+    more.extend(data)
+    assert len(more) == 2 * before and more.games == 4
+
+
+def test_the_command_runs_a_dagger_round_on_the_processor(tmp_path: Path):
+    art = run_imitation(
+        scenario=SCENARIO,
+        teachers=["v1"],
+        games=1,
+        seed=41,
+        config=imitate.FitConfig(epochs=1, minibatch=64),
+        net=SMALL,
+        out=tmp_path / "snapshot-0.pt",
+        eval_games=0,
+        device="cpu",
+        log=lambda *_: None,
+        labels={0: "v5", 1: "v1"},
+        dagger_rounds=1,
+        dagger_games=1,
+        dagger_epochs=1,
+    )
+    assert art.stats["dagger"][0]["games"] == 1 and art.stats["dagger"][0]["decisions"] > 20
+    assert art.stats["games"] == 2, "the teachers' game and the round's game"
+    assert art.config["labels"] == {"0": "v5", "1": "v1"}
+    with pytest.raises(ValueError, match="need --labels"):
+        run_imitation(
+            scenario=SCENARIO, teachers=["v1"], games=1, seed=41, config=imitate.FitConfig(epochs=1),
+            net=SMALL, out=tmp_path / "x.pt", device="cpu", log=lambda *_: None, dagger_rounds=1, dagger_games=1,
+        )
+
+
+def test_the_stop_weight_weighs_the_decisions_of_no_unit(demonstrations):
+    """A heavier stop weight raises the share of the loss that the slot 0 decisions carry."""
+    env, data = demonstrations
+    torch.manual_seed(0)
+    policy = Policy(env.spaces_record, SMALL)
+    tensors = imitate.Tensors(data, env.spaces_record, torch.device("cpu"), 10.0)
+    index = torch.arange(0, min(256, len(tensors)))
+    units = tensors.unit[index]
+    assert (units == 0).any() and (units != 0).any(), "the batch holds stop decisions and unit decisions"
+    with torch.no_grad():
+        equal, _, _ = tensors.losses(policy, index, 0.1, 1.0)
+        heavy, _, _ = tensors.losses(policy, index, 0.1, 5.0)
+        # The stop decisions alone, and the others alone.
+        stops, _, _ = tensors.losses(policy, index[units == 0], 0.1, 1.0)
+        others, _, _ = tensors.losses(policy, index[units != 0], 0.1, 1.0)
+    n_stop = int((units == 0).sum())
+    n_other = int((units != 0).sum())
+    assert float(equal) == pytest.approx((float(stops) * n_stop + float(others) * n_other) / (n_stop + n_other), rel=1e-4)
+    assert float(heavy) == pytest.approx((float(stops) * 5 * n_stop + float(others) * n_other) / (5 * n_stop + n_other), rel=1e-4)
+    assert imitate.FitConfig(stop_weight=3.0).to_dict()["stop_weight"] == 3.0

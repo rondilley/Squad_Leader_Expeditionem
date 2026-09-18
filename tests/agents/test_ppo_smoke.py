@@ -265,3 +265,129 @@ def test_the_learner_changes_sides_at_each_new_game():
     assert rollout.next_learner == games_ended % 2, "the next collection starts on the side after the last game"
     fixed = ppo.collect(make_env(engine, seed=4, max_commands=40), policy, 0, ppo.random_opponent, 100, generator)
     assert fixed.next_learner == 0, "without the switch the learner keeps its side"
+
+
+def test_a_rollout_ends_at_the_learner_s_next_decision_and_drops_no_reward():
+    """The rollout stops where the learner decides next, with the value of that state.
+
+    Two short collections in a row: the environment waits at a decision of the learner
+    after each one, the bootstrap is the policy's value of that state, and the rewards of
+    the two rollouts add up to what the environment paid the learner. Before this the
+    opponent's stretch between two rollouts was paid to no decision.
+    """
+    torch.manual_seed(0)
+    engine = build_engine(SCENARIO)
+    env = make_env(engine, seed=6)
+    policy = Policy(env.spaces_record)
+    generator = torch.Generator().manual_seed(0)
+    first = ppo.collect(env, policy, 0, ppo.random_opponent, 8, generator)
+    assert len(first) == 8
+    assert env.player_of(env.agent_selection) == 0, "the environment waits at the learner's decision"
+    assert not any(env.terminations.values()) and not any(env.truncations.values())
+    assert first.last_value == pytest.approx(ppo.value_of(policy, env.observe(env.agent_of(0))))
+    assert first.done[-1] == 0.0
+    second = ppo.collect(env, policy, 0, ppo.random_opponent, 8, generator)
+    paid = float(env._cumulative_rewards[env.agent_of(0)])
+    assert sum(first.reward) + sum(second.reward) == pytest.approx(paid, abs=1e-6), "no reward fell between the two rollouts"
+    adv, returns = ppo.advantages(first, ppo.PpoConfig(), first.last_value)
+    assert returns[-1] == pytest.approx(first.reward[-1] / ppo.PpoConfig.reward_scale + first.last_value)
+
+
+def test_a_rollout_whose_game_ends_on_the_way_marks_the_end_and_bootstraps_on_zero():
+    """A game that ends in the opponent's stretch after the last decision is a done step."""
+    torch.manual_seed(0)
+    engine = build_engine(SCENARIO)
+    env = make_env(engine, seed=8, max_commands=30)
+    policy = Policy(env.spaces_record)
+    generator = torch.Generator().manual_seed(0)
+    ended: list[float] = []
+    # Thirty commands is less than one turn, so a collection of many decisions holds
+    # several game ends, each of which the callback sees once and marks as done.
+    rollout = ppo.collect(env, policy, 0, ppo.random_opponent, 40, generator, ended.append)
+    assert len(ended) >= 1
+    assert sum(rollout.done) == len(ended) or sum(rollout.done) == len(ended) - 1
+    assert rollout.last_value == 0.0 or env.player_of(env.agent_selection) == 0
+
+
+def test_the_anchor_holds_the_policy_and_the_same_policy_has_no_divergence():
+    """The KL term reads zero against a copy, and an update with a heavy anchor stays put."""
+    import copy
+
+    torch.manual_seed(0)
+    engine = build_engine(SCENARIO)
+    env = make_env(engine, seed=9)
+    policy = Policy(env.spaces_record, NetConfig(channels=4, board_width=32, unit_width=16, hidden=32))
+    generator = torch.Generator().manual_seed(0)
+    rollout = ppo.collect(env, policy, 0, ppo.random_opponent, 32, generator)
+    anchor = copy.deepcopy(policy)
+    for parameter in anchor.parameters():
+        parameter.requires_grad_(False)
+    with pytest.raises(ValueError):
+        ppo.update(policy, torch.optim.Adam(policy.parameters()), rollout, ppo.PpoConfig(anchor_kl=1.0, epochs=1, minibatch=32), env.spaces_record)
+    free = copy.deepcopy(policy)
+    ppo.update(free, torch.optim.Adam(free.parameters(), lr=1e-2), rollout, ppo.PpoConfig(epochs=4, minibatch=16), env.spaces_record)
+    held = copy.deepcopy(policy)
+    stats = ppo.update(held, torch.optim.Adam(held.parameters(), lr=1e-2), rollout, ppo.PpoConfig(epochs=4, minibatch=16, anchor_kl=50.0), env.spaces_record, anchor)
+    assert stats["anchor_kl"] >= 0.0 and math.isfinite(stats["anchor_kl"])
+
+    def divergence(other: Policy) -> float:
+        spaces = env.spaces_record
+        import numpy as np
+
+        parts = (
+            torch.from_numpy(np.stack(rollout.board)),
+            torch.from_numpy(np.stack(rollout.units)),
+            torch.from_numpy(np.stack(rollout.scalars)),
+            torch.from_numpy(np.stack(rollout.unit_mask).astype(np.float32)),
+            torch.from_numpy(np.stack(rollout.action_mask).astype(np.float32).reshape(-1, spaces.units, spaces.actions)),
+            torch.from_numpy(np.stack(rollout.target_mask).astype(np.float32)),
+            torch.tensor(rollout.unit),
+            torch.tensor(rollout.action),
+        )
+        with torch.no_grad():
+            mine = other.head_logits(*parts)
+            theirs = anchor.head_logits(*parts)
+            return float(ppo.anchor_divergence(*mine[:3], *theirs[:3]).mean().item())
+
+    assert divergence(anchor) == pytest.approx(0.0, abs=1e-6), "a policy has no divergence from its own copy"
+    assert divergence(held) < divergence(free), "the anchor kept the policy nearer the start"
+
+
+def test_the_anchor_divergence_is_finite_where_the_anchor_underflows():
+    """A legal command the anchor holds at a probability below float32 gives a finite term."""
+    mine = torch.tensor([[0.0, 0.0, -1e9]])
+    theirs = torch.tensor([[0.0, -200.0, -1e9]])
+    kl = ppo.anchor_divergence(mine, mine, mine, theirs, theirs, theirs)
+    assert torch.isfinite(kl).all()
+    # Three heads, each with the same divergence: half of 200 nats less the entropy gain.
+    # p is a half on each legal entry, q is one and e to the minus 200: the divergence is
+    # half of 200 nats less the log of two, on each of the three heads.
+    assert float(kl[0]) == pytest.approx(3 * (100.0 - math.log(2.0)), rel=1e-3)
+    same = ppo.anchor_divergence(mine, mine, mine, mine, mine, mine)
+    assert float(same[0]) == pytest.approx(0.0, abs=1e-6)
+
+
+def test_the_share_cap_holds_no_member_above_it():
+    """The loss-rate rule with a cap: the shares add to one and no member is above the cap."""
+    from slagents.learned.league import capped_shares
+
+    shares = capped_shares([0.68, 0.60, 0.60, 0.40, 0.05, 0.05], 0.25)
+    assert sum(shares) == pytest.approx(1.0)
+    assert max(shares) == pytest.approx(0.25)
+    assert shares[0] == shares[1] == shares[2] == pytest.approx(0.25)
+    # The excess went to the others in proportion to their weight.
+    assert shares[3] > shares[4] == shares[5]
+    assert capped_shares([0.9, 0.1], 0.5) == pytest.approx([0.5, 0.5])
+    assert capped_shares([3.0, 1.0, 1.0], 0.2) == pytest.approx([1 / 3, 1 / 3, 1 / 3]), "a cap below one over the count gives equal shares"
+    assert capped_shares([], 0.5) == []
+    league = League()
+    for name, losses in (("strong", 9), ("weak", 1)):
+        member = league.add(Member(name=name, kind="scripted", act=lambda e, o: (0, 0, 0)))
+        member.games = 10
+        member.losses = losses
+    assert league.weights() == [0.9, 0.1]
+    league.share_cap = 0.6
+    assert league.weights() == pytest.approx([0.6, 0.4])
+    generator = torch.Generator().manual_seed(1)
+    drawn = [league.sample(generator).name for _ in range(400)]
+    assert 0.5 < drawn.count("strong") / 400 < 0.7, "the sample follows the capped shares"

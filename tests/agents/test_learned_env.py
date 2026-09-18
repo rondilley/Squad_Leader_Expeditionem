@@ -169,3 +169,116 @@ def test_the_command_triple_names_the_same_command_in_each_state(engine):
     shuffled = list(reversed(frame.commands))
     groups = encoding.group_commands(type(frame)(frame.frame_id, frame.player, frame.phase, frame.sub_step, frame.turn, tuple(shuffled)), hexes)
     assert set(groups) == set(env.groups), "the parts do not depend on the sequence of the list"
+
+
+def _play_scripted(env, engine, kinds: tuple[str, str], seed: int) -> tuple[int, int, str]:
+    """A whole game of two scripted agents in the environment.
+
+    Gives the decisions the environment asked for, the commands it applied, and the hash of
+    the last state.
+    """
+    from slagents.learned.encoding import command_triple
+    from slcli.play import make_agent
+    from slcore.hashing import hash_state
+
+    env.reset(seed=seed)
+    agents = (make_agent(kinds[0], engine, seed, 0), make_agent(kinds[1], engine, seed, 1))
+    decisions = 0
+    while True:
+        agent = env.agent_selection
+        if env.terminations[agent] or env.truncations[agent]:
+            break
+        state = env.state_
+        legal = env.frame.by_id(agents[state.active].select(state, env.frame))
+        env.step(command_triple(legal.command, env.hexes))
+        decisions += 1
+    return decisions, env.commands_applied, hash_state(env.state_)
+
+
+def test_a_frame_with_one_legal_command_is_applied_and_not_decided(engine):
+    """A state with one legal command is not a decision, so the environment applies it.
+
+    The same two scripted agents play the same seed with and without the skip. An agent
+    given one legal command gives that command, so the two games are the same game and
+    end in the same state, and the environment with the skip asked for fewer decisions
+    and never offered a frame with one command.
+    """
+    asked = make_env(engine, seed=23, skip_forced=False)
+    skipped = make_env(engine, seed=23, skip_forced=True)
+    decisions_asked, applied_asked, last_asked = _play_scripted(asked, engine, ("v5", "v1"), 23)
+    assert skipped.forced_applied == 0
+    decisions_skipped, applied_skipped, last_skipped = _play_scripted(skipped, engine, ("v5", "v1"), 23)
+    assert last_skipped == last_asked, "the same game with and without the skip"
+    assert applied_skipped == applied_asked, "the same commands went onto the state"
+    assert decisions_skipped + skipped.forced_applied == decisions_asked
+    assert skipped.forced_applied > 50, "a game of scenario 1 has many forced frames"
+    assert decisions_skipped < decisions_asked
+
+
+def test_the_environment_with_the_skip_never_offers_one_choice(engine):
+    """Each frame the environment offers holds two or more commands, from the reset on."""
+    env = make_env(engine, seed=29)
+    rng = np.random.default_rng(29)
+    seen = 0
+    while seen < 300:
+        agent = env.agent_selection
+        if env.terminations[agent] or env.truncations[agent]:
+            env.reset(seed=env.seed_value + 1)
+            continue
+        assert len(env.groups) >= 2, f"a frame with {len(env.groups)} command was offered"
+        triples = sorted(env.groups)
+        env.step(triples[int(rng.integers(len(triples)))])
+        seen += 1
+    assert env.forced_applied > 0
+
+
+def test_the_observation_shows_the_fire_group_the_legal_units_and_the_objective(engine):
+    """The rows say who is in the fire group and who can act, and the planes say the objective and its holder.
+
+    The imitation of 2026-09-16 fired a group at the teacher's moment in no state, because
+    a group of one and a group of five looked the same to the policy.
+    """
+    from slcore.game import PHASE_PREP_FIRE
+    from slcore.rules.victory import controlled_by
+    from slagents.learned.encoding import command_triple
+    from slcli.play import make_agent
+
+    env = make_env(engine, seed=43)
+    agents = (make_agent("v5", engine, 43, 0), make_agent("v6", engine, 43, 1))
+    # Play to a Prep Fire Phase in which a group has a member and the next command is open.
+    for _ in range(4000):
+        state = env.state_
+        assert not state.game_over
+        if state.phase == PHASE_PREP_FIRE and state.fire_group is not None and state.fire_group.members:
+            break
+        legal = env.frame.by_id(agents[state.active].select(state, env.frame))
+        env.step(command_triple(legal.command, env.hexes))
+    else:
+        raise AssertionError("no open fire group in 4000 commands")
+    state = env.state_
+    player = state.active
+    observation = env.observe(env.agent_of(player))
+    group = state.fire_group
+    members = {m[0] for m in group.members}
+    for unit in state.player_units(player):
+        row = observation["units"][unit.id + 1]
+        if unit.eliminated:
+            continue
+        assert row[26] == (1.0 if unit.id in members else 0.0), f"unit {unit.id} in the group"
+        assert row[28] == float(observation["unit_mask"][unit.id + 1]), f"unit {unit.id} has a legal command"
+    assert any(observation["units"][m + 1][26] == 1.0 for m in members)
+    target_plane = len(encoding.TERRAIN_KINDS) + 14
+    assert observation["board"][target_plane, group.target[0], group.target[1]] == 1.0
+    assert observation["board"][target_plane].sum() == 1.0, "one target hex"
+    # The objective planes: the buildings of the victory condition, and who holds each one.
+    objective_plane = target_plane + 1
+    assert env.objectives.buildings, "scenario 1 names buildings"
+    assert observation["board"][objective_plane].sum() == sum(len(h) for _, h in env.objectives.buildings)
+    for building, hexes in env.objectives.buildings:
+        for col, row_index in hexes:
+            assert observation["board"][objective_plane + 1, col, row_index] == (1.0 if controlled_by(state, engine.board, building, player) else 0.0)
+            assert observation["board"][objective_plane + 2, col, row_index] == (1.0 if controlled_by(state, engine.board, building, 1 - player) else 0.0)
+    # The other side, which does not act, reads no legal unit and sees the same group.
+    other = env.observe(env.agent_of(1 - player))
+    assert other["units"][:, 28].sum() == 0.0
+    assert other["board"][target_plane].sum() == 1.0

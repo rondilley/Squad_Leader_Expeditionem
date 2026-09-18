@@ -1,9 +1,11 @@
 """The imitation command: a policy that copies the scripted agents, as the start of PPO.
 
-`sl-cli imitate --scenario s01_guards_counterattack --teachers v5,v6 --games 200` plays
-the games, fits the policy, writes the snapshot, and evaluates it against the constant
-opponents of the league the way `sl-cli train` does (TC-18). Then
-`sl-cli train --start-from <snapshot>` continues from it.
+`sl-cli imitate --scenario s01_guards_counterattack --teachers v4,v5,v6 --labels 0=v5,1=v6
+--games 300 --dagger-rounds 3` plays the games of the teacher pool, fits the policy to the
+label teacher of each side, then plays three rounds of the policy's own games with the
+label teacher's answer at each state and fits again on the whole. It writes the snapshot
+and evaluates it against the constant opponents of the league the way `sl-cli train` does
+(TC-18). Then `sl-cli train --start-from <snapshot>` continues from it.
 """
 
 from __future__ import annotations
@@ -11,6 +13,8 @@ from __future__ import annotations
 import time
 from pathlib import Path
 from typing import Any
+
+import torch
 
 from slagents.learned import imitate, ppo
 from slagents.learned.env import make_env
@@ -32,12 +36,30 @@ def run_imitation(
     eval_games: int = 0,
     device: str = "auto",
     log=print,
+    labels: dict[int, str] | None = None,
+    dagger_rounds: int = 0,
+    dagger_games: int = 0,
+    dagger_epochs: int = 0,
+    dagger_mix: float = 0.0,
+    workers: int = 1,
 ) -> artifact.RunArtifact:
-    """The whole pass: the games, the fit, the snapshot, and the evaluation."""
+    """The whole pass: the games, the fit, the DAgger rounds, the snapshot, and the evaluation.
+
+    `labels` is the label teacher of each side; without it each teacher labels its own
+    decisions. Each DAgger round plays `dagger_games` games of the policy against the pool,
+    labels each state with the label teacher of its side, and fits `dagger_epochs` more
+    epochs on everything collected so far. The rounds need the labels, because the policy's
+    decision has no teacher of its own.
+    """
+    if dagger_rounds > 0 and labels is None:
+        raise ValueError("the DAgger rounds need --labels, because the policy's own decisions have no teacher")
+    from slagents.learned.workers import corrections_parallel, demonstrations_parallel
+
     engine, board_record = build_engine_with_record(scenario)
     env = make_env(engine, seed=seed)
     compute = ppo.resolve_device(device)
     policy = Policy(env.spaces_record, net).to(compute)
+    generator = torch.Generator().manual_seed(seed)
     started = time.perf_counter()
 
     def make_teacher(kind: str, game_seed: int, player: int):
@@ -47,7 +69,10 @@ def run_imitation(
         if (game + 1) % 10 == 0 or game + 1 == games:
             log(f"game {game + 1}/{games}: {a} against {b}, result {result:+.0f}")
 
-    data = imitate.collect_demonstrations(env, make_teacher, teachers, games, seed, on_game)
+    if workers > 1:
+        data = demonstrations_parallel(scenario, teachers, games, seed, workers, env.max_commands, labels, on_game)
+    else:
+        data = imitate.collect_demonstrations(env, make_teacher, teachers, games, seed, on_game, labels)
     collected = time.perf_counter() - started
     log(f"{len(data)} decisions from {data.games} games in {collected:.1f} s, results {data.results}")
 
@@ -58,20 +83,62 @@ def run_imitation(
         )
 
     rows = imitate.fit(policy, data, config, env.spaces_record, seed, on_epoch)
+    rounds: list[dict[str, Any]] = []
+    for round_index in range(dagger_rounds):
+        round_started = time.perf_counter()
+        round_seed = seed + games + (round_index + 1) * dagger_games
+        wins = [0, 0]
+        played = [0, 0]
+
+        def on_round_game(game: int, side: int, kind: str, result: float) -> None:
+            played[side] += 1
+            wins[side] += 1 if result > 0 else 0
+            if (game + 1) % 10 == 0 or game + 1 == dagger_games:
+                log(f"round {round_index + 1} game {game + 1}/{dagger_games}: policy as player {side} against {kind}, result {result:+.0f}")
+
+        if workers > 1:
+            fresh = corrections_parallel(
+                scenario, policy, labels, teachers, dagger_games, round_seed, workers, env.max_commands, dagger_mix, on_round_game
+            )
+        else:
+            fresh = imitate.collect_corrections(
+                env, policy, make_teacher, labels, teachers, dagger_games, round_seed, generator, on_round_game, dagger_mix
+            )
+        data.extend(fresh)
+        log(
+            f"round {round_index + 1}: {len(fresh)} decisions from {fresh.games} games, the policy won "
+            f"{wins[0]} of {played[0]} as player 0 and {wins[1]} of {played[1]} as player 1; {len(data)} decisions in all"
+        )
+        round_config = imitate.FitConfig(**{**config.to_dict(), "epochs": dagger_epochs or config.epochs})
+        round_rows = imitate.fit(policy, data, round_config, env.spaces_record, round_seed, on_epoch)
+        rows.extend(round_rows)
+        rounds.append(
+            {
+                "round": round_index + 1,
+                "games": fresh.games,
+                "decisions": len(fresh),
+                "policy_wins": wins,
+                "policy_games": played,
+                "seconds": round(time.perf_counter() - round_started, 1),
+                "epochs": round_rows,
+            }
+        )
     fitted = time.perf_counter() - started - collected
     record = {
         "scenario": scenario,
         "teachers": teachers,
+        "labels": None if labels is None else {str(k): v for k, v in labels.items()},
         "games": data.games,
         "decisions": len(data),
         "seed": seed,
         "fit": config.to_dict(),
         "epochs": rows,
+        "dagger": rounds,
     }
     path = imitate.save(policy, out, net, record)
     log(f"snapshot {path}")
     league = build_league(engine, seed)
-    evaluation = evaluate(env, policy, league, 0, eval_games) if eval_games else []
+    evaluation = evaluate(env, policy, league, 0, eval_games, workers, scenario) if eval_games else []
     art = artifact.RunArtifact(
         kind="imitate",
         slug=f"imitate-{scenario}",
@@ -81,7 +148,12 @@ def run_imitation(
             "agent_a": "learner",
             "agent_b": "league",
             "teachers": teachers,
+            "labels": None if labels is None else {str(k): v for k, v in labels.items()},
             "games": games,
+            "dagger_rounds": dagger_rounds,
+            "dagger_games": dagger_games,
+            "dagger_mix": dagger_mix,
+            "workers": workers,
             "first_seed": seed,
             "fit": config.to_dict(),
             "net": net.to_dict(),
@@ -99,6 +171,7 @@ def run_imitation(
         "collect_seconds": round(collected, 1),
         "fit_seconds": round(fitted, 1),
         "epochs": rows,
+        "dagger": rounds,
         "evaluation": evaluation,
         "passed": {"TC-18": bool(evaluation) and any(row["beats_opponent"] for row in evaluation)},
     }
@@ -113,8 +186,10 @@ def run(args: Any) -> int:
         learning_rate=args.learning_rate,
         value_coefficient=args.value_coefficient,
         holdout=args.holdout,
+        stop_weight=args.stop_weight,
     )
     net = NetConfig(channels=args.channels, hidden=args.hidden)
+    labels = imitate.parse_labels(args.labels) if args.labels else None
     art = run_imitation(
         scenario=args.scenario,
         teachers=teachers,
@@ -125,6 +200,12 @@ def run(args: Any) -> int:
         out=Path(args.out),
         eval_games=args.eval_games,
         device=args.device,
+        labels=labels,
+        dagger_rounds=args.dagger_rounds,
+        dagger_games=args.dagger_games or max(1, args.games // 2),
+        dagger_epochs=args.dagger_epochs,
+        dagger_mix=args.dagger_mix,
+        workers=args.workers,
     )
     stats = art.stats
     print(f"device {art.config['device']}")
@@ -156,15 +237,31 @@ def _counts(results: dict[str, int]) -> str:
 def add_parser(subparsers: Any) -> None:
     p = subparsers.add_parser("imitate", help="fit the learned agent to the decisions of the scripted agents, as the start of PPO")
     p.add_argument("--scenario", default="s01_guards_counterattack")
-    p.add_argument("--teachers", default="v5,v6", help="a comma list of scripted agents; each ordered pair plays")
+    p.add_argument("--teachers", default="v4,v5,v6", help="a comma list of scripted agents; each ordered pair plays")
+    p.add_argument(
+        "--labels",
+        default="0=v5,1=v6",
+        help="the teacher whose command labels each side, as 0=v5,1=v6; an empty value lets each teacher label its own",
+    )
     p.add_argument("--games", type=int, default=100, help="games of the teachers against each other")
+    p.add_argument("--dagger-rounds", type=int, default=0, help="rounds of the policy's own games with the teachers' labels")
+    p.add_argument("--dagger-games", type=int, default=0, help="games in each round, default half of --games")
+    p.add_argument("--dagger-epochs", type=int, default=0, help="epochs of the fit after each round, default --epochs")
+    p.add_argument("--dagger-mix", type=float, default=0.0, help="the share of the policy's decisions the teacher plays in a round")
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--epochs", type=int, default=5)
     p.add_argument("--minibatch", type=int, default=256)
     p.add_argument("--learning-rate", type=float, default=1e-3)
     p.add_argument("--value-coefficient", type=float, default=0.1, help="the weight of the value error in the loss")
     p.add_argument("--holdout", type=float, default=0.1, help="the share of the decisions held out of the fit")
+    p.add_argument(
+        "--stop-weight",
+        type=float,
+        default=1.0,
+        help="the weight of a decision that fires the group or ends a phase, against 1 for each other decision",
+    )
     p.add_argument("--device", default="auto", help="auto, cpu, cuda, or cuda:0")
+    p.add_argument("--workers", type=int, default=1, help="processes that play the games; 1 plays them in this process")
     p.add_argument("--channels", type=int, default=32, help="convolution channels of the board encoder")
     p.add_argument("--hidden", type=int, default=256, help="width of the trunk and the heads")
     p.add_argument("--out", default="runs/imitate/snapshot-0.pt", help="the snapshot file")

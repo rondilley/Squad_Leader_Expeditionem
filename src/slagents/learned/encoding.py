@@ -9,6 +9,15 @@ The trainer sees three things and nothing else:
   knows about the unit.
 - A scalar vector: the turn, the phase, the sub-step, and which side acts.
 
+The planes and the rows hold what the policy needs for the decisions the game asks. The
+imitation of 2026-09-16 gave the reason for four of them: the policy fired a group at the
+teacher's moment in none of 93 states, and it ended a Movement or Advance Phase at the
+teacher's moment in none of 60, because the observation had no fire group, no target of
+it, and no sign of which units still had a command. A state with one unit in the group
+and a state with five looked the same. So the rows say which units are in the group, who
+leads it, and which units have a legal command now, and the planes say the target of the
+group, the buildings a positional victory condition names, and who holds each one.
+
 The command is composed of three parts, as FR-51 asks: which unit, which action, and
 which hex. A command with no unit uses the slot of the whole side, and a command with no
 hex uses the target slot of no hex. The masks say which parts are legal, so an illegal
@@ -94,10 +103,12 @@ TERRAIN_KINDS: tuple[str, ...] = (
 )
 KIND_ORDER: tuple[str, ...] = (KIND_SQUAD, KIND_CREW, KIND_LEADER, KIND_SW, KIND_VEHICLE)
 
-# Four planes of terrain features, six of units, and four of counters (rules 24 and 25).
-BOARD_PLANES = len(TERRAIN_KINDS) + 14
-# Twenty-one features for a counter of any kind and five for a vehicle (rules 28 to 41).
-UNIT_FEATURES = 26
+# Four planes of terrain features, six of units, four of counters (rules 24 and 25), one
+# of the fire group's target, and three of the objective buildings and their control.
+BOARD_PLANES = len(TERRAIN_KINDS) + 18
+# Twenty-one features for a counter of any kind, five for a vehicle (rules 28 to 41), and
+# eight for the fire group, the legal list, and the flags of the phase.
+UNIT_FEATURES = 34
 SCALARS = len(PLAYER_TURN_PHASES) + 8
 NO_UNIT = 0  # slot 0 is the side itself, for a command that names no unit
 NO_HEX = 0  # target slot 0 is "no hex"
@@ -193,12 +204,53 @@ def target_mask_for(
     return mask
 
 
-def board_tensor(board: Board, state: State, types: Mapping[str, UnitType], player: int, spaces: Spaces) -> np.ndarray:
+@dataclass(frozen=True)
+class Objectives:
+    """The buildings and the hexes that the positional victory conditions of a scenario name.
+
+    Built once for an engine by `objectives_for`, because the buildings do not move. The
+    control of each one is read from the state at each observation.
+    """
+
+    buildings: tuple[tuple[str, tuple[HexRef, ...]], ...] = ()
+    hexes: tuple[HexRef, ...] = ()
+
+
+def objectives_for(engine) -> Objectives:
+    """The objective buildings and hexes of the engine's scenario, from the victory evaluator's helpers."""
+    from slcore.rules import victory
+
+    buildings: dict[str, tuple[HexRef, ...]] = {}
+    hexes: list[HexRef] = []
+    on_board = victory.buildings_on(engine.board)
+    for condition in engine.scenario.victory:
+        params = dict(condition.params)
+        if condition.kind in (victory.KIND_BUILDING_SWING, victory.KIND_BUILDING_COUNT):
+            groups = list(params.get("enemy_groups", [])) + list(params.get("own_groups", [])) + list(params.get("groups", []))
+            for building in victory.group_buildings(engine.scenario, engine.board, groups):
+                buildings[building] = tuple(on_board.get(building, ()))
+        elif condition.kind in (victory.KIND_HEX_CONTROL, victory.KIND_SOLE_OCCUPANT):
+            hexes.extend(victory.group_hexes(engine.scenario, engine.board, params.get("groups", [])))
+    return Objectives(tuple(sorted(buildings.items())), tuple(sorted(set(hexes))))
+
+
+def board_tensor(
+    board: Board,
+    state: State,
+    types: Mapping[str, UnitType],
+    player: int,
+    spaces: Spaces,
+    objectives: Objectives | None = None,
+) -> np.ndarray:
     """The board as planes, from what this player is allowed to know.
 
     A unit below a concealment counter of the other side is not in the unit planes. Its
     hex has the counter plane set, which is what the player sees on the table (rule 25.2).
+    `objectives` gives the buildings the victory conditions name, and the planes then say
+    which of them this player holds and which the other side holds, from the evaluator's
+    own control reading.
     """
+    from slcore.rules.victory import controlled_by, hex_controlled_by
     from slcore.view import concealed_from
 
     planes = np.zeros(spaces.board_shape, dtype=np.float32)
@@ -236,14 +288,45 @@ def board_tensor(board: Board, state: State, types: Mapping[str, UnitType], play
         planes[base + 2, smoke.hex[0], smoke.hex[1]] = 1.0
     for hex_ref in state.melee:
         planes[base + 3, hex_ref[0], hex_ref[1]] = 1.0
+    base += 4
+    if state.fire_group is not None:
+        target = state.fire_group.target
+        planes[base, target[0], target[1]] = 1.0
+    if objectives is not None:
+        for building, hexes in objectives.buildings:
+            mine = controlled_by(state, board, building, player)
+            theirs = controlled_by(state, board, building, 1 - player)
+            for col, row in hexes:
+                planes[base + 1, col, row] = 1.0
+                planes[base + 2, col, row] = 1.0 if mine else 0.0
+                planes[base + 3, col, row] = 1.0 if theirs else 0.0
+        for col, row in objectives.hexes:
+            planes[base + 1, col, row] = 1.0
+            planes[base + 2, col, row] = 1.0 if hex_controlled_by(state, (col, row), player) else 0.0
+            planes[base + 3, col, row] = 1.0 if hex_controlled_by(state, (col, row), 1 - player) else 0.0
     return planes
 
 
-def unit_tensor(state: State, types: Mapping[str, UnitType], player: int, spaces: Spaces, board: Board) -> np.ndarray:
-    """One row for each unit slot. Slot 0 is the side, and it stays zero."""
+def unit_tensor(
+    state: State,
+    types: Mapping[str, UnitType],
+    player: int,
+    spaces: Spaces,
+    board: Board,
+    legal_units: Sequence[int] | None = None,
+) -> np.ndarray:
+    """One row for each unit slot. Slot 0 is the side, and it stays zero.
+
+    `legal_units` is the unit slots with a legal command in this frame, from the legal
+    list the core gave, so a row says whether its unit can still act in this phase.
+    """
     rows = np.zeros(spaces.unit_shape, dtype=np.float32)
     from slcore.view import concealed_from
 
+    group = state.fire_group
+    members = {member[0] for member in group.members} if group is not None else set()
+    leader = group.leader if group is not None else None
+    legal = set(legal_units) if legal_units is not None else set()
     for unit in state.units:
         slot = unit.id + 1
         if slot >= spaces.units:
@@ -279,6 +362,14 @@ def unit_tensor(state: State, types: Mapping[str, UnitType], player: int, spaces
             row[23] = 1.0 if unit.immobilized else 0.0
             row[24] = t.gun / 152.0
             row[25] = t.mp / 24.0
+        row[26] = 1.0 if unit.id in members else 0.0
+        row[27] = 1.0 if unit.id == leader else 0.0
+        row[28] = 1.0 if slot in legal else 0.0
+        row[29] = 1.0 if unit.stay else 0.0
+        row[30] = 1.0 if unit.routed else 0.0
+        row[31] = 1.0 if unit.directed else 0.0
+        row[32] = 1.0 if unit.rally_tried else 0.0
+        row[33] = 1.0 if unit.malfunction else 0.0
     return rows
 
 
