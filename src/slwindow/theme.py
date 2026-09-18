@@ -142,7 +142,11 @@ NATIONAL = {
     "american": (172, 190, 76),
 }
 BROKEN = (162, 62, 46)
-WEAPON = (58, 68, 80)
+# The study of the 1977 pieces (RV-10): a support weapon counter is printed on the stock of
+# its army, the berserk squads are on a red stock, and the markers are on a white stock.
+BERSERK = (206, 48, 44)
+MARKER = (236, 232, 220)      # the white marker stock: prep fire, malfunction, the wreck back
+MARKER_RED = (214, 58, 40)    # the red of a starburst on a marker
 CONCEALED = (226, 220, 202)
 SMOKE = (226, 222, 212)
 CHARGE = (162, 62, 46)
@@ -150,6 +154,7 @@ CHARGE = (162, 62, 46)
 # Rules 28 to 41: a vehicle counter, its covered arc, and its wreck.
 VEHICLE_EDGE = (24, 22, 18)
 TURRET_BAND = (238, 233, 218)
+OPEN_TOP = (236, 232, 220)    # rule 28: an open top vehicle is printed as a light plan
 ARC = (232, 190, 74)
 ARC_ALPHA = 56
 WRECK = (86, 80, 70)
@@ -159,9 +164,10 @@ CREW_EXPOSED = (232, 190, 74)
 # The physical look of a counter. A counter is a die-cut cardboard chit, so it has rounded
 # corners, a thin cut edge that shows the pale cardboard core, a bevel from its thickness
 # (the light is at the top of the screen), and wear at the corners where the printed layer
-# has chipped. A broken unit is a counter turned to its reverse, so it shows a plainer back
-# with a colour band and its reduced numbers. Each wear mark comes from the unit id and not
-# from a generator, so a counter draws the same in each session (SR-07, DR-01).
+# has chipped. A broken unit is a counter turned to its reverse: the same stock, with the
+# word for its state, its broken morale, and its men down. Each wear mark comes from the
+# unit id and not from a generator, so a counter draws the same in each session (SR-07,
+# DR-01).
 CHIT_RADIUS = 0.16           # the corner radius as a fraction of the counter size
 CHIT_EDGE = (208, 200, 178)  # the pale cardboard core at the cut edge
 CHIT_SHADOW = (26, 24, 18)   # the shadow the thickness throws, drawn with an alpha
@@ -169,7 +175,7 @@ CHIT_SHADOW_ALPHA = 96
 CHIT_BEVEL_LIGHT = 46        # how much to lighten the face on the lit top-left edge
 CHIT_BEVEL_DARK = 42         # how much to darken the face on the shaded bottom-right edge
 CHIT_WEAR = (216, 208, 188)  # a corner nick that shows the cardboard core
-BACK = (150, 142, 120)       # the base tone of a flipped (broken) counter reverse
+BACK_SHADE = 22              # how much darker a reverse is when it is too small for its print
 
 # ---------------------------------------------------------------------- the card
 #

@@ -190,6 +190,9 @@ def _unit_key(unit: dict[str, Any]) -> str:
         str(unit.get("nationality")),
         str(unit.get("type")),
         str(unit.get("broken")),
+        str(unit.get("berserk")),
+        str(unit.get("dm")),
+        str(unit.get("name")),
         str(unit.get("firepower")),
         str(unit.get("range")),
         str(unit.get("morale")),
@@ -237,7 +240,7 @@ def counter_texture(unit: dict[str, Any]) -> Texture:
     # The 3D chit draws flat (no drop shadow): the real prism thickness throws the shadow.
     size = CHIT_PIXELS
     if unit.get("kind") == "vehicle":
-        chit_counters._vehicle(surface, unit, centre, centre, size / 1.15, _font, _small, shadow=False)
+        chit_counters._vehicle(surface, unit, centre, centre, size / chit_counters.VEHICLE_SCALE, _font, _small, shadow=False)
     else:
         chit_counters._counter(surface, unit, centre, centre, size, _font, _small, shadow=False)
     texture = _surface_to_texture(surface, key)

@@ -57,21 +57,46 @@ class UnitView:
     riding: int | None = None
     gun: int = 0
     movement_points: int = 0
+    # The face of the counter, as the 1977 counter prints it (RV-10). Each of these is on
+    # the front of the piece, so a view gives away nothing that the table does not show.
+    elite: bool = False
+    breakdown: int = 0
+    weapon_class: str = ""
+    vehicle_class: str = ""
+    open_top: bool = False
+    transport_pp: int = 0
+    mg_ca: int = 0
+    mg_360: int = 0
+    gun_he_only: bool = False
+    gun_low_velocity: bool = False
+    survival: int = 0
 
     def to_dict(self) -> dict[str, Any]:
-        vehicle: dict[str, Any] = {}
+        face: dict[str, Any] = {}
         if self.kind == KIND_VEHICLE:
-            vehicle = {
+            face = {
                 "facing": self.facing,
                 "wreck": self.wreck,
                 "immobilized": self.immobilized,
                 "crew_exposed": self.crew_exposed,
                 "gun": self.gun,
                 "movement_points": self.movement_points,
+                "vehicle_class": self.vehicle_class,
+                "open_top": self.open_top,
+                "transport_pp": self.transport_pp,
+                "mg_ca": self.mg_ca,
+                "mg_360": self.mg_360,
+                "gun_he_only": self.gun_he_only,
+                "gun_low_velocity": self.gun_low_velocity,
+                "survival": self.survival,
             }
+        elif self.kind == KIND_SW:
+            face = {"breakdown": self.breakdown, "weapon_class": self.weapon_class}
+        elif self.kind != KIND_LEADER:
+            face = {"elite": self.elite}
         if self.riding is not None:
-            vehicle["riding"] = self.riding
-        return {**self._base(), **vehicle}
+            face["riding"] = self.riding
+        return {**self._base(), **face}
 
     def _base(self) -> dict[str, Any]:
         return {
@@ -197,10 +222,35 @@ def unit_view(types: Mapping[str, UnitType], unit: Unit, viewer: int) -> UnitVie
         riding=unit.passenger_of,
         gun=t.gun,
         movement_points=t.mp,
+        elite=t.elite,
+        breakdown=t.breakdown,
+        weapon_class=t.weapon_class,
+        vehicle_class=t.vehicle_class,
+        open_top=t.open_top,
+        transport_pp=t.transport_pp,
+        mg_ca=t.mg_ca,
+        mg_360=t.mg_360,
+        gun_he_only=t.gun_he_only,
+        gun_low_velocity=t.gun_low_velocity,
+        survival=t.survival,
     )
 
 
 SPECTATOR = -1
+
+
+def nationalities_of(state: State) -> dict[str, str]:
+    """The army of each player, keyed by the player number as a string.
+
+    A side that fields two armies takes the army of its first unit. The order of battle is
+    on the scenario card, so this discloses nothing (AR-09).
+    """
+    out: dict[str, str] = {}
+    for unit in state.units:
+        key = str(unit.player)
+        if key not in out:
+            out[key] = unit.type_key.split(":")[0]
+    return out
 
 
 def build(
@@ -223,6 +273,9 @@ def build(
     return {
         "viewer": viewer,
         "spectator": spectator,
+        # The army of each side, from its order of battle. The scenario card prints it, so
+        # a concealment token can take the stock of its army (rule 25, RV-10 section 5).
+        "nationalities": nationalities_of(state),
         "concealment": tokens_for(state, viewer),
         "smoke": [geometry.hex_id(*s.hex) for s in state.smoke],
         "demo": [

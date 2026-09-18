@@ -1,11 +1,18 @@
 """The counters of the desktop window, drawn from the view document.
 
-An infantry counter carries the numbers the 1977 counter carries: firepower, range, and
-morale for a squad, and morale with the leadership modifier for a leader. A vehicle counter
-carries its movement points and its main gun calibre, and a white band marks a turret
-(rule 28). The wedge of the covered arc is drawn from the facing (rule 29.4).
+A counter carries what the 1977 counter carries. A squad shows two men and its firepower,
+range, and morale in one line (rules 2.2 to 2.4). A leader shows one man, his name up the
+side, and his morale with his leadership modifier up the edge (rules 2.5, 2.6). A support
+weapon shows its icon and three lines: the weapon, its firepower and range, and its
+breakdown number (rules 2.7 to 2.9). A vehicle shows its plan from above, turned to its
+facing, with the movement points top right, the gun bottom left, and the machine guns
+bottom right (rule 28). The reverse of a squad or a leader says that it is broken and gives
+its broken morale, with its men down (rule 12). The reverse of a weapon has a white cross
+over its icon and its repair number (rule 18).
 
-The art is the project's own. No scan and no printed layout is in the tree (SR-07).
+The layout follows the study of the owner's photographs of the 1977 pieces,
+`docs/research/2026-09-17_RV-10_counter_study.md`. The silhouettes are the project's own
+point lists in `slwindow.silhouettes`. No scan and no printed layout is in the tree (SR-07).
 """
 
 from __future__ import annotations
@@ -15,7 +22,7 @@ from typing import Any, Sequence
 
 import pygame
 
-from slwindow import theme
+from slwindow import silhouettes, theme
 from slwindow.layout import Camera, ROOT_THREE
 
 MIN_COUNTER = 14
@@ -29,6 +36,68 @@ ARC_LENGTH = 5
 CHIT_RADIUS_FRAC = 0.08
 # A minimum face size, in pixels, below which the counter shows no symbol and no numbers.
 SYMBOL_MIN = 18
+# A vehicle counter is five eighths of an inch and an infantry counter is one half (RV-1
+# section 8), so a vehicle chit is this much wider than a squad chit.
+VEHICLE_SCALE = 1.25
+# The armies whose men walk to the right on the 1977 sheets. The figures face left, and the
+# renderer mirrors them for these armies (RV-10 section 2).
+FACES_RIGHT = frozenset({"russian"})
+
+# The layout of a face, as fractions of the printed face. `client/src/counters/draw.ts`
+# holds the same table, and `tests/browser/test_render_constants.py` compares the two, so
+# the browser and the window print one counter and not two (RV-10 section 3).
+LAYOUT: dict[str, float] = {
+    # a squad: two men side by side over one line of numbers
+    "squad_figure_top": 0.06,
+    "squad_figure_height": 0.50,
+    "squad_figure_width": 0.30,
+    "squad_first_left": 0.16,
+    "squad_second_left": 0.52,
+    "crew_shrink": 0.82,
+    "squad_text_top": 0.60,
+    "squad_text_px": 0.32,
+    "squad_text_left": 0.07,
+    # a leader: one man at the left, the name and the value up the right side
+    "leader_figure_left": 0.06,
+    "leader_figure_top": 0.10,
+    "leader_figure_width": 0.34,
+    "leader_figure_height": 0.80,
+    "leader_name_x": 0.53,
+    "leader_name_px": 0.15,
+    "leader_value_x": 0.78,
+    "leader_value_px": 0.36,
+    # a support weapon: the icon at the left, three lines at the right
+    "weapon_icon_left": 0.05,
+    "weapon_icon_top": 0.18,
+    "weapon_icon_width": 0.36,
+    "weapon_icon_height": 0.64,
+    "weapon_text_left": 0.44,
+    "weapon_name_top": 0.08,
+    "weapon_name_px": 0.21,
+    "weapon_value_top": 0.36,
+    "weapon_value_px": 0.26,
+    "weapon_break_top": 0.66,
+    "weapon_break_px": 0.21,
+    # the reverse of a squad or a leader: the word, the number, the men down
+    "back_word_px": 0.24,
+    "back_word_top": 0.06,
+    "back_number_px": 0.34,
+    "back_number_top": 0.30,
+    "back_figures_top": 0.56,
+    "back_figures_height": 0.38,
+    # a vehicle: the plan in the middle, the numbers in the corners
+    "vehicle_plan_size": 0.58,
+    "vehicle_corner_px": 0.24,
+    "vehicle_small_px": 0.17,
+    "vehicle_inset": 0.05,
+    # the white cross on a broken weapon and the marker tab
+    "cross_width": 0.16,
+    "tab_size": 0.36,
+}
+
+# The face font: a bold condensed sans, the family of the 1977 print. The list gives
+# pygame a machine font to find, and the project supplies no font file.
+FACE_FONT = "arialnarrow,dejavusanscondensed,liberationsansnarrow,arial,dejavusans"
 
 
 def draw_counters(
@@ -93,7 +162,7 @@ def _wear_marks(seed: int, face: pygame.Rect, size: float) -> list[tuple[int, in
     each session and no picture holds a random number.
     """
     h = (int(seed) * 2654435761 + 1013904223) & 0xFFFFFFFF
-    inset = size * 0.16
+    inset = size * 0.09
     corners = (
         (face.left + inset, face.top + inset),
         (face.right - inset, face.top + inset),
@@ -104,7 +173,7 @@ def _wear_marks(seed: int, face: pygame.Rect, size: float) -> list[tuple[int, in
     for i, (px, py) in enumerate(corners):
         bits = (h >> (i * 4)) & 0xF
         if bits < 5:  # about a third of the corners carry a nick
-            radius = max(1, int(size * (0.05 + 0.02 * (bits % 3))))
+            radius = max(1, int(size * (0.025 + 0.01 * (bits % 3))))
             marks.append((int(px), int(py), radius))
     return marks
 
@@ -125,10 +194,11 @@ def _chit(
 ) -> pygame.Rect:
     """One die-cut cardboard chit: shadow, cut edge, printed face, bevel, and corner wear.
 
-    A broken unit is a counter turned to its reverse, so `flipped` draws the plainer back
-    with a colour band of its side. The light is at the top of the screen (theme), so the
-    top and the left of the face take a highlight and the bottom and the right take a shade.
-    The returned rectangle is the printed face, which the caller writes the numbers on.
+    The reverse of a 1977 counter is the same stock as its front, so `flipped` keeps the
+    base tone and the caller prints the reverse on it. A chit too small for any print takes
+    a darker tone when it is flipped, so the state is still visible at a distance. The light
+    is at the top of the screen (theme), so the top and the left of the face take a highlight
+    and the bottom and the right take a shade. The returned rectangle is the printed face.
 
     `shadow` is on for the pygame window, where a flat chit needs a drop shadow to lift off
     the board. It is off for the 3D texture, where the real prism thickness throws the shadow
@@ -144,14 +214,8 @@ def _chit(
     pygame.draw.rect(surface, theme.CHIT_EDGE, rect, border_radius=radius)
     face = rect.inflate(-edge_width * 2, -edge_width * 2)
     face_radius = max(1, radius - edge_width)
-    face_base = theme.BACK if flipped else base
+    face_base = _darken(base, theme.BACK_SHADE) if flipped and size < SYMBOL_MIN else base
     pygame.draw.rect(surface, face_base, face, border_radius=face_radius)
-    if flipped and nationality is not None and face.height >= 12:
-        height = max(3, int(face.height * 0.30))
-        band = pygame.Surface((face.width, height), pygame.SRCALPHA)
-        colour = theme.NATIONAL.get(nationality, theme.NATIONAL["german"])
-        pygame.draw.rect(band, (*colour, 236), pygame.Rect(0, 0, face.width, height), border_top_left_radius=face_radius, border_top_right_radius=face_radius)
-        surface.blit(band, face.topleft)
     if size >= 12:
         light = _lighten(face_base, theme.CHIT_BEVEL_LIGHT)
         dark = _darken(face_base, theme.CHIT_BEVEL_DARK)
@@ -165,9 +229,106 @@ def _chit(
     return face
 
 
+def _stock(unit: dict[str, Any]) -> tuple[int, int, int]:
+    """The stock a counter is printed on: red for a berserk squad, else the army's colour.
+
+    A support weapon is on the stock of its army too, which is what the sheets show (RV-10
+    section 2), so a weapon and the squad that carries it are one colour.
+    """
+    if unit.get("berserk"):
+        return theme.BERSERK
+    return theme.NATIONAL.get(unit["nationality"], theme.NATIONAL["german"])
+
+
 def _body(surface: pygame.Surface, unit: dict[str, Any], x: float, y: float, size: float, shadow: bool = True) -> pygame.Rect:
-    base = theme.WEAPON if unit["kind"] == "sw" else theme.NATIONAL.get(unit["nationality"], theme.NATIONAL["german"])
-    return _chit(surface, x, y, size, base, unit["id"], flipped=unit["broken"], nationality=unit["nationality"], shadow=shadow)
+    return _chit(surface, x, y, size, _stock(unit), unit["id"], flipped=bool(unit["broken"]), nationality=unit["nationality"], shadow=shadow)
+
+
+# ------------------------------------------------------------------------- the print
+
+_FONTS: dict[tuple[int, bool], pygame.font.Font] = {}
+
+
+def _face_font(px: float, bold: bool = True) -> pygame.font.Font:
+    """The face font at one pixel size, cached, because a frame prints many numbers."""
+    key = (max(6, int(px)), bold)
+    font = _FONTS.get(key)
+    if font is None:
+        if not pygame.font.get_init():
+            pygame.font.init()
+        font = pygame.font.SysFont(FACE_FONT, key[0], bold=bold)
+        _FONTS[key] = font
+    return font
+
+
+def _render(text: str, px: float, colour: tuple[int, int, int], max_width: float | None = None, bold: bool = True) -> pygame.Surface:
+    """Render one line, and shrink it until it fits `max_width`, as a printer would."""
+    size = max(6, int(px))
+    label = _face_font(size, bold).render(text, True, colour)
+    while max_width is not None and label.get_width() > max_width and size > 6:
+        size -= 1
+        label = _face_font(size, bold).render(text, True, colour)
+    return label
+
+
+def _print(
+    surface: pygame.Surface,
+    text: str,
+    px: float,
+    colour: tuple[int, int, int],
+    *,
+    left: float | None = None,
+    right: float | None = None,
+    centerx: float | None = None,
+    top: float | None = None,
+    bottom: float | None = None,
+    centery: float | None = None,
+    max_width: float | None = None,
+    bold: bool = True,
+) -> pygame.Rect:
+    label = _render(text, px, colour, max_width, bold)
+    rect = label.get_rect()
+    if left is not None:
+        rect.left = int(left)
+    if right is not None:
+        rect.right = int(right)
+    if centerx is not None:
+        rect.centerx = int(centerx)
+    if top is not None:
+        rect.top = int(top)
+    if bottom is not None:
+        rect.bottom = int(bottom)
+    if centery is not None:
+        rect.centery = int(centery)
+    surface.blit(label, rect)
+    return rect
+
+
+def _print_up(surface: pygame.Surface, text: str, px: float, colour: tuple[int, int, int], centerx: float, centery: float, max_height: float | None = None, bold: bool = True) -> pygame.Rect:
+    """Print a line that reads from the bottom up, the way a leader's name and value do."""
+    label = _render(text, px, colour, max_height, bold)
+    label = pygame.transform.rotate(label, 90)
+    rect = label.get_rect(center=(int(centerx), int(centery)))
+    surface.blit(label, rect)
+    return rect
+
+
+def _fill(surface: pygame.Surface, parts: silhouettes.Silhouette, box: tuple[float, float, float, float], colour: tuple[int, int, int], mirror: bool = False) -> None:
+    """Fill the parts of one silhouette, scaled to `box` (left, top, width, height)."""
+    left, top, width, height = box
+    for kind, data in parts:
+        if kind == "poly":
+            points = silhouettes.transform(data, left, top, width, height, mirror)  # type: ignore[arg-type]
+            if len(points) >= 3:
+                pygame.draw.polygon(surface, colour, points)
+        else:
+            cx, cy, r = data  # type: ignore[misc]
+            if mirror:
+                cx = 1.0 - cx
+            pygame.draw.circle(surface, colour, (left + cx * width, top + cy * height), max(1.0, r * min(width, height)))
+
+
+# ------------------------------------------------------------------------- the faces
 
 
 def _counter(
@@ -180,153 +341,164 @@ def _counter(
     small: pygame.font.Font,
     shadow: bool = True,
 ) -> None:
-    """One infantry counter: a unit symbol in the top of the face, the numbers below it.
+    """One infantry counter, front or reverse, with its state tabs.
 
-    The 1977 counter carries a symbol and its numbers. A full squad shows two soldiers, a
-    half-squad (a crew) one, a leader one officer, and a support weapon its icon (rule 2).
-    The symbols are the project's own silhouettes, drawn with primitives (SR-07). The numbers
-    sit in the lower part of the face, the way the printed counter has them below the symbol.
+    The front is the squad, the leader, or the weapon face. A broken squad or leader shows
+    its reverse (rule 12), and a weapon with a malfunction shows its reverse (rule 18.1).
+    `font` and `small` are the window's fonts; the face prints with `FACE_FONT` at sizes
+    from the counter, so a large counter prints large and a small one stays legible.
     """
-    rect = _body(surface, unit, x, y, size, shadow=shadow)
+    face = _body(surface, unit, x, y, size, shadow=shadow)
     if size < SYMBOL_MIN:
         return
     kind = unit["kind"]
-    # The face splits into a top band for the symbol and a lower band for the numbers.
-    symbol_rect = pygame.Rect(rect.left, rect.top, rect.width, int(rect.height * 0.56))
-    number_top = rect.top + int(rect.height * 0.58)
-    ink = theme.INK
-    if kind == "leader":
-        _officer(surface, symbol_rect, ink)
-        text = f"{unit['morale']}{unit['leadership']:+d}"
-    elif kind == "sw":
-        _mg_icon(surface, symbol_rect, ink, unit["type"])
-        fp = unit.get("firepower", 0)
-        rng = unit.get("range", 0)
-        text = f"{fp}-{rng}" if rng else ""
-    elif kind == "crew":
-        _soldiers(surface, symbol_rect, ink, 1)
-        text = f"{unit['firepower']}-{unit['range']}-{unit['morale']}"
-    else:  # a full squad
-        _soldiers(surface, symbol_rect, ink, 2)
-        text = f"{unit['firepower']}-{unit['range']}-{unit['morale']}"
-    if text:
-        label = small.render(text, True, ink)
-        surface.blit(label, (rect.centerx - label.get_width() / 2, number_top))
-    _markers(surface, unit, rect, small)
-
-
-def _soldier(surface: pygame.Surface, cx: float, cy: float, h: float, ink: tuple[int, int, int]) -> None:
-    """One soldier silhouette: a round head, a body, and two legs, from primitives (SR-07).
-
-    The figure is the project's own simple shape and not a scan. It reads as a standing
-    infantryman at counter size.
-    """
-    head_r = max(1, int(h * 0.16))
-    head_cy = cy - h * 0.34
-    pygame.draw.circle(surface, ink, (int(cx), int(head_cy)), head_r)
-    # The trunk is a tapered body from the neck to the hips.
-    neck = head_cy + head_r
-    hips = cy + h * 0.10
-    width = max(1, int(h * 0.16))
-    pygame.draw.line(surface, ink, (int(cx), int(neck)), (int(cx), int(hips)), width)
-    # Two arms slope down from the shoulders.
-    shoulder = neck + h * 0.06
-    arm = h * 0.22
-    pygame.draw.line(surface, ink, (int(cx), int(shoulder)), (int(cx - arm), int(shoulder + arm * 0.7)), max(1, int(h * 0.08)))
-    pygame.draw.line(surface, ink, (int(cx), int(shoulder)), (int(cx + arm), int(shoulder + arm * 0.4)), max(1, int(h * 0.08)))
-    # Two legs from the hips.
-    foot = cy + h * 0.44
-    leg = max(1, int(h * 0.09))
-    pygame.draw.line(surface, ink, (int(cx), int(hips)), (int(cx - h * 0.14), int(foot)), leg)
-    pygame.draw.line(surface, ink, (int(cx), int(hips)), (int(cx + h * 0.14), int(foot)), leg)
-
-
-def _soldiers(surface: pygame.Surface, rect: pygame.Rect, ink: tuple[int, int, int], count: int) -> None:
-    """One soldier for a half-squad, two side by side for a full squad (rule 2)."""
-    h = rect.height * 0.86
-    cy = rect.centery
-    if count == 1:
-        _soldier(surface, rect.centerx, cy, h, ink)
-        return
-    gap = rect.width * 0.24
-    _soldier(surface, rect.centerx - gap, cy, h, ink)
-    _soldier(surface, rect.centerx + gap, cy, h, ink)
-
-
-def _officer(surface: pygame.Surface, rect: pygame.Rect, ink: tuple[int, int, int]) -> None:
-    """One officer silhouette for a leader: a soldier with an arm raised, waving the squad on.
-
-    The raised arm tells the leader apart from a squad's soldier at a glance (rule 2).
-    """
-    h = rect.height * 0.86
-    cx, cy = rect.centerx, rect.centery
-    _soldier(surface, cx, cy, h, ink)
-    # A raised arm over the head, so the figure reads as an officer and not a rifleman.
-    shoulder_y = cy - h * 0.16
-    pygame.draw.line(surface, ink, (int(cx), int(shoulder_y)), (int(cx + h * 0.24), int(cy - h * 0.48)), max(1, int(h * 0.08)))
-
-
-def _mg_icon(surface: pygame.Surface, rect: pygame.Rect, ink: tuple[int, int, int], label: str) -> None:
-    """A machine gun on its mount: a barrel over a bipod or a tripod, with its label above.
-
-    The icon is the project's own simple shape (SR-07). An HMG or an MMG stands on a tripod,
-    an LMG on a bipod, so the number of legs reads the class off the counter.
-    """
-    if rect.height >= 16:
-        tag = _tiny_label(label)
-        text = _label_font().render(tag, True, ink)
-        if text.get_width() <= rect.width:
-            surface.blit(text, (rect.centerx - text.get_width() / 2, rect.top + 1))
-    cx = rect.centerx
-    base_y = rect.bottom - rect.height * 0.14
-    barrel_y = rect.centery + rect.height * 0.10
-    half = rect.width * 0.30
-    # The barrel: a level bar with a small receiver box on its right.
-    pygame.draw.line(surface, ink, (int(cx - half), int(barrel_y)), (int(cx + half), int(barrel_y)), max(1, int(rect.height * 0.10)))
-    box = max(2, int(rect.width * 0.12))
-    pygame.draw.rect(surface, ink, pygame.Rect(int(cx + half - box), int(barrel_y - box / 2), box, box))
-    # The mount: a tripod for the heavy guns (three legs), a bipod for the light one.
-    legs = 3 if label.upper() in ("MMG", "HMG") else 2
-    apex = (int(cx), int(barrel_y))
-    if legs == 3:
-        for dx in (-half * 0.7, 0.0, half * 0.7):
-            pygame.draw.line(surface, ink, apex, (int(cx + dx), int(base_y)), max(1, int(rect.height * 0.06)))
+    if kind == "sw":
+        _weapon_face(surface, unit, face)
+    elif unit["broken"]:
+        _broken_face(surface, unit, face)
+    elif kind == "leader":
+        _leader_face(surface, unit, face)
     else:
-        for dx in (-half * 0.5, half * 0.5):
-            pygame.draw.line(surface, ink, apex, (int(cx + dx), int(base_y)), max(1, int(rect.height * 0.06)))
+        _squad_face(surface, unit, face)
+    _tabs(surface, unit, face)
 
 
-def _tiny_label(text: str) -> str:
-    """Keep the weapon label short enough for the top band of a small counter."""
-    return text[:4]
+def _squad_face(surface: pygame.Surface, unit: dict[str, Any], face: pygame.Rect) -> None:
+    """Two men over one line: firepower, range, morale (rules 2.2 to 2.4).
+
+    A line squad walks, an elite squad runs with its submachine guns, and a crew is two
+    smaller men at a run. The men of the Russian army walk to the right (RV-10 section 2).
+    """
+    s = face.width
+    kind = unit["kind"]
+    figure = silhouettes.FIGURES[silhouettes.figure_for(kind, bool(unit.get("elite")))]
+    shrink = LAYOUT["crew_shrink"] if kind == "crew" else 1.0
+    width = s * LAYOUT["squad_figure_width"] * shrink
+    height = s * LAYOUT["squad_figure_height"] * shrink
+    top = face.top + s * LAYOUT["squad_figure_top"] + (s * LAYOUT["squad_figure_height"] - height)
+    mirror = unit["nationality"] in FACES_RIGHT
+    for key in ("squad_first_left", "squad_second_left"):
+        left = face.left + s * LAYOUT[key] + (s * LAYOUT["squad_figure_width"] - width) / 2
+        _fill(surface, figure, (left, top, width, height), theme.INK, mirror)
+    text = f"{unit['firepower']}-{unit['range']}-{unit['morale']}"
+    _print(surface, text, s * LAYOUT["squad_text_px"], theme.INK, left=face.left + s * LAYOUT["squad_text_left"], top=face.top + s * LAYOUT["squad_text_top"], max_width=s * 0.90)
 
 
-_LABEL_FONT: Any = None
+def _leader_face(surface: pygame.Surface, unit: dict[str, Any], face: pygame.Rect) -> None:
+    """One man, his name up the side, his morale and leadership up the edge (rules 2.5, 2.6)."""
+    s = face.width
+    box = (
+        face.left + s * LAYOUT["leader_figure_left"],
+        face.top + s * LAYOUT["leader_figure_top"],
+        s * LAYOUT["leader_figure_width"],
+        s * LAYOUT["leader_figure_height"],
+    )
+    _fill(surface, silhouettes.LEADER_STAND, box, theme.INK, unit["nationality"] in FACES_RIGHT)
+    name = str(unit.get("name") or "").strip()
+    if name and s >= 28:
+        _print_up(surface, name, s * LAYOUT["leader_name_px"], theme.INK, face.left + s * LAYOUT["leader_name_x"], face.centery, max_height=s * 0.86)
+    # A leader with no modifier prints as 8-0, the way the 1977 counter prints him.
+    sign = "+" if unit["leadership"] > 0 else "-"
+    value = f"{unit['morale']}{sign}{abs(unit['leadership'])}"
+    _print_up(surface, value, s * LAYOUT["leader_value_px"], theme.INK, face.left + s * LAYOUT["leader_value_x"], face.centery, max_height=s * 0.92)
 
 
-def _label_font() -> pygame.font.Font:
-    global _LABEL_FONT
-    if _LABEL_FONT is None:
-        if not pygame.font.get_init():
-            pygame.font.init()
-        _LABEL_FONT = pygame.font.SysFont("dejavusansmono,consolas,couriernew", 11, bold=True)
-    return _LABEL_FONT
-
-
-def _markers(surface: pygame.Surface, unit: dict[str, Any], rect: pygame.Rect, small: pygame.font.Font) -> None:
-    marks = []
-    if unit["prep_fired"]:
-        marks.append("P")
-    if unit["moved"]:
-        marks.append("M")
-    if unit["malfunction"]:
-        marks.append("X")
-    if unit.get("riding") is not None:
-        marks.append("R")
-    if not marks:
+def _weapon_face(surface: pygame.Surface, unit: dict[str, Any], face: pygame.Rect) -> None:
+    """The icon at the left and three lines at the right: the weapon, its firepower and range,
+    and its breakdown number (rules 2.7 to 2.9). A malfunction turns the counter over: the
+    icon under a white cross, with the repair roll and the loss roll of rule 18 (RV-10
+    section 4)."""
+    s = face.width
+    icon = silhouettes.ICONS[silhouettes.icon_for(str(unit.get("type", "")), str(unit.get("weapon_class", "")))]
+    box = (
+        face.left + s * LAYOUT["weapon_icon_left"],
+        face.top + s * LAYOUT["weapon_icon_top"],
+        s * LAYOUT["weapon_icon_width"],
+        s * LAYOUT["weapon_icon_height"],
+    )
+    _fill(surface, icon, box, theme.INK)
+    left = face.left + s * LAYOUT["weapon_text_left"]
+    width = face.right - left - s * 0.04
+    if unit.get("malfunction"):
+        _cross(surface, face)
+        _print(surface, "R1", s * LAYOUT["weapon_value_px"], theme.INK, left=left, top=face.top + s * LAYOUT["weapon_name_top"], max_width=width)
+        _print(surface, "X6", s * LAYOUT["weapon_value_px"], theme.INK, left=left, top=face.top + s * LAYOUT["weapon_break_top"], max_width=width)
         return
-    label = small.render("".join(marks), True, theme.INK)
-    surface.blit(label, (rect.right - label.get_width() - 1, rect.top + 1))
+    _print(surface, str(unit.get("type", ""))[:4], s * LAYOUT["weapon_name_px"], theme.INK, left=left, top=face.top + s * LAYOUT["weapon_name_top"], max_width=width)
+    fp = int(unit.get("firepower", 0) or 0)
+    rng = int(unit.get("range", 0) or 0)
+    value = f"{fp}-{rng}" if fp and rng else (str(rng) if rng else "")
+    if value:
+        _print(surface, value, s * LAYOUT["weapon_value_px"], theme.INK, left=left, top=face.top + s * LAYOUT["weapon_value_top"], max_width=width)
+    breakdown = int(unit.get("breakdown", 0) or 0)
+    if breakdown:
+        # A flamethrower's number is the roll that takes it out of the game (rule 22.6), so
+        # it prints with an X and not a B.
+        letter = "X" if str(unit.get("weapon_class", "")) == "flamethrower" else "B"
+        _print(surface, f"{letter}{breakdown}", s * LAYOUT["weapon_break_px"], theme.INK, left=left, top=face.top + s * LAYOUT["weapon_break_top"], max_width=width)
+
+
+def _cross(surface: pygame.Surface, face: pygame.Rect) -> None:
+    """The white cross of a weapon reverse: two bands from corner to corner."""
+    width = face.width * LAYOUT["cross_width"]
+    layer = pygame.Surface(face.size, pygame.SRCALPHA)
+    w, h = face.size
+    pygame.draw.line(layer, (*theme.MARKER, 230), (0, 0), (w, h), max(2, int(width)))
+    pygame.draw.line(layer, (*theme.MARKER, 230), (w, 0), (0, h), max(2, int(width)))
+    surface.blit(layer, face.topleft)
+
+
+def _broken_face(surface: pygame.Surface, unit: dict[str, Any], face: pygame.Rect) -> None:
+    """The reverse of a squad or a leader: the word, the broken morale, and the men down.
+
+    Rule 12 turns a broken unit over. The reverse gives the morale a rally uses (rule 14.1),
+    and it shows a man on his front with his rifle forward. A squad shows a second man on
+    one knee. The word is the project's own and not the printed one.
+    """
+    s = face.width
+    _print(surface, "Broken", s * LAYOUT["back_word_px"], theme.INK, left=face.left + s * 0.07, top=face.top + s * LAYOUT["back_word_top"], max_width=s * 0.86)
+    number = _print(surface, str(unit["morale"]), s * LAYOUT["back_number_px"], theme.INK, left=face.left + s * 0.07, top=face.top + s * LAYOUT["back_number_top"])
+    mirror = unit["nationality"] in FACES_RIGHT
+    top = face.top + s * LAYOUT["back_figures_top"]
+    height = s * LAYOUT["back_figures_height"]
+    if unit["kind"] == "leader":
+        _fill(surface, silhouettes.PRONE_RIFLEMAN, (face.left + s * 0.10, top, s * 0.80, height), theme.INK, mirror)
+        return
+    _fill(surface, silhouettes.KNEELING_MAN, (number.right + s * 0.04, face.top + s * 0.26, s * 0.30, s * 0.34), theme.INK, mirror)
+    _fill(surface, silhouettes.PRONE_RIFLEMAN, (face.left + s * 0.10, top, s * 0.80, height), theme.INK, mirror)
+
+
+def _tabs(surface: pygame.Surface, unit: dict[str, Any], face: pygame.Rect) -> None:
+    """The state of a unit as small white tabs at the top right, the markers of the game.
+
+    The 1977 game puts a white marker on a unit that has fired in the Prep Fire Phase, and
+    a DM marker on a broken unit under desperation morale. The window puts a small tab of
+    the marker stock on the counter for each, and a tab for a unit that moved (rule 16) and
+    one for a passenger (rule 31), so the state reads without a second counter.
+    """
+    tabs: list[tuple[str, tuple[int, int, int]]] = []
+    if unit.get("prep_fired"):
+        tabs.append(("PF", theme.MARKER_RED))
+    if unit.get("moved"):
+        tabs.append(("M", theme.INK))
+    if unit.get("dm"):
+        tabs.append(("DM", theme.INK))
+    if unit.get("riding") is not None:
+        tabs.append(("R", theme.INK))
+    if not tabs or face.width < 24:
+        return
+    size = face.width * LAYOUT["tab_size"]
+    x = face.right - size
+    y = face.top
+    for text, colour in tabs[:3]:
+        tab = pygame.Rect(int(x), int(y), int(size), int(size * 0.62))
+        pygame.draw.rect(surface, theme.MARKER, tab)
+        pygame.draw.rect(surface, theme.INK, tab, 1)
+        _print(surface, text, size * 0.52, colour, centerx=tab.centerx, centery=tab.centery, max_width=size * 0.9)
+        y += tab.height + 1
+
+
+# ---------------------------------------------------------------------- the vehicles
 
 
 def _vehicle(
@@ -339,56 +511,126 @@ def _vehicle(
     small: pygame.font.Font,
     shadow: bool = True,
 ) -> None:
-    """Rule 28: the counter shows the movement points, the gun, and a band for a turret."""
-    width = size * 1.15
-    colour = theme.WRECK if unit["wreck"] else theme.NATIONAL.get(unit["nationality"], theme.NATIONAL["german"])
-    rect = _chit(surface, x, y, width, colour, unit["id"], outline=theme.VEHICLE_EDGE, edge_width=2, shadow=shadow)
-    if not unit["wreck"] and width >= SYMBOL_MIN:
-        _hull(surface, rect, theme.VEHICLE_EDGE)
-    facing = int(unit.get("facing", -1))
-    if facing >= 0 and not unit["wreck"]:
-        _gun_barrel(surface, x, y, width, facing)
+    """Rule 28: the plan of the vehicle turned to its facing, and its numbers in the corners.
+
+    A closed vehicle prints as a dark plan and an open top one as a light plan, and a
+    turret carries a white band, all as rule 28 describes the counter. The plan turns to
+    the facing of the unit, so the barrel lies along the spine of the covered arc (rule
+    29.4). A wreck shows the white reverse with the wreck and its survival number (rule 33.9).
+    """
+    width = size * VEHICLE_SCALE
     if unit["wreck"]:
-        pygame.draw.line(surface, theme.INK, rect.topleft, rect.bottomright, 2)
-        pygame.draw.line(surface, theme.INK, rect.topright, rect.bottomleft, 2)
+        face = _chit(surface, x, y, width, theme.MARKER, unit["id"], outline=theme.VEHICLE_EDGE, edge_width=2, shadow=shadow)
+        if width >= SYMBOL_MIN:
+            _wreck_face(surface, unit, face)
         return
+    face = _chit(surface, x, y, width, _stock(unit), unit["id"], outline=theme.VEHICLE_EDGE, edge_width=2, shadow=shadow)
+    if width < SYMBOL_MIN:
+        return
+    s = face.width
+    plan = silhouettes.PLANS.get(str(unit.get("vehicle_class", "")), silhouettes.TANK_PLAN)
+    facing = int(unit.get("facing", -1))
+    _plan(surface, plan, face.center, s * LAYOUT["vehicle_plan_size"], facing, bool(unit.get("open_top")))
     if unit["immobilized"]:
-        pygame.draw.rect(surface, theme.IMMOBILE, rect, 3)
+        pygame.draw.rect(surface, theme.IMMOBILE, face, 3)
     if unit["crew_exposed"]:
-        pygame.draw.circle(surface, theme.CREW_EXPOSED, (rect.centerx, rect.top + 3), 3)
-    if width < 20:
+        pygame.draw.circle(surface, theme.CREW_EXPOSED, (face.centerx, face.top + 3), 3)
+    if s < 24:
         return
-    top = small.render(str(unit.get("movement_points", 0)), True, theme.INK)
-    surface.blit(top, (rect.right - top.get_width() - 2, rect.top + 1))
-    gun = unit.get("gun", 0)
+    inset = s * LAYOUT["vehicle_inset"]
+    corner = s * LAYOUT["vehicle_corner_px"]
+    small_px = s * LAYOUT["vehicle_small_px"]
+    _print(surface, str(unit.get("movement_points", 0)), corner, theme.INK, right=face.right - inset, top=face.top + inset * 0.6)
+    if unit.get("gun_low_velocity"):
+        _print(surface, "*", corner, theme.INK, left=face.left + inset, top=face.top + inset * 0.6)
+    gun = int(unit.get("gun", 0) or 0)
+    transport = int(unit.get("transport_pp", 0) or 0)
     if gun:
-        bottom = small.render(str(gun), True, theme.INK)
-        surface.blit(bottom, (rect.left + 2, rect.bottom - bottom.get_height() - 1))
+        rect = _print(surface, str(gun), corner, theme.INK, left=face.left + inset, bottom=face.bottom - inset * 0.4)
+        if unit.get("gun_he_only"):
+            # The bar over the calibre marks a gun that fires high explosive only (rule 28.2).
+            pygame.draw.line(surface, theme.INK, (rect.left, rect.top), (rect.right, rect.top), max(1, int(s * 0.03)))
+    elif transport:
+        _print(surface, f"P{transport}", corner, theme.MARKER, left=face.left + inset, bottom=face.bottom - inset * 0.4)
+    mg_ca = int(unit.get("mg_ca", 0) or 0)
+    mg_360 = int(unit.get("mg_360", 0) or 0)
+    if mg_ca or mg_360:
+        mgs = f"{mg_ca or '-'}/{mg_360 or '-'}"
+        _print(surface, mgs, small_px, theme.INK, right=face.right - inset, bottom=face.bottom - inset * 0.4)
+    if s >= 40:
+        # The name sits in the band over the plan, between the asterisk and the movement
+        # points, where it does not cross the ink of the plan.
+        name = str(unit.get("type", ""))
+        _print(surface, name, small_px * 0.85, theme.INK, centerx=face.left + s * 0.42, top=face.top + inset * 0.5, max_width=s * 0.46, bold=False)
     if unit["malfunction"]:
-        mark = small.render("X", True, theme.BROKEN)
-        surface.blit(mark, (rect.left + 2, rect.top + 1))
+        _print(surface, "X", corner, theme.BROKEN, centerx=face.centerx, top=face.top + inset)
 
 
-def _gun_barrel(surface: pygame.Surface, x: float, y: float, width: float, facing: int) -> None:
-    """Rule 29.4: the gun barrel lies along the spine that the covered arc is built from.
+def _plan(surface: pygame.Surface, plan: dict[str, silhouettes.Silhouette], centre: tuple[int, int], size: float, facing: int, open_top: bool) -> None:
+    """The plan from above, turned so its front points along the facing spine.
 
-    The spines of the lattice point at the vertex offsets, so the barrel of facing zero
-    points to the right and the rest follow around it.
+    The parts draw in the unit box and then turn about its centre. A closed vehicle is the
+    ink with a light band round its turret; an open top vehicle is the light stock with an
+    ink line round it (rule 28).
     """
+    angle = _spine_angle(facing)
+    body = theme.OPEN_TOP if open_top else theme.INK
+    line = theme.INK if open_top else theme.TURRET_BAND
+    for key in ("tracks", "wheels", "hull", "casemate", "cab"):
+        for part in plan.get(key, []):
+            _turned_part(surface, part, centre, size, angle, body, line if open_top or key in ("casemate", "cab") else None)
+    for part in plan.get("barrel", []):
+        _turned_part(surface, part, centre, size, angle, theme.INK, None)
+    for part in plan.get("turret", []):
+        _turned_part(surface, part, centre, size, angle, body, line, band=True)
+
+
+def _turned_part(surface: pygame.Surface, part: silhouettes.Part, centre: tuple[int, int], size: float, angle: float, fill: tuple[int, int, int], line: tuple[int, int, int] | None, band: bool = False) -> None:
+    kind, data = part
+    cos, sin = math.cos(angle), math.sin(angle)
+
+    def turn(px: float, py: float) -> tuple[float, float]:
+        dx, dy = (px - 0.5) * size, (py - 0.5) * size
+        return (centre[0] + dx * cos - dy * sin, centre[1] + dx * sin + dy * cos)
+
+    if kind == "poly":
+        points = [turn(px, py) for px, py in data]  # type: ignore[union-attr]
+        pygame.draw.polygon(surface, fill, points)
+        if line is not None:
+            pygame.draw.polygon(surface, line, points, max(1, int(size * 0.035)))
+        return
+    cx, cy, r = data  # type: ignore[misc]
+    x, y = turn(cx, cy)
+    radius = max(1.0, r * size)
+    pygame.draw.circle(surface, fill, (x, y), radius)
+    if line is not None:
+        pygame.draw.circle(surface, line, (x, y), radius, max(1, int(size * (0.06 if band else 0.035))))
+
+
+def _wreck_face(surface: pygame.Surface, unit: dict[str, Any], face: pygame.Rect) -> None:
+    """The white reverse of a vehicle: the word, the burnt out plan, the survival number."""
+    s = face.width
+    _print(surface, "WRECK", s * LAYOUT["vehicle_corner_px"] * 0.9, theme.INK, centerx=face.centerx, top=face.top + s * 0.05, max_width=s * 0.9)
+    centre = (face.centerx, int(face.top + s * 0.58))
+    for key in ("tracks", "hull", "turret"):
+        for part in silhouettes.WRECK_PLAN.get(key, []):
+            _turned_part(surface, part, centre, s * 0.52, math.radians(35), theme.WRECK, None)
+    for part in silhouettes.WRECK_PLAN["smoke"]:
+        _turned_part(surface, part, centre, s * 0.52, math.radians(35), theme.INK, None)
+    survival = int(unit.get("survival", 0) or 0)
+    if survival and s >= 24:
+        _print(surface, f"S{survival}", s * LAYOUT["vehicle_small_px"], theme.INK, right=face.right - s * 0.06, bottom=face.bottom - s * 0.04)
+
+
+def _spine_angle(facing: int) -> float:
+    """The turn, in radians, that points the top of the unit box along one spine.
+
+    A facing below zero (a vehicle with no facing yet) points the plan up the screen.
+    """
+    if facing < 0:
+        return 0.0
     dx, dy = _spine_direction(facing)
-    end = (x + dx * width * 0.72, y + dy * width * 0.72)
-    pygame.draw.line(surface, theme.VEHICLE_EDGE, (x, y), end, max(2, int(width * 0.12)))
-
-
-def _hull(surface: pygame.Surface, rect: pygame.Rect, ink: tuple[int, int, int]) -> None:
-    """A simple top-view tank hull: a rounded body with a turret circle, the project's own.
-
-    It is a thin outline, so the movement points and the gun number stay readable over it
-    (rule 28). The gun barrel of `_gun_barrel` draws on top and gives the facing.
-    """
-    body = rect.inflate(-int(rect.width * 0.30), -int(rect.height * 0.42))
-    pygame.draw.rect(surface, ink, body, max(1, int(rect.width * 0.03)), border_radius=max(1, int(rect.width * 0.10)))
-    pygame.draw.circle(surface, ink, (rect.centerx, rect.centery), max(2, int(rect.width * 0.14)), max(1, int(rect.width * 0.03)))
+    return math.atan2(dy, dx) + math.pi / 2
 
 
 def _spine_direction(facing: int) -> tuple[float, float]:
@@ -464,11 +706,35 @@ def _smoke(
 def _concealment(
     surface: pygame.Surface, centres: dict[str, Any], view: dict[str, Any], camera: Camera, size: float
 ) -> None:
-    """Rule 25: the token stands for a stack, and the other side does not see what is below."""
+    """Rule 25: the token stands for a stack, and the other side does not see what is below.
+
+    The 1977 counter is a question mark on the stock of its army (RV-10 section 5). The
+    token names its army when the host sends one, and it takes the plain stock otherwise.
+    """
     for token in view.get("concealment", []):
         centre = centres.get(token["hex"])
         if centre is None:
             continue
         cx, cy = camera.to_screen(*centre)
         seed = _str_seed(str(token["hex"])) ^ (1 if token.get("own") else 0)
-        _chit(surface, cx, cy, size * 0.7, theme.CONCEALED, seed, edge_width=1)
+        army = _token_army(view, token)
+        stock = theme.NATIONAL.get(army, theme.CONCEALED) if army else theme.CONCEALED
+        face = _chit(surface, cx, cy, size * 0.7, stock, seed, edge_width=1)
+        if face.width >= SYMBOL_MIN:
+            _print(surface, "?", face.width * 0.70, theme.INK, centerx=face.centerx, centery=face.centery)
+
+
+def _token_army(view: dict[str, Any], token: dict[str, Any]) -> str | None:
+    """The army of a concealment token: the viewer's own, or the other side's.
+
+    A token of the other side carries no player (rule 25.2, AR-09), and the other side is
+    the player that is not the viewer. The view names the army of each player.
+    """
+    nationalities = view.get("nationalities")
+    if not isinstance(nationalities, dict) or not nationalities:
+        return None
+    viewer = str(view.get("viewer", ""))
+    if token.get("own"):
+        return nationalities.get(str(token.get("player", viewer)), nationalities.get(viewer))
+    others = [army for player, army in nationalities.items() if player != viewer]
+    return others[0] if others else None

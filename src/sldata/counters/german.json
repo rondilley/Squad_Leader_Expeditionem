@@ -3,7 +3,7 @@
   "version": 4,
   "provenance": [
     "heavy marks a weapon that rule 27.3 keeps out of the sewers: the heavy machine gun, the mortar, the one hundred and five millimetre gun, and the anti-tank gun.",
-    "Values transcribed from the counter sheet scan described in docs/research/2026-09-07_RV-1_counters_charts.md sections 2 to 4 [S1]. The project writes them in its own layout and ships no counter art (SR-07).",
+    "Values transcribed from the counter sheet scan described in docs/research/2026-09-07_RV-1_counters_charts.md sections 2 to 4 [S1], and checked against the owner's photographs of the 1977 sheets on 2026-09-17 (docs/research/2026-09-17_RV-10_counter_study.md section 8). The 1977 sheet has five demolition charges. The project writes the values in its own layout and ships no counter art (SR-07).",
     "Squad values are firepower-range-morale (rules 2.2 to 2.4). broken_morale is the number on the reverse side, used for rally and for morale checks of a broken unit (rules 13.6, 14.1).",
     "Machine gun penetration equals the firepower factor: rule 2.8 gives a MMG a penetration factor of 4, and the rule 17.8 example gives the LMG two penetration factors.",
     "Portage points come from the Support Weapons Chart (RV-1 section 7.3). A null pp_leader means one leader cannot carry the weapon (chart note A: two leaders may carry one MMG or HMG one hex per Movement Phase, not modeled in v0.1).",
@@ -27,7 +27,7 @@
     "MMG": {"kind": "sw", "weapon_class": "mg", "fp": 4, "range": 12, "breakdown": 12, "penetration": 4, "pp_squad": 4, "pp_leader": null, "count": 6},
     "HMG": {"kind": "sw", "weapon_class": "mg", "fp": 6, "range": 16, "breakdown": 12, "penetration": 6, "pp_squad": 5, "pp_leader": null, "heavy": true, "count": 3},
     "FT": {"kind": "sw", "weapon_class": "flamethrower", "fp": 20, "range": 2, "breakdown": 9, "penetration": 0, "pp_squad": 2, "pp_leader": 2, "count": 2, "note": "Rule 22. The breakdown number is the out of fuel roll of rule 22.6, and the weapon leaves the game."},
-    "DC": {"kind": "sw", "weapon_class": "demo", "fp": 30, "range": 1, "breakdown": 12, "penetration": 0, "pp_squad": 1, "pp_leader": 1, "count": 4, "note": "Rule 23. The charge is placed in an adjacent hex and explodes in the following Advancing Fire Phase."},
+    "DC": {"kind": "sw", "weapon_class": "demo", "fp": 30, "range": 1, "breakdown": 12, "penetration": 0, "pp_squad": 1, "pp_leader": 1, "count": 5, "note": "Rule 23. The charge is placed in an adjacent hex and explodes in the following Advancing Fire Phase."},
     "STGIII75": {"kind": "vehicle", "vehicle_class": "sp_gun", "mp": 12, "gun": 75, "mg_ca": 6, "mg_360": 0, "survival": 6, "armor_key": "stg3", "count": 4},
     "STGIII105": {"kind": "vehicle", "vehicle_class": "sp_gun", "mp": 12, "gun": 105, "gun_he_only": true, "mg_ca": 6, "mg_360": 0, "survival": 6, "armor_key": "stg3", "count": 3},
     "MkIVF2": {"kind": "vehicle", "vehicle_class": "tank", "mp": 12, "gun": 75, "mg_ca": 4, "mg_360": 2, "survival": 5, "armor_key": "mkiv", "count": 3},
