@@ -132,6 +132,43 @@ HEXSIDE_SHADOW = {
     "cliff": (20, 16, 12),
 }
 
+# ---------------------------------------------------------------------- the overlay
+# The tactical overlay of `slwindow.overlay`. A shade is a translucent fill on the ground,
+# in the manner of a pencil wash on a field map, so it stays quiet under the counters.
+# Each tone is RGBA, and the key is the tone name of the model.
+SHADE = {
+    "focus": (172, 62, 46, 36),
+    "move": (64, 92, 132, 72),
+    "target": (150, 58, 40, 72),
+    "track": (128, 104, 56, 64),
+    "los": (48, 44, 30, 44),
+    "los_blocked": (48, 44, 30, 120),
+    "return": (150, 58, 40, 48),
+    "melee": (120, 40, 40, 80),
+}
+# A tracer is a thin dashed line in the tone of its phase: the prep fire, the defensive
+# fire, and the advancing fire of rule 4.
+TRACER = {
+    "prep": (118, 32, 24),
+    "defensive": (38, 54, 92),
+    "advancing": (84, 96, 38),
+    "other": (60, 50, 40),
+}
+# A burst is a few short spokes on the target hex in the tone of the result, over a pale
+# stroke that keeps it readable on a counter of any stock.
+BURST = {
+    "none": (84, 84, 76),
+    "check": (198, 140, 38),
+    "broken": (168, 48, 30),
+    "kill": (30, 26, 20),
+}
+BURST_HALO = (240, 236, 222)
+# A ghost is the outline of a counter on the track hex where the defensive fire catches
+# a moved unit (rule 16.1). The counter itself stays at its end hex.
+GHOST_LINE = (36, 34, 26)
+GHOST_LINE_ALPHA = 150
+GHOST_FILL_ALPHA = 64
+
 # --------------------------------------------------------------------- the counters
 
 # The national colours of `client/src/counters/draw.ts`. Each is more saturated than the

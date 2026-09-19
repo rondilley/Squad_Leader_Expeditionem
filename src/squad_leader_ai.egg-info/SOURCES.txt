@@ -12,6 +12,7 @@ src/slagents/learned/league.py
 src/slagents/learned/nets.py
 src/slagents/learned/ppo.py
 src/slagents/learned/reward.py
+src/slagents/learned/workers.py
 src/slagents/prompted/__init__.py
 src/slagents/prompted/harness.py
 src/slagents/prompted/keys.py
@@ -160,6 +161,7 @@ src/slwindow/embedded.py
 src/slwindow/layout.py
 src/slwindow/panel.py
 src/slwindow/render.py
+src/slwindow/silhouettes.py
 src/slwindow/theme.py
 src/slwindow3d/__init__.py
 src/slwindow3d/app.py

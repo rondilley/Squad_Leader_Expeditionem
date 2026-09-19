@@ -21,8 +21,17 @@ Move around:
 - the wheel, or the plus and minus keys: zoom (dolly in 3D, film size in 2D)
 - a right drag, or the bracket keys: tilt and turn (3D only)
 - r: reset the view
-- i: show or hide the tactical action indicators (fire lines, move arrows, the active side)
-- o: show or hide the options overlay (where a unit can move, and who can fire at what)
+- i: show or hide the tactical overlay (the shaded hexes, the tracers, the bursts)
+- o: show or hide the options of the unit in focus (where it can move, what it can fire at)
+
+Play, the same as the 2D window:
+
+- a click on a hex: put the top unit of the hex in focus, and a second click takes the
+  next unit of the stack. With no click the focus is the unit that acted last.
+- the pointer over a hex: the line of sight from the focus unit to that hex, as shaded
+  hexes, from the answer of the host (FR-34). The hex under the pointer comes from a ray
+  through the lens against the flat tops of the hexes (`mesh.hex_on_ray`).
+- Escape: clear the focus. q: leave.
 
 The window opens on Windows and on Unix, because Panda3D ships a wheel for each. A test or a
 screenshot uses the offscreen path (`render_screenshot`), which needs no display.
@@ -41,13 +50,16 @@ from panda3d.core import (
     NodePath,
     OrthographicLens,
     PerspectiveLens,
+    Point2,
+    Point3,
     TextNode,
     Vec3,
 )
 
+from slwindow.overlay import next_focus, position_of
 from slwindow3d import counters as counter3d
 from slwindow3d.indicators import Indicators
-from slwindow3d.mesh import HEIGHT_PER_LEVEL, THICKNESS, build_board_geom, build_textured_board, hex_world
+from slwindow3d.mesh import HEIGHT_PER_LEVEL, THICKNESS, build_board_geom, build_textured_board, hex_on_ray, hex_world
 
 # The 2D board art is drawn to a texture of this pixel size, then mapped onto the hex tops.
 # It is large, so the woods, the buildings, and the roads stay crisp when the camera is close.
@@ -70,12 +82,14 @@ MIN_DISTANCE = 8.0
 MAX_DISTANCE = 900.0
 DRAG_PAN = 0.06
 DRAG_TILT = 0.25
+# A press that moves the pointer less than this (in the -1 to 1 film space) is a click.
+CLICK_SLOP = 0.01
 
 
 class Board3DApp(ShowBase):
     """The 3D board window. Build it with a board document; feed it view documents."""
 
-    def __init__(self, board_doc: dict[str, Any] | None = None, poll: Any = None) -> None:
+    def __init__(self, board_doc: dict[str, Any] | None = None, poll: Any = None, ask_los: Any = None) -> None:
         super().__init__()
         self.setBackgroundColor(*BACKGROUND)
         self.disableMouse()
@@ -85,6 +99,8 @@ class Board3DApp(ShowBase):
         self.indicators: Indicators | None = None
         self.board_doc: dict[str, Any] | None = None
         self._poll = poll
+        # The overlay asks the host for a line of sight through this (FR-34, AR-06).
+        self._ask_los = ask_los
         self._last_frame_id = None
         self._hud = None
         self._panel_font = None
@@ -97,6 +113,11 @@ class Board3DApp(ShowBase):
         self.mode = MODE_3D
         self._drag_button = None
         self._drag_from = (0, 0)
+        self._dragged = 0.0
+        # The hex under the pointer, and the unit a person clicked (the pin of the focus).
+        self.pointer_hex: str | None = None
+        self.pinned: int | None = None
+        self._snapshot: Any = None
         self._add_lights()
         if board_doc is not None:
             self.set_board(board_doc)
@@ -113,7 +134,7 @@ class Board3DApp(ShowBase):
             from direct.gui.OnscreenText import OnscreenText
 
             OnscreenText(
-                text="t 2D/3D  drag pan  wheel zoom  r reset  i indicators  o options  q quit",
+                text="click focus  esc clear  t 2D/3D  drag pan  wheel zoom  r reset  i overlay  o options  q quit",
                 parent=self.a2dBottomLeft,
                 pos=(0.02, 0.04),
                 scale=0.035,
@@ -169,15 +190,14 @@ class Board3DApp(ShowBase):
         if self.counter_root is not None:
             self.counter_root.removeNode()
         self.counter_root = self.render.attachNewNode("counters")
-        # The tactical overlay hangs under its own root, so a hex highlight, a fire line, and a
-        # move arrow read over the board and the counters (see `indicators.py`).
+        # The tactical overlay hangs under its own root, so a shaded hex, a tracer, and a
+        # burst read over the board and the counters (see `indicators.py`).
         if self.indicator_root is not None:
             self.indicator_root.removeNode()
-        self.indicators = Indicators(self.render)
+        self.indicators = Indicators(self.render, ask_los=self._ask_los)
         self.indicator_root = self.indicators.root
         self.indicators.set_board(board_doc)
-        self.taskMgr.remove("indicator-sweep")
-        self.taskMgr.add(self._indicator_sweep_task, "indicator-sweep")
+        self.pinned = None
         xs = [h["center"][0] for h in board_doc["hexes"]]
         ys = [hex_world(h["center"])[1] for h in board_doc["hexes"]]
         if xs and ys:
@@ -212,9 +232,12 @@ class Board3DApp(ShowBase):
         }
         stacks: dict[str, list[dict[str, Any]]] = {}
         for unit in view_doc.get("units", []):
-            if unit.get("hex") is None or unit.get("carrier") is not None:
+            # Rule 16.1: a unit the defender returned to its track stays at its end hex,
+            # and the overlay puts a ghost on the track hex (`slwindow.overlay`).
+            here = position_of(unit)
+            if here is None or unit.get("carrier") is not None:
                 continue
-            stacks.setdefault(unit["hex"], []).append(unit)
+            stacks.setdefault(here, []).append(unit)
         for hex_id, units in stacks.items():
             placed = tops.get(hex_id)
             if placed is None:
@@ -250,7 +273,7 @@ class Board3DApp(ShowBase):
         self.accept("i", self._toggle_indicators)
         self.accept("o", self._toggle_options)
         self.accept("q", self.userExit)
-        self.accept("escape", self.userExit)
+        self.accept("escape", self.clear_focus)
         for button in ("mouse1", "mouse3"):
             self.accept(button, self._drag_start, [button])
             self.accept(f"{button}-up", self._drag_stop, [button])
@@ -268,11 +291,29 @@ class Board3DApp(ShowBase):
         if self.indicators is not None:
             self.indicators.toggle_options()
 
-    def _indicator_sweep_task(self, task: Any) -> int:
-        """Remove a fire or a move overlay that has lingered past its time."""
-        if self.indicators is not None:
-            self.indicators.sweep()
-        return task.cont
+    # -------------------------------------------------------------------- the focus
+
+    def clear_focus(self) -> None:
+        """Escape: the focus goes back to the unit that acted last."""
+        self.pinned = None
+
+    def click(self, hex_id: str | None) -> None:
+        """A click on a hex puts its top unit in focus, and a second click the next one.
+        The choice is `overlay.next_focus`, the same as the 2D window."""
+        view = getattr(self._snapshot, "view", None)
+        self.pinned = next_focus(view, hex_id, self.pinned)
+
+    def hex_under_pointer(self) -> str | None:
+        """The hex the pointer is on: a ray through the lens against the hex tops."""
+        if self.board_doc is None or not self.mouseWatcherNode.hasMouse():
+            return None
+        near, far = Point3(), Point3()
+        pointer = Point2(self.mouseWatcherNode.getMouseX(), self.mouseWatcherNode.getMouseY())
+        if not self.camLens.extrude(pointer, near, far):
+            return None
+        near_world = self.render.getRelativePoint(self.cam, near)
+        far_world = self.render.getRelativePoint(self.cam, far)
+        return hex_on_ray(self.board_doc, near_world, far_world)
 
     def reset_view(self) -> None:
         self.pitch = DEFAULT_PITCH
@@ -296,16 +337,24 @@ class Board3DApp(ShowBase):
 
     def _drag_start(self, button: str) -> None:
         self._drag_button = button
+        self._dragged = 0.0
         if self.mouseWatcherNode.hasMouse():
             self._drag_from = (self.mouseWatcherNode.getMouseX(), self.mouseWatcherNode.getMouseY())
 
     def _drag_stop(self, button: str) -> None:
-        if self._drag_button == button:
-            self._drag_button = None
+        if self._drag_button != button:
+            return
+        self._drag_button = None
+        # A press that did not move the pointer is a click, and a click picks a unit. The
+        # pointer hex of this frame is the hex the press was on, and the panel on the right
+        # is not on the board, so a click there picks nothing.
+        if button == "mouse1" and self._dragged <= CLICK_SLOP:
+            self.click(self.hex_under_pointer())
 
     def _camera_task(self, task: Any) -> int:
         self._apply_drag()
         self._place_camera()
+        self.pointer_hex = None if self._drag_button is not None else self.hex_under_pointer()
         return task.cont
 
     def _place_camera(self) -> None:
@@ -341,6 +390,7 @@ class Board3DApp(ShowBase):
         dx = x - self._drag_from[0]
         dy = y - self._drag_from[1]
         self._drag_from = (x, y)
+        self._dragged += abs(dx) + abs(dy)
         if self._drag_button == "mouse1":
             # Left drag pans the target across the board plane.
             self._pan(-dx * self.distance * DRAG_PAN, -dy * self.distance * DRAG_PAN)
@@ -356,6 +406,7 @@ class Board3DApp(ShowBase):
         snapshot = self._poll()
         if snapshot is None:
             return task.cont
+        self._snapshot = snapshot
         board = snapshot.board
         view = snapshot.view
         frame_id = snapshot.frame_id
@@ -368,10 +419,13 @@ class Board3DApp(ShowBase):
             # which is slow and needless once a game is running.
             self.load_view(None, view)
             self._update_hud(snapshot)
-            # After the counters are placed, draw the tactical overlay: the active side, the
-            # newest fire and move actions, and the options overlay. It never raises.
-            if self.indicators is not None:
-                self.indicators.update(snapshot)
+        # The tactical overlay reads each snapshot, because the pointer moves, a line of
+        # sight answer arrives, and a mark expires between two frames of the host. It
+        # redraws only when its model changed, and it never raises.
+        if self.indicators is not None:
+            self.indicators.pinned = self.pinned
+            self.indicators.pointer_hex = self.pointer_hex
+            self.indicators.update(snapshot)
         return task.cont
 
     def _update_hud(self, snapshot: Any) -> None:

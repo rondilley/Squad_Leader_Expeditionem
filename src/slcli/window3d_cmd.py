@@ -60,7 +60,7 @@ def _load_interactive():
 
     loadPrcFileData("", "audio-library-name null")
     loadPrcFileData("", "win-size 1500 950")
-    loadPrcFileData("", "window-title Squad Leader AI - 3D board (t=2D/3D, drag=pan, wheel=zoom, right-drag=tilt, r=reset, q=quit)")
+    loadPrcFileData("", "window-title Squad Leader Expeditionem - 3D board (t=2D/3D, drag=pan, wheel=zoom, right-drag=tilt, r=reset, q=quit)")
     from slwindow3d.app import Board3DApp
 
     return Board3DApp
@@ -158,7 +158,7 @@ def _interactive(args: Any) -> int:
     board_doc = board_document(engine.board)
     if args.hills:
         _synthesize_hill(board_doc)
-    app = Board3DApp(board_doc, poll=client.snapshot)
+    app = Board3DApp(board_doc, poll=client.snapshot, ask_los=client.request_los)
     try:
         app.run()
     finally:

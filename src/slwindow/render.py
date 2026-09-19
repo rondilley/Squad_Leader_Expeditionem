@@ -29,7 +29,7 @@ place from the hex they are in, so one board draws the same picture each time.
 from __future__ import annotations
 
 import math
-from typing import Any, Sequence
+from typing import Any
 
 import pygame
 
@@ -553,14 +553,3 @@ def _label(surface: pygame.Surface, hexagon: dict[str, Any], camera: Camera, fon
     cx, cy = camera.to_screen(*hexagon["center"])
     text = font.render(hexagon["id"], True, theme.LABEL)
     surface.blit(text, (cx - text.get_width() / 2, cy - camera.scale * 1.30))
-
-
-def draw_highlights(
-    surface: pygame.Surface, board: dict[str, Any], camera: Camera, hexes: Sequence[str], colour: tuple[int, int, int]
-) -> None:
-    if not hexes:
-        return
-    wanted = set(hexes)
-    for hexagon in board["hexes"]:
-        if hexagon["id"] in wanted:
-            pygame.draw.polygon(surface, colour, hex_corners(hexagon["center"], camera), 3)

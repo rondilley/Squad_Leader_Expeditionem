@@ -21,15 +21,22 @@ the same gauntlet reproduces every game (TR-02).
 `--anchor-only` skips the panel-against-panel games and plays the candidate against each panel
 member only. That is the fast loop for "is my new agent better than the field"; the default
 full round-robin is the honest ladder for a periodic ranking.
+
+`--workers N` plays the games in N processes. The list of games (the scenario, the seed, and
+the two agents of each) is fixed before the first game, and the results come back in that
+order, so a run with workers gives the same artifact as a run without them (TR-02). Each
+pair row also counts the wins of each agent on each side, because a scenario that one side
+wins from set up hides an agent that cannot attack behind an agent that can defend.
 """
 
 from __future__ import annotations
 
 import time
+from multiprocessing import Pool
 from pathlib import Path
 from typing import Any
 
-from slcli.play import build_engine_with_record, make_agent, play_game
+from slcli.play import build_engine, build_engine_with_record, make_agent, play_game
 from slruns import artifact
 from slruns.elo import Record, settled_ratings
 from slruns.index import connect, upsert
@@ -50,6 +57,36 @@ def _apply(record: Record, outcome: float) -> None:
         record.draws += 1
 
 
+# One engine for each scenario in each worker process, because a board takes time to build.
+_ENGINES: dict[str, Any] = {}
+
+
+def _play_job(job: tuple[str, int, str, str]) -> dict[str, Any]:
+    """One game in a worker: the winner side name, or the error that stopped it."""
+    scenario, game_seed, first, second = job
+    engine = _ENGINES.get(scenario)
+    if engine is None:
+        engine = build_engine(scenario, None)
+        _ENGINES[scenario] = engine
+    agents = (make_agent(first, engine, game_seed, 0), make_agent(second, engine, game_seed, 1))
+    try:
+        record = play_game(engine, game_seed, agents)
+    except Exception as exc:
+        # A game that does not reach a victory condition (an agent that cycles a phase
+        # without advancing the turn) must not abort the whole gauntlet. Record it and go
+        # on, the way the gate command does (TC-04).
+        return {"winner": None, "error": type(exc).__name__, "message": str(exc)[:300]}
+    return {"winner": record.result, "error": None}
+
+
+def _play_all(jobs: list[tuple[str, int, str, str]], workers: int) -> list[dict[str, Any]]:
+    """The results of the jobs, in the order of the jobs."""
+    if workers <= 1 or len(jobs) < 2:
+        return [_play_job(job) for job in jobs]
+    with Pool(processes=min(workers, len(jobs))) as pool:
+        return list(pool.imap(_play_job, jobs, chunksize=1))
+
+
 def _field(candidate: str, panel: list[str]) -> list[str]:
     field: list[str] = []
     for name in [candidate, *panel]:
@@ -66,6 +103,7 @@ def run_gauntlet(
     seed: int,
     anchor_only: bool = False,
     balance: bool = True,
+    workers: int = 1,
 ) -> artifact.RunArtifact:
     """Play the gauntlet and return the run artifact with the leaderboard in its stats."""
     field = _field(candidate, panel)
@@ -88,6 +126,7 @@ def run_gauntlet(
             "first_seed": seed,
             "anchor_only": anchor_only,
             "balance_sides": balance,
+            "workers": workers,
         },
     )
 
@@ -96,79 +135,90 @@ def run_gauntlet(
     counter = 0
     started = time.perf_counter()
 
+    # The list of games is fixed first, so the workers change nothing but the clock.
+    jobs: list[tuple[str, int, str, str]] = []
+    pairs: list[tuple[str, str, str, list[tuple[int, tuple[str, str]]]]] = []
+    sides_of: dict[str, tuple[str, ...]] = {}
     for scenario in scenarios:
         engine, _board_record = build_engine_with_record(scenario, None)
-        sides = engine.scenario.players()
+        sides_of[scenario] = tuple(engine.scenario.players())
         for i, first in enumerate(field):
             for second in field[i + 1 :]:
                 if anchor_only and candidate not in (first, second):
                     continue
-                wins = {first: 0, second: 0, "draw": 0}
-                failed = 0
+                pair_jobs: list[tuple[int, tuple[str, str]]] = []
                 for g in range(games):
                     game_seed = seed + counter
                     counter += 1
                     swap = balance and g % 2 == 1
                     order = (second, first) if swap else (first, second)
-                    agents = (
-                        make_agent(order[0], engine, game_seed, 0),
-                        make_agent(order[1], engine, game_seed, 1),
-                    )
-                    try:
-                        record = play_game(engine, game_seed, agents)
-                    except Exception as exc:
-                        # A game that does not reach a victory condition (an agent that
-                        # cycles a phase without advancing the turn) must not abort the whole
-                        # gauntlet. Record it and go on, the way the gate command does (TC-04).
-                        failed += 1
-                        errors.append(
-                            {
-                                "scenario": scenario,
-                                "seed": game_seed,
-                                "agent_a": order[0],
-                                "agent_b": order[1],
-                                "error": type(exc).__name__,
-                                "message": str(exc)[:300],
-                            }
-                        )
-                        continue
-                    art.seeds.append(game_seed)
-                    winner = record.result
-                    if winner == sides[0]:
-                        outcome_first_in_order = 1.0
-                    elif winner == sides[1]:
-                        outcome_first_in_order = 0.0
-                    else:
-                        outcome_first_in_order = 0.5
-                    # order[0] plays side sides[0]. Map the outcome back to `first`.
-                    outcome_first = outcome_first_in_order if order[0] == first else 1.0 - outcome_first_in_order
-                    _apply(overall[first], outcome_first)
-                    _apply(overall[second], 1.0 - outcome_first if outcome_first != 0.5 else 0.5)
-                    _apply(per_scenario[first].setdefault(scenario, Record()), outcome_first)
-                    _apply(
-                        per_scenario[second].setdefault(scenario, Record()),
-                        1.0 - outcome_first if outcome_first != 0.5 else 0.5,
-                    )
-                    results.append((first, second, outcome_first))
-                    if outcome_first == 1.0:
-                        wins[first] += 1
-                    elif outcome_first == 0.0:
-                        wins[second] += 1
-                    else:
-                        wins["draw"] += 1
-                rows.append(
+                    pair_jobs.append((len(jobs), order))
+                    jobs.append((scenario, game_seed, order[0], order[1]))
+                pairs.append((scenario, first, second, pair_jobs))
+    outcomes = _play_all(jobs, workers)
+
+    for scenario, first, second, pair_jobs in pairs:
+        sides = sides_of[scenario]
+        wins = {first: 0, second: 0, "draw": 0}
+        # The wins of each agent as each side, so the row says who can attack and who can
+        # only defend.
+        by_side = {first: [0, 0], second: [0, 0]}
+        failed = 0
+        for index, order in pair_jobs:
+            game_seed = jobs[index][1]
+            outcome = outcomes[index]
+            if outcome["error"] is not None:
+                failed += 1
+                errors.append(
                     {
                         "scenario": scenario,
-                        "agent_a": first,
-                        "agent_b": second,
-                        "a_wins": wins[first],
-                        "b_wins": wins[second],
-                        "draws": wins["draw"],
-                        "games": games,
-                        "completed": games - failed,
-                        "errors": failed,
+                        "seed": game_seed,
+                        "agent_a": order[0],
+                        "agent_b": order[1],
+                        "error": outcome["error"],
+                        "message": outcome["message"],
                     }
                 )
+                continue
+            art.seeds.append(game_seed)
+            winner = outcome["winner"]
+            if winner == sides[0]:
+                outcome_first_in_order = 1.0
+                by_side[order[0]][0] += 1
+            elif winner == sides[1]:
+                outcome_first_in_order = 0.0
+                by_side[order[1]][1] += 1
+            else:
+                outcome_first_in_order = 0.5
+            # order[0] plays side sides[0]. Map the outcome back to `first`.
+            outcome_first = outcome_first_in_order if order[0] == first else 1.0 - outcome_first_in_order
+            outcome_second = 1.0 - outcome_first if outcome_first != 0.5 else 0.5
+            _apply(overall[first], outcome_first)
+            _apply(overall[second], outcome_second)
+            _apply(per_scenario[first].setdefault(scenario, Record()), outcome_first)
+            _apply(per_scenario[second].setdefault(scenario, Record()), outcome_second)
+            results.append((first, second, outcome_first))
+            if outcome_first == 1.0:
+                wins[first] += 1
+            elif outcome_first == 0.0:
+                wins[second] += 1
+            else:
+                wins["draw"] += 1
+        rows.append(
+            {
+                "scenario": scenario,
+                "agent_a": first,
+                "agent_b": second,
+                "a_wins": wins[first],
+                "b_wins": wins[second],
+                "draws": wins["draw"],
+                "a_wins_by_side": {sides[0]: by_side[first][0], sides[1]: by_side[first][1]},
+                "b_wins_by_side": {sides[0]: by_side[second][0], sides[1]: by_side[second][1]},
+                "games": games,
+                "completed": games - failed,
+                "errors": failed,
+            }
+        )
 
     # The ratings come from the whole result list, so the order of the pairs does not set
     # the rank (see settled_ratings).
@@ -217,6 +267,18 @@ def _print_leaderboard(art: artifact.RunArtifact, candidate: str) -> None:
         low = rec["confidence_low"] * 100
         high = rec["confidence_high"] * 100
         print(f"  {scenario:34s} {rec['win_rate'] * 100:6.1f}%  ({low:.1f} to {high:.1f})")
+    print()
+    print("the candidate against each opponent, wins by side:")
+    for row in art.stats["pairs"]:
+        if candidate not in (row["agent_a"], row["agent_b"]):
+            continue
+        mine, other = ("a", "b") if row["agent_a"] == candidate else ("b", "a")
+        by_side = row[f"{mine}_wins_by_side"]
+        sides = ", ".join(f"{n} as {side}" for side, n in by_side.items())
+        print(
+            f"  {row['scenario']:30s} against {row[f'agent_{other}']:8s} "
+            f"{row[f'{mine}_wins']:3d} of {row['completed']:3d}  ({sides})"
+        )
     failed = art.stats.get("errors", [])
     if failed:
         # A game that did not finish is not in the win rates. Say so, so the number is honest
@@ -230,8 +292,30 @@ def _print_leaderboard(art: artifact.RunArtifact, candidate: str) -> None:
         )
 
 
+def split_agent_names(text: str) -> list[str]:
+    """The agent names of a comma list. A comma inside the brackets of a parameter set,
+    as in `v7[loss_scale=8,fire_floor=4]`, belongs to the set and not to the list."""
+    out: list[str] = []
+    depth = 0
+    current = ""
+    for ch in text:
+        if ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth = max(0, depth - 1)
+        if ch == "," and depth == 0:
+            if current.strip():
+                out.append(current.strip())
+            current = ""
+            continue
+        current += ch
+    if current.strip():
+        out.append(current.strip())
+    return out
+
+
 def run(args: Any) -> int:
-    panel = [name for name in str(args.panel).split(",") if name]
+    panel = split_agent_names(str(args.panel))
     scenarios = [name for name in str(args.scenarios).split(",") if name]
     art = run_gauntlet(
         args.candidate,
@@ -241,6 +325,7 @@ def run(args: Any) -> int:
         args.seed,
         anchor_only=args.anchor_only,
         balance=not args.no_balance,
+        workers=args.workers,
     )
     directory = art.write(args.runs)
     conn = connect(Path(args.runs) / "runs.sqlite")
@@ -278,4 +363,5 @@ def add_parser(subparsers: Any) -> None:
     )
     p.add_argument("--no-balance", action="store_true", help="keep each agent on one side")
     p.add_argument("--runs", default="runs", help="the run directory")
+    p.add_argument("--workers", type=int, default=1, help="processes that play the games; the results do not change")
     p.set_defaults(func=run)

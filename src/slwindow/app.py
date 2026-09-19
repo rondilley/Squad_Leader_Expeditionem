@@ -15,11 +15,16 @@ Move around the board:
 
 Play:
 
-- a click on a hex: select it, and mark what the legal list offers for it
+- a click on a hex: put the top unit of the hex in focus, and a second click takes the
+  next unit of the stack. The overlay shades where that unit can move, what it can fire
+  at, and the track it moved on. With no click the focus is the unit that acted last, so
+  a game of two computer opponents shows the options of the unit that plays.
+- the pointer over a hex: the line of sight from the focus unit to that hex, as shaded
+  hexes. The host answers the question (FR-34), and the window has no LOS geometry.
 - a click on a vehicle: shade the wedge of its covered arc (rule 29.4)
 - Tab and Shift and Tab, or the two page keys: move down and up the command list
 - Enter, or a click on a row of the list: play that command
-- typing: narrow the list, and Escape clears what was typed
+- typing: narrow the list, and Escape clears what was typed, then the focus
 - s: write a picture of the window to the watch directory
 - q or the close button: leave
 """
@@ -34,11 +39,12 @@ from typing import Any
 
 import pygame
 
-from slwindow import counters, panel, render, theme
+from slwindow import counters, marks, panel, render, theme
 from slwindow.client import HostClient
 from slwindow.layout import Camera, fit, hex_at
+from slwindow.overlay import Tracker, next_focus, position_of
 
-TITLE = "Squad Leader AI"
+TITLE = "Squad Leader Expeditionem"
 DEFAULT_SIZE = (1400, 860)
 FRAMES_EACH_SECOND = 30
 PAN_STEP = 60.0
@@ -58,6 +64,9 @@ class WindowState:
     filter_text: str = ""
     fitted: bool = False
     arc_for: int | None = None
+    # The unit a person put in focus with a click, or None for the unit that acted last.
+    pinned: int | None = None
+    pointer_hex: str | None = None
     shots: int = 0
     dragging: bool = False
     drag_from: tuple[int, int] = (0, 0)
@@ -84,6 +93,11 @@ class Window:
         self.state = WindowState()
         self.rows: list[tuple[pygame.Rect, int]] = []
         self.running = True
+        self.tracker = Tracker()
+        self.overlay = self.tracker.update(None, 0.0)
+        # The pairs the window asked the host about, so each question goes out one time.
+        self.asked_los: set[tuple[str, str]] = set()
+        self._board_seen: dict[str, Any] | None = None
 
     # ---------------------------------------------------------------------- the loop
 
@@ -123,9 +137,12 @@ class Window:
             self.state.drag_from = event.pos
             self.state.dragged = 0
             return
-        if event.type == pygame.MOUSEMOTION and self.state.dragging:
-            self.state.dragged += abs(event.rel[0]) + abs(event.rel[1])
-            self.state.camera = self.state.camera.panned(event.rel[0], event.rel[1])
+        if event.type == pygame.MOUSEMOTION:
+            if self.state.dragging:
+                self.state.dragged += abs(event.rel[0]) + abs(event.rel[1])
+                self.state.camera = self.state.camera.panned(event.rel[0], event.rel[1])
+            else:
+                self.state.pointer_hex = self.hex_under(event.pos, snapshot)
             return
         if event.type == pygame.MOUSEBUTTONUP and event.button in (1, 2, 3):
             was_drag = self.state.dragged > DRAG_SLOP
@@ -147,6 +164,16 @@ class Window:
             return
         self.state.selected_hex = hex_at(snapshot.board, position[0], position[1], self.state.camera)
         self.state.arc_for = self.vehicle_in(snapshot, self.state.selected_hex)
+        self.state.pinned = self.next_in_focus(snapshot, self.state.selected_hex)
+
+    def hex_under(self, position: tuple[int, int], snapshot: Any) -> str | None:
+        if snapshot.board is None or position[0] >= self.board_rect().width:
+            return None
+        return hex_at(snapshot.board, position[0], position[1], self.state.camera)
+
+    def next_in_focus(self, snapshot: Any, hex_id: str | None) -> int | None:
+        """The unit a click puts in focus (`overlay.next_focus`, the same in 3D)."""
+        return next_focus(snapshot.view, hex_id, self.state.pinned)
 
     @staticmethod
     def vehicle_in(snapshot: Any, hex_id: str | None) -> int | None:
@@ -154,15 +181,19 @@ class Window:
         if hex_id is None or snapshot.view is None:
             return None
         for unit in snapshot.view["units"]:
-            if unit["hex"] == hex_id and unit["kind"] == "vehicle" and not unit.get("wreck"):
+            if position_of(unit) == hex_id and unit["kind"] == "vehicle" and not unit.get("wreck"):
                 return int(unit["id"])
         return None
 
     def key(self, event: pygame.event.Event, snapshot: Any) -> None:
         key = event.key
-        if key in (pygame.K_q, pygame.K_ESCAPE) and not self.state.filter_text:
-            if key == pygame.K_q:
-                self.running = False
+        if key == pygame.K_q and not self.state.filter_text:
+            self.running = False
+            return
+        if key == pygame.K_ESCAPE and not self.state.filter_text:
+            self.state.pinned = None
+            self.state.selected_hex = None
+            self.state.arc_for = None
             return
         if key == pygame.K_ESCAPE:
             self.state.filter_text = ""
@@ -240,13 +271,8 @@ class Window:
                 self.fit_board(snapshot)
             board_surface = self.surface.subsurface(rect)
             render.draw_board(board_surface, snapshot.board, self.state.camera, self.small)
-            if self.state.selected_hex:
-                render.draw_highlights(
-                    board_surface, snapshot.board, self.state.camera, [self.state.selected_hex], theme.SELECT
-                )
-            render.draw_highlights(
-                board_surface, snapshot.board, self.state.camera, self.command_hexes(snapshot), theme.HIGHLIGHT
-            )
+            self.overlay = self.update_overlay(snapshot)
+            marks.draw_shades(board_surface, snapshot.board, self.state.camera, self.overlay)
             if snapshot.view is not None:
                 counters.draw_counters(
                     board_surface,
@@ -257,29 +283,31 @@ class Window:
                     self.small,
                     self.state.arc_for,
                 )
+            marks.draw_marks(board_surface, snapshot.board, snapshot.view, self.state.camera, self.overlay, self.small)
         width, height = self.surface.get_size()
         side = pygame.Rect(width - panel.WIDTH, 0, panel.WIDTH, height)
         self.rows = panel.draw_panel(
             self.surface, side, snapshot, self.font, self.small, self.state.selected_command, self.state.filter_text
         )
 
-    def command_hexes(self, snapshot: Any) -> list[str]:
-        """The hexes the legal list names for the hex a person picked."""
-        if not self.state.selected_hex or not snapshot.legal or snapshot.view is None:
-            return []
-        here = {
-            u["id"]
-            for u in snapshot.view["units"]
-            if u["hex"] == self.state.selected_hex and u["carrier"] is None
-        }
-        out = []
-        for command in snapshot.legal:
-            payload = command.get("payload", command)
-            if not set(payload.get("units", [])) & here:
-                continue
-            if payload.get("hex"):
-                out.append(str(payload["hex"]))
-        return out
+    def update_overlay(self, snapshot: Any):
+        """The tactical overlay of this frame, and the line of sight questions it raises.
+
+        The model comes from `slwindow.overlay`. Each pair of hexes it has no answer for
+        goes to the host as one `los_request`, one time (FR-34, TC-40).
+        """
+        if snapshot.board is not self._board_seen:
+            self._board_seen = snapshot.board
+            self.tracker.reset()
+            self.asked_los = set()
+        overlay = self.tracker.update(
+            snapshot, time.monotonic(), self.state.pinned, self.state.pointer_hex, snapshot.los
+        )
+        for pair in overlay.los_wanted:
+            if pair not in self.asked_los:
+                self.asked_los.add(pair)
+                self.client.request_los(*pair)
+        return overlay
 
     def waiting(self, snapshot: Any) -> None:
         lines = [

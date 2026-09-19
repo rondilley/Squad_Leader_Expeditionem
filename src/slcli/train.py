@@ -30,7 +30,7 @@ from slruns.elo import wilson_interval
 from slruns.index import connect, upsert
 
 LEARNER = "learner"
-SCRIPTED_KINDS = ("v0", "v1", "v2", "v3", "v4", "v5", "v6")
+SCRIPTED_KINDS = ("v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7")
 SECONDS_IN_HOUR = 3600.0
 RATE_INTERVAL_SECONDS = 60.0
 

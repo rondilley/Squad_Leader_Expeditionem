@@ -57,6 +57,12 @@ class UnitView:
     riding: int | None = None
     gun: int = 0
     movement_points: int = 0
+    # Rule 16.1 and rule 16.4: the hexes the unit entered in this Movement Phase, and the
+    # hex it holds while the defender fires at it on its track. The legal list of the
+    # defender names each track hex already, so the view discloses nothing new (AR-09). A
+    # window draws the track as shaded hexes and keeps the counter at its end hex.
+    track: tuple[HexRef, ...] = ()
+    returned_from: HexRef | None = None
     # The face of the counter, as the 1977 counter prints it (RV-10). Each of these is on
     # the front of the piece, so a view gives away nothing that the table does not show.
     elite: bool = False
@@ -119,6 +125,8 @@ class UnitView:
             "morale": self.morale,
             "leadership": self.leadership,
             "own": self.own,
+            "track": [geometry.hex_id(*h) for h in self.track],
+            "returned_from": None if self.returned_from is None else geometry.hex_id(*self.returned_from),
         }
 
 
@@ -220,6 +228,8 @@ def unit_view(types: Mapping[str, UnitType], unit: Unit, viewer: int) -> UnitVie
         immobilized=unit.immobilized,
         crew_exposed=unit.crew_exposed,
         riding=unit.passenger_of,
+        track=unit.track,
+        returned_from=unit.returned_from,
         gun=t.gun,
         movement_points=t.mp,
         elite=t.elite,

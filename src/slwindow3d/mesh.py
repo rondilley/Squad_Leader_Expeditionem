@@ -50,6 +50,57 @@ def elevation_z(level: int, height_per_level: float = HEIGHT_PER_LEVEL) -> float
     return float(level) * height_per_level
 
 
+def hex_at_world(board_doc: dict[str, Any], wx: float, wy: float, level: int | None = None) -> dict[str, Any] | None:
+    """The hex whose top holds a world point, or None when the point is off the board.
+
+    With a level, only a hex of that elevation counts, because a ray that meets the plane
+    of one level in the footprint of a hex of another level did not meet that hex's top.
+    A hex is two units from its centre to a vertex, so a point further than that from each
+    centre is off the board (the same test as `slwindow.layout.hex_at`).
+    """
+    best = None
+    best_distance = 0.0
+    for hexagon in board_doc.get("hexes", []):
+        if level is not None and int(hexagon.get("elevation", 0) or 0) != level:
+            continue
+        cx, cy = hex_world(hexagon["center"])
+        dx, dy = wx - cx, wy - cy
+        distance = dx * dx + dy * dy
+        if best is None or distance < best_distance:
+            best, best_distance = hexagon, distance
+    return best if best is not None and best_distance <= 4.0 else None
+
+
+def hex_on_ray(
+    board_doc: dict[str, Any],
+    near: Sequence[float],
+    far: Sequence[float],
+    height_per_level: float = HEIGHT_PER_LEVEL,
+) -> str | None:
+    """The id of the first hex top a ray from `near` to `far` meets, or None.
+
+    The tops are flat planes, one for each elevation level of the board, so the ray meets
+    each plane at one point. The hex under that point counts when its level is the level
+    of the plane, and the nearest such point along the ray is the hex the pointer is on.
+    A hill in front of a lower hex hides it, which is what the eye expects.
+    """
+    nx, ny, nz = float(near[0]), float(near[1]), float(near[2])
+    dx, dy, dz = float(far[0]) - nx, float(far[1]) - ny, float(far[2]) - nz
+    if abs(dz) < 1e-9:
+        return None
+    levels = sorted({int(h.get("elevation", 0) or 0) for h in board_doc.get("hexes", [])})
+    found: str | None = None
+    found_t = 0.0
+    for level in levels:
+        t = (elevation_z(level, height_per_level) - nz) / dz
+        if t < 0.0:
+            continue
+        hexagon = hex_at_world(board_doc, nx + dx * t, ny + dy * t, level)
+        if hexagon is not None and (found is None or t < found_t):
+            found, found_t = str(hexagon["id"]), t
+    return found
+
+
 def _col01(rgb: Sequence[int]) -> tuple[float, float, float, float]:
     return (rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0, 1.0)
 

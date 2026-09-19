@@ -23,7 +23,8 @@ from typing import Any, Sequence
 import pygame
 
 from slwindow import silhouettes, theme
-from slwindow.layout import Camera, ROOT_THREE
+from slwindow.layout import ROOT_THREE, Camera
+from slwindow.overlay import position_of
 
 MIN_COUNTER = 14
 COUNTER_SCALE = 1.5
@@ -116,9 +117,12 @@ def draw_counters(
         _covered_arc(surface, board, view, camera, arc_for)
     stacks: dict[str, list[dict[str, Any]]] = {}
     for unit in view["units"]:
-        if unit["hex"] is None or unit["carrier"] is not None:
+        # Rule 16.1: a unit that the defender returned to its track stays at its end hex on
+        # the screen, and the overlay puts a ghost on the track hex (`slwindow.overlay`).
+        here = position_of(unit)
+        if here is None or unit["carrier"] is not None:
             continue
-        stacks.setdefault(unit["hex"], []).append(unit)
+        stacks.setdefault(here, []).append(unit)
     for hex_id, units in sorted(stacks.items()):
         centre = centres.get(hex_id)
         if centre is None:
@@ -247,15 +251,25 @@ def _body(surface: pygame.Surface, unit: dict[str, Any], x: float, y: float, siz
 # ------------------------------------------------------------------------- the print
 
 _FONTS: dict[tuple[int, bool], pygame.font.Font] = {}
+_FONTS_CLEAR_ON_QUIT = False
 
 
 def _face_font(px: float, bold: bool = True) -> pygame.font.Font:
-    """The face font at one pixel size, cached, because a frame prints many numbers."""
+    """The face font at one pixel size, cached, because a frame prints many numbers.
+
+    A font of the library dies with `pygame.quit()`, and a process that opens the library
+    again (a test suite, the 3D window after the 2D one) must not print with a dead one.
+    So the cache empties itself on each quit.
+    """
+    global _FONTS_CLEAR_ON_QUIT
     key = (max(6, int(px)), bold)
     font = _FONTS.get(key)
     if font is None:
         if not pygame.font.get_init():
             pygame.font.init()
+        if not _FONTS_CLEAR_ON_QUIT:
+            pygame.register_quit(_FONTS.clear)
+            _FONTS_CLEAR_ON_QUIT = True
         font = pygame.font.SysFont(FACE_FONT, key[0], bold=bold)
         _FONTS[key] = font
     return font

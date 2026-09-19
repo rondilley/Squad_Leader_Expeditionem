@@ -90,7 +90,14 @@ class Game:
         return view.build(self.state, self.engine.types, player)
 
     def log_tail(self) -> list[dict[str, Any]]:
-        return self.log[-LOG_TAIL:]
+        """The newest entries of the log, each with its `seq` in the whole log.
+
+        The host sends the tail again with each frame. The number lets a client merge the
+        tails into one log with no entry twice, and lets an overlay find the entries it
+        has not drawn.
+        """
+        start = max(0, len(self.log) - LOG_TAIL)
+        return [{**entry, "seq": start + i} for i, entry in enumerate(self.log[start:])]
 
     def apply(self, frame_id: str, command_id: str) -> list[dict[str, Any]]:
         """Apply one intent. Raises IllegalCommand or ProtocolError, and never both."""

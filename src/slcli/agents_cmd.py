@@ -26,14 +26,15 @@ from slagents.scripted.v3 import Parameters as V3Parameters
 from slagents.scripted.v4 import Parameters as V4Parameters
 from slagents.scripted.v5 import Parameters as V5Parameters
 from slagents.scripted.v6 import Parameters as V6Parameters
+from slagents.scripted.v7 import Parameters as V7Parameters
 from slcli.play import build_engine, make_agent, play_game
 from slruns import artifact
 from slruns.index import connect, upsert
 
-AGENTS = ("v0", "v1", "v2", "v3", "v4", "v5", "v6")
+AGENTS = ("v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7")
 SCENARIOS = ("s01_guards_counterattack", "s02_tractor_works", "s03a_streets_of_stalingrad", "s04_armor_probe")
 JOIN_GRACE_SECONDS = 300.0
-PARAMETERS = {"v0": None, "v1": V1Parameters, "v2": V2Parameters, "v3": V3Parameters, "v4": V4Parameters, "v5": V5Parameters, "v6": V6Parameters}
+PARAMETERS = {"v0": None, "v1": V1Parameters, "v2": V2Parameters, "v3": V3Parameters, "v4": V4Parameters, "v5": V5Parameters, "v6": V6Parameters, "v7": V7Parameters}
 
 
 def parameter_record() -> dict[str, Any]:

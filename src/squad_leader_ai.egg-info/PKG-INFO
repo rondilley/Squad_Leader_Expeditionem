@@ -131,8 +131,8 @@ sl-cli boards --count 1000
 sl-cli boards --write runs/boards --count 12
 sl-cli agents --list
 sl-cli agents --games 100
-sl-cli imitate --teachers v5,v6 --games 400 --epochs 10 --eval-games 20 --out runs/imitate/snapshot-0.pt
-sl-cli train --steps 100000 --player both --start-from runs/imitate/snapshot-0.pt --eval-games 50 --device cuda --tensorboard runs/tb
+sl-cli imitate --teachers v4,v5,v6 --labels 0=v5,1=v6 --games 450 --epochs 10 --dagger-rounds 3 --dagger-games 150 --workers 16 --eval-games 20 --out runs/imitate/snapshot-0.pt
+sl-cli train --steps 1000000 --player both --start-from runs/imitate/snapshot-0.pt --anchor-kl 0.5 --workers 16 --rollout 2048 --minibatch 256 --eval-games 20 --device cuda --tensorboard runs/tb
 sl-cli window --scenario s04_armor_probe --agents v1,v2
 ```
 

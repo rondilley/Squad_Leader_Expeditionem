@@ -16,6 +16,7 @@ from slagents.scripted.v3 import ScriptedV3
 from slagents.scripted.v4 import ScriptedV4, profile_for
 from slagents.scripted.v5 import ScriptedV5, profile_for as profile_for_v5
 from slagents.scripted.v6 import ScriptedV6, profile_for as profile_for_v6
+from slagents.scripted.v7 import ScriptedV7, parameters_from_text as parameters_v7, profile_for as profile_for_v7
 from slagents.tuned.traces import TraceWriter, board_source
 from slcore.commands import Command
 from slcore.engine import Engine
@@ -151,6 +152,14 @@ def make_agent(kind: str, engine: Engine, seed: int, player: int) -> Agent:
         return ScriptedV6(engine, player)
     if kind.startswith("v6:"):
         return ScriptedV6(engine, player, profile_for_v6(kind.split(":", 1)[1]))
+    if kind == "v7":
+        return ScriptedV7(engine, player)
+    if kind.startswith("v7[") and kind.endswith("]"):
+        # The named parameters of FR-44 on the command line, as v7[loss_scale=8,route_loss=12],
+        # so a parameter study runs through the gauntlet with no code change.
+        return ScriptedV7(engine, player, parameters_v7(kind[3:-1]))
+    if kind.startswith("v7:"):
+        return ScriptedV7(engine, player, profile_for_v7(kind.split(":", 1)[1]))
     if kind.startswith("model:"):
         return make_model_agent(kind.split(":", 1)[1], engine, seed, player)
     if kind.startswith("tuned:"):
@@ -158,7 +167,7 @@ def make_agent(kind: str, engine: Engine, seed: int, player: int) -> Agent:
     if kind.startswith(LEARNED_PREFIX):
         return make_learned_agent(kind[len(LEARNED_PREFIX):], engine, seed, player)
     raise ValueError(
-        f"unknown agent kind {kind!r}; use random, v0, v1, v2, v3, v4, v4:<nation>, v5, v5:<nation>, v6, v6:<nation>, "
+        f"unknown agent kind {kind!r}; use random, v0, v1, v2, v3, v4, v4:<nation>, v5, v5:<nation>, v6, v6:<nation>, v7, v7:<nation>, "
         "model:<providers>, tuned:<providers>, or learned:<snapshot>"
     )
 
@@ -292,8 +301,8 @@ def add_parser(subparsers: Any) -> None:
     p.add_argument("--board", default=None)
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--games", type=int, default=1)
-    p.add_argument("--agent-a", default="v1", choices=("random", "v0", "v1", "v2", "v3", "v4", "v5", "v6"))
-    p.add_argument("--agent-b", default="v1", choices=("random", "v0", "v1", "v2", "v3", "v4", "v5", "v6"))
+    p.add_argument("--agent-a", default="v1", choices=("random", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7"))
+    p.add_argument("--agent-b", default="v1", choices=("random", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7"))
     p.add_argument("--headless", action="store_true", help="accepted for the documented command line; play is headless only in v0.1")
     p.add_argument("--verify", action="store_true", help="replay each game and compare the hash sequence")
     p.add_argument("--out", default=None, help="directory for the game records")

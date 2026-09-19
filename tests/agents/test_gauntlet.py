@@ -69,3 +69,26 @@ def test_anchor_only_skips_panel_against_panel(tmp_path: Path):
 def test_the_gauntlet_needs_a_field_of_two_or_more():
     with pytest.raises(ValueError):
         run_gauntlet(candidate="v1", panel=[], scenarios=["s00_movement_drill"], games=1, seed=1)
+
+
+def test_workers_give_the_same_result_as_one_process():
+    """The list of games is fixed before the first game, so a pool changes only the clock."""
+    alone = run_gauntlet(candidate="v1", panel=["random", "v0"], scenarios=["s00_movement_drill"], games=2, seed=3)
+    pooled = run_gauntlet(
+        candidate="v1", panel=["random", "v0"], scenarios=["s00_movement_drill"], games=2, seed=3, workers=2
+    )
+    assert pooled.seeds == alone.seeds
+    assert pooled.stats["pairs"] == alone.stats["pairs"]
+    assert pooled.stats["leaderboard"] == alone.stats["leaderboard"]
+    assert pooled.config["workers"] == 2
+    # Each pair row says how many games each agent won on each side of the scenario.
+    for row in pooled.stats["pairs"]:
+        assert sum(row["a_wins_by_side"].values()) == row["a_wins"]
+        assert sum(row["b_wins_by_side"].values()) == row["b_wins"]
+
+
+def test_the_panel_keeps_a_comma_inside_a_parameter_set():
+    from slcli.gauntlet import split_agent_names
+
+    assert split_agent_names("v1,v7[loss_scale=8,fire_floor=4],v6") == ["v1", "v7[loss_scale=8,fire_floor=4]", "v6"]
+    assert split_agent_names("random, v0 ,") == ["random", "v0"]

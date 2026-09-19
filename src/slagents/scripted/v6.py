@@ -352,12 +352,8 @@ class ScriptedV6(ScriptedV5):
             self.assignment = assignment
             return
 
-        def force_distance(place: tuple[str, tuple[HexRef, ...]]) -> tuple[int, str]:
-            total = sum(min(geometry.distance(u.hex, h) for h in place[1]) for u in free)
-            return (total, place[0])
-
         wanted = self.targets_wanted if self.targets_wanted > 0 else len(open_places)
-        targets = sorted(open_places, key=force_distance)[: max(1, min(wanted, len(open_places)))]
+        targets = self._target_order(state, free, open_places)[: max(1, min(wanted, len(open_places)))]
         share = (len(free) + len(targets) - 1) // len(targets)
         room = {place_id: share for place_id, _ in targets}
 
@@ -376,6 +372,17 @@ class ScriptedV6(ScriptedV5):
             room[place_id] -= 1
             assignment[u.id] = hexes
         self.assignment = assignment
+
+    def _target_order(
+        self, state: State, free: list[Unit], open_places: list[tuple[str, tuple[HexRef, ...]]]
+    ) -> list[tuple[str, tuple[HexRef, ...]]]:
+        """The open places in the order the plan takes them: the nearest to the force first."""
+
+        def force_distance(place: tuple[str, tuple[HexRef, ...]]) -> tuple[int, str]:
+            total = sum(min(geometry.distance(u.hex, h) for h in place[1]) for u in free)
+            return (total, place[0])
+
+        return sorted(open_places, key=force_distance)
 
     # ---------------------------------------------------------------- the threat
 

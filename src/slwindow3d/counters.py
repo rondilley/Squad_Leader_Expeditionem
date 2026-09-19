@@ -179,7 +179,16 @@ def _ensure_pygame():
     _pygame = pygame
     _font = pygame.font.SysFont("dejavusans,arial,helvetica", 44)
     _small = pygame.font.SysFont("dejavusansmono,consolas,couriernew", 40)
+    # The fonts die with `pygame.quit()`, so the next call opens the library again.
+    pygame.register_quit(_forget_pygame)
     return pygame
+
+
+def _forget_pygame() -> None:
+    global _pygame, _font, _small
+    _pygame = None
+    _font = None
+    _small = None
 
 
 def _unit_key(unit: dict[str, Any]) -> str:

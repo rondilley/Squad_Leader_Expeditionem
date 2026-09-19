@@ -55,6 +55,25 @@ class GameView:
     result_cause: str = ""
     connected: bool = False
     frames: int = 0
+    # The answers of the host to `los_request`, by the pair of hex ids (FR-34). The board
+    # does not change during a game, so an answer holds for the game.
+    los: dict[tuple[str, str], dict[str, Any]] = field(default_factory=dict)
+
+
+def _merge_log(log: list[dict[str, Any]], tail: list[dict[str, Any]]) -> None:
+    """Add the entries of a tail that the log does not hold yet.
+
+    The host sends the newest entries again with each frame, each with its `seq`. The log
+    keeps each entry one time, in order. A tail with no `seq` (an older host) is appended
+    whole.
+    """
+    last = int(log[-1]["seq"]) if log and "seq" in log[-1] else -1
+    for entry in tail:
+        seq = entry.get("seq")
+        if seq is None or int(seq) > last:
+            log.append(entry)
+            if seq is not None:
+                last = int(seq)
 
 
 class HostClient:
@@ -181,10 +200,14 @@ class HostClient:
                 state.sub_step = str(message["sub_step"])
                 state.turn = int(message["turn"])
                 state.legal = list(message["legal_commands"])
-                state.log.extend(message.get("log_tail", []))
+                _merge_log(state.log, message.get("log_tail", []))
                 del state.log[:-MAX_LOG]
                 state.frames += 1
                 state.notice = ""
+            elif kind == "los_result":
+                result = message.get("result")
+                if isinstance(result, dict):
+                    state.los[(str(message.get("from")), str(message.get("to")))] = result
             elif kind == "error":
                 state.notice = f"rule {message.get('rule_id', '')}: {message.get('message', '')}"
             elif kind == "game_over":
@@ -215,6 +238,7 @@ class HostClient:
                 result_cause=state.result_cause,
                 connected=state.connected,
                 frames=state.frames,
+                los=dict(state.los),
             )
 
     def send_intent(self, frame_id: str, command_id: str) -> None:
@@ -222,6 +246,8 @@ class HostClient:
         self._put({"type": "intent", "frame_id": frame_id, "command_id": command_id})
 
     def request_los(self, from_hex: str, to_hex: str) -> None:
+        """Ask the host for a line of sight (FR-34). The window has no LOS geometry of its
+        own (AR-06), so the answer is the only source of the overlay."""
         self._put({"type": "los_request", "from": from_hex, "to": to_hex})
 
     def _put(self, message: dict[str, Any]) -> None:

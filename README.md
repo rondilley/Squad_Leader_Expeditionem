@@ -92,7 +92,8 @@ sl-cli play --scenario s01_guards_counterattack --games 3 --verify
 sl-cli gate --scenario s01_guards_counterattack --games 100
 sl-cli bench --scenario s01_guards_counterattack --workers 1,8,16 --minutes 10 --out runs/bench/stats.json
 sl-cli tournament --agent-a v1 --agent-b v0 --games 20
-sl-cli gauntlet --candidate v6 --panel random,v0,v1,v4,v5 --games 20
+sl-cli gauntlet --candidate v7 --panel random,v1,v4,v5,v6 --games 20 --workers 16
+sl-cli gauntlet --candidate "v7[loss_scale=12,fire_floor=4]" --panel v1,v5,v6 --games 40 --anchor-only --workers 16
 sl-cli runs --rebuild
 sl-cli boards --count 1000
 sl-cli boards --write runs/boards --count 12
@@ -108,8 +109,20 @@ host in the same process. It then connects to that host on the loopback address,
 the path the browser client takes. `--connect ws://host:port/ --room-code CODE` connects to
 a host that operates at this time.
 
-In the window: a click picks a hex. The arrow keys and the wheel move the board and change
-its dimension. `f` fits the board in the window, `s` writes a picture, and `q` stops.
+In the window: a click puts the top unit of a hex in focus. A second click takes the next
+unit of the stack. The overlay shades the hexes that unit can move to, the hexes it can
+fire at, and the track it moved on. With no click the focus is the unit that acted last.
+So a game of two computer opponents shows the marks of the unit that plays.
+
+The pointer on a hex shades the line of sight from the focus unit to that hex, from the
+answer of the host. A fire is a thin dashed line in the tone of its phase: the prep fire,
+the defensive fire, or the advancing fire. A small burst on the target shows the result.
+The arrow keys and the wheel move the board and change its dimension. `f` fits the board
+in the window, `s` writes a picture, Escape clears the focus, and `q` stops.
+
+`sl-cli window3d --agents v6,v6` shows the same game in a 3D window with the same overlay,
+the same click, and the same pointer. The `view3d` extra is necessary for it (`pip install
+-e ".[view3d]"`). `i` hides the overlay, and `o` hides the marks of the focus unit.
 
 `python tools/make_docs_images.py` makes the pictures that this file shows. Run it after a
 change to the board drawing. The test in `tests/docs/` compares what the tool makes with
@@ -144,11 +157,13 @@ API keys for SaaS providers go in `claude.key.txt`, `openai.key.txt`, `gemini.ke
 | Armor game, the fight | Rule 33 to rule 41. The to-hit table, the kill table, overruns, infantry against armour, the panzerfaust, the bazooka, malfunctions, immobilization, and wrecks |
 | Armor scenario | `s04_armor_probe` is the first game that plays rules 28 to 41 |
 | Desktop window | `sl-cli window` opens a window of its own on Windows and on Unix, with no browser. It shows the buildings, the trees, the walls, the hedges, the cliffs, the roads, the hills, the wheat, and the shellholes. It also shows a vehicle with its covered arc |
+| Tactical overlay | One model for the 2D window and the 3D window. The unit in focus and its marks are shaded hexes. The line of sight from the host is shaded hexes. A fire is a thin dashed tracer in the tone of its phase, and the result is a small burst. A ghost stands on the track hex of a unit that the defender put back with rule 16.1 |
 | Terrain drawing | Each terrain is a shape on the ground and not a coloured hexagon. The style is flat shading: a lit face, a body, a shaded face, and a line. The window and the browser hold one set of colours, and a test compares the two files |
 | Rural terrain | Rule 44: a wheatfield that stops sight through it, a seasonal crop, the shellhole modifier, and cliff hexsides on a hill |
 | Hidden placement | Rule 42: a side the scenario names records a unit in a woods hex or a building hex, and the other player sees nothing of it |
 | Design your own | Game Set IV: a force point scale, random scenario construction from a seed, and the campaign game. A personal leader holds a rank, and the rank follows the record |
-| Agents | Seven scripted agents with named parameters, and a learned agent with PPO on the GPU, a league, and an Elo table. Agent v3 is the tanker and v4 the doctrine agent. Agent v5 adds vehicle fire to the threat map and suppression fire. Agent v6 is the tempo agent: the attacker keeps a schedule and moves on a path that the threat weights. `sl-cli gauntlet` ranks an agent against a panel across scenarios |
+| Agents | Eight scripted agents with named parameters, and a learned agent with PPO on the GPU, a league, and an Elo table. Agent v3 is the tanker and v4 the doctrine agent. Agent v5 adds vehicle fire to the threat map and suppression fire. Agent v6 is the tempo agent: the attacker keeps a schedule and moves on a path that the threat weights. Agent v7 trades on the odds: the expected result of each fire from the tables of the core, with no die. `sl-cli gauntlet` ranks an agent against a panel across scenarios, and `--workers` plays the games in parallel |
+| The odds | `slagents.scripted.odds` gives the expected result of a fire group at a hex, as exact counts out of 1,296. It reads rules 8 to 12, 15, 16, 25, and 26 of the core. One test resolves the same groups with the core on 1,500 random number states, and the frequencies agree. Agent v7 forms a fire group where the expected loss of the enemy is highest (P2). It values a leader above a squad (P12), and it measures a move by the loss of the worst hex of its track (P8). Its plan goes for four of the five places, the near and the weak first (P5), and it traps a broken enemy (P11) |
 
 What works: `sl-cli play --scenario s01_guards_counterattack` plays scenario 1 headless with two scripted agents and replays it. `sl-cli tournament` plays N games with the sides balanced and writes a run artifact. `sl-cli bench` measures the environment step rate. `sl-cli boards` makes boards and checks them.
 
