@@ -466,6 +466,10 @@ class ScriptedV6(ScriptedV5):
         return dist
 
     def _route_cost(self, state: State, target: tuple[HexRef, ...], hex_ref: HexRef, safe: bool = True) -> int:
+        if not target:
+            # No place to go: every objective is taken, or the side has none. Each hex is
+            # as good as the next, so a step gains nothing on the route.
+            return 0
         field = self._route_field(state, target, safe)
         found = field.get(hex_ref)
         if found is None:

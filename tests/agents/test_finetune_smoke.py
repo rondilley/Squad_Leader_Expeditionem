@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+import slagents.tuned as tuned
 from slagents.tuned import export, finetune, traces
 from slcli.traces_cmd import build, write
 
@@ -84,6 +85,24 @@ def test_the_full_run_says_where_it_belongs(tmp_path: Path):
     message = str(exc.value)
     assert "owner's workstation" in message
     assert finetune.Profile().base_model in message
+
+
+def test_the_package_names_the_torch_backend(monkeypatch):
+    """The fine-tune imports transformers with the torch backend only.
+
+    The switches keep a jax, flax, or TensorFlow install of the host out of the import.
+    The owner's workstation has jax 0.2.22 beside jaxlib 0.7.1, which do not work together.
+    """
+    for name in tuned.BACKEND_SWITCHES:
+        monkeypatch.delenv(name, raising=False)
+    values = tuned.torch_backend_only()
+    assert values == {"USE_TORCH": "1", "USE_FLAX": "0", "USE_TF": "0"}
+
+
+def test_a_switch_of_the_owner_wins(monkeypatch):
+    """Each switch is a setdefault, so the environment of the owner decides."""
+    monkeypatch.setenv("USE_FLAX", "1")
+    assert tuned.torch_backend_only()["USE_FLAX"] == "1"
 
 
 def test_the_export_says_what_is_missing(tmp_path: Path):

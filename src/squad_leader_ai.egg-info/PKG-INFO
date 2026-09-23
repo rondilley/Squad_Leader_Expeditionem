@@ -71,7 +71,7 @@ Four families of computer opponent, behind one interface:
 
 - scripted agents with named parameters
 - learned agents, neural networks from self-play reinforcement learning
-- prompted model agents, local or SaaS language models that select from the legal command list
+- prompted model agents, local or SaaS language models that select from the legal command list, with the odds of each command in the prompt
 - tuned model agents, local language models fine-tuned on the game's own traces
 
 ## How it works
@@ -125,7 +125,11 @@ sl-cli play --scenario s01_guards_counterattack --games 3 --verify
 sl-cli gate --scenario s01_guards_counterattack --games 100
 sl-cli bench --scenario s01_guards_counterattack --workers 1,8,16 --minutes 10 --out runs/bench/stats.json
 sl-cli tournament --agent-a v1 --agent-b v0 --games 20
-sl-cli gauntlet --candidate v6 --panel random,v0,v1,v4,v5 --games 20
+sl-cli gauntlet --candidate v7 --panel random,v1,v4,v5,v6 --games 20 --workers 16
+sl-cli gauntlet --candidate "v7[loss_scale=12,fire_floor=4]" --panel v1,v5,v6 --games 40 --anchor-only --workers 16
+sl-cli gauntlet --candidate "model:local*" --panel v7,v6 --games 8 --anchor-only --workers 4 --progress
+sl-cli evolve --base v7 --panel v7,v6 --games 16 --generations 12 --workers 16 --progress
+sl-cli shape --record --analyze --pairs v7:v7,v7:v6,v6:v6 --games 60 --workers 8 --out runs/shape_s01
 sl-cli runs --rebuild
 sl-cli boards --count 1000
 sl-cli boards --write runs/boards --count 12
@@ -141,8 +145,20 @@ host in the same process. It then connects to that host on the loopback address,
 the path the browser client takes. `--connect ws://host:port/ --room-code CODE` connects to
 a host that operates at this time.
 
-In the window: a click picks a hex. The arrow keys and the wheel move the board and change
-its dimension. `f` fits the board in the window, `s` writes a picture, and `q` stops.
+In the window: a click puts the top unit of a hex in focus. A second click takes the next
+unit of the stack. The overlay shades the hexes that unit can move to, the hexes it can
+fire at, and the track it moved on. With no click the focus is the unit that acted last.
+So a game of two computer opponents shows the marks of the unit that plays.
+
+The pointer on a hex shades the line of sight from the focus unit to that hex, from the
+answer of the host. A fire is a thin dashed line in the tone of its phase: the prep fire,
+the defensive fire, or the advancing fire. A small burst on the target shows the result.
+The arrow keys and the wheel move the board and change its dimension. `f` fits the board
+in the window, `s` writes a picture, Escape clears the focus, and `q` stops.
+
+`sl-cli window3d --agents v6,v6` shows the same game in a 3D window with the same overlay,
+the same click, and the same pointer. The `view3d` extra is necessary for it (`pip install
+-e ".[view3d]"`). `i` hides the overlay, and `o` hides the marks of the focus unit.
 
 `python tools/make_docs_images.py` makes the pictures that this file shows. Run it after a
 change to the board drawing. The test in `tests/docs/` compares what the tool makes with
@@ -168,7 +184,7 @@ API keys for SaaS providers go in `claude.key.txt`, `openai.key.txt`, `gemini.ke
 | Board generator | Five passes and four board types: city, hills, village, rural. Each type has a style record. TC-14a holds on 1,000 seeds. Generated mode plays scenario 1 with zone set up areas |
 | Hills | Rule 43: three levels, crest lines, the height advantage, and the blind hexes. The client draws the hill shades and the crest lines |
 | Release audit | `python tools/audit_release.py` reads the tree, the built page, and the run artifacts for TC-25, TC-28, and TC-29. It reports zero findings |
-| Model agents | Five SaaS providers and one local endpoint, with one adapter for each of the three API shapes |
+| Model agents | Five SaaS providers and five local endpoints, with one adapter for each of the three API shapes. The prompt gives each legal command its odds from the tables of the core and holds the victory conditions of the card. The cycle guard offers the model no command that gives a position the phase had. So a model cannot drop and pick up one weapon for hours. The tournament and the gauntlet record the rates of each model agent of each game |
 | Rules 22 to 27 | Flamethrowers, demolition charges, smoke, concealment, fanaticism, and sewer movement, with scenarios 2 and 3A |
 | Armies | German, Russian, and American counters, with the values of RV-1. A side can field two armies, and one project scenario starts with all three |
 | Boards side by side | FR-29: two to four generated boards make one playing surface, along the long edges or the short edges, with a turn of 180 degrees |
@@ -177,11 +193,17 @@ API keys for SaaS providers go in `claude.key.txt`, `openai.key.txt`, `gemini.ke
 | Armor game, the fight | Rule 33 to rule 41. The to-hit table, the kill table, overruns, infantry against armour, the panzerfaust, the bazooka, malfunctions, immobilization, and wrecks |
 | Armor scenario | `s04_armor_probe` is the first game that plays rules 28 to 41 |
 | Desktop window | `sl-cli window` opens a window of its own on Windows and on Unix, with no browser. It shows the buildings, the trees, the walls, the hedges, the cliffs, the roads, the hills, the wheat, and the shellholes. It also shows a vehicle with its covered arc |
+| Tactical overlay | One model for the 2D window and the 3D window. The unit in focus and its marks are shaded hexes. The line of sight from the host is shaded hexes. A fire is a thin dashed tracer in the tone of its phase, and the result is a small burst. A ghost stands on the track hex of a unit that the defender put back with rule 16.1 |
 | Terrain drawing | Each terrain is a shape on the ground and not a coloured hexagon. The style is flat shading: a lit face, a body, a shaded face, and a line. The window and the browser hold one set of colours, and a test compares the two files |
 | Rural terrain | Rule 44: a wheatfield that stops sight through it, a seasonal crop, the shellhole modifier, and cliff hexsides on a hill |
 | Hidden placement | Rule 42: a side the scenario names records a unit in a woods hex or a building hex, and the other player sees nothing of it |
 | Design your own | Game Set IV: a force point scale, random scenario construction from a seed, and the campaign game. A personal leader holds a rank, and the rank follows the record |
-| Agents | Seven scripted agents with named parameters, and a learned agent with PPO on the GPU, a league, and an Elo table. Agent v3 is the tanker and v4 the doctrine agent. Agent v5 adds vehicle fire to the threat map and suppression fire. Agent v6 is the tempo agent: the attacker keeps a schedule and moves on a path that the threat weights. `sl-cli gauntlet` ranks an agent against a panel across scenarios |
+| Agents | Eight scripted agents with named parameters, and a learned agent with PPO on the GPU, a league, and an Elo table. Agent v3 is the tanker and v4 the doctrine agent. Agent v5 adds vehicle fire to the threat map and suppression fire. Agent v6 is the tempo agent: the attacker keeps a schedule and moves on a path that the threat weights |
+| Agent v7 | It trades on the odds: the expected result of each fire from the tables of the core, with no die. It puts the smoke of rule 24 down by the same odds. A nation record of v7 goes by the role of its side: `v7:german` is the defence record where the German defends, and the attack record where it attacks |
+| The local model pool | `model:local*` is the pool of the five llama.cpp servers of the owner's network: four desktops and the workstation's RTX 5090, one model each. The seed of a game picks its host and the others are its failover, so `sl-cli gauntlet --workers 4` keeps the four desktops busy. A `request` field of a provider row goes into each request, and the local rows turn the thinking of Qwen3 off. `sl-cli gauntlet --progress` prints one line for each game that ends |
+| Parameter evolution | `sl-cli evolve` runs a (mu + lambda) evolution strategy on the named parameters of v7. Each candidate of a generation plays the same seeds against a fixed panel as each side. The elites play again in each generation, and the artifact names the best as a `v7[...]` text a person can play |
+| The shape study | `sl-cli shape` records the position at the end of each Movement Phase and each Advance Phase of many games. A position is a picture and a set of shape statistics, with the winner. The analysis gives the AUC of each statistic between the winners and the losers. It gives the information of the shape on top of the material in a cross validated model, and a picture net with its occlusion map |
+| The odds | `slagents.scripted.odds` gives the expected result of a fire group at a hex, as exact counts out of 1,296. It reads rules 8 to 12, 15, 16, 25, and 26 of the core. One test resolves the same groups with the core on 1,500 random number states, and the frequencies agree. Agent v7 forms a fire group where the expected loss of the enemy is highest (P2). It values a leader above a squad (P12), and it measures a move by the loss of the worst hex of its track (P8). Its plan goes for four of the five places, the near and the weak first (P5), and it traps a broken enemy (P11) |
 
 What works: `sl-cli play --scenario s01_guards_counterattack` plays scenario 1 headless with two scripted agents and replays it. `sl-cli tournament` plays N games with the sides balanced and writes a run artifact. `sl-cli bench` measures the environment step rate. `sl-cli boards` makes boards and checks them.
 

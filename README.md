@@ -38,7 +38,7 @@ Four families of computer opponent, behind one interface:
 
 - scripted agents with named parameters
 - learned agents, neural networks from self-play reinforcement learning
-- prompted model agents, local or SaaS language models that select from the legal command list
+- prompted model agents, local or SaaS language models that select from the legal command list, with the odds of each command in the prompt
 - tuned model agents, local language models fine-tuned on the game's own traces
 
 ## How it works
@@ -85,6 +85,28 @@ python -m pip install -e ".[train]"
 python -m pip install -e ".[desktop]"
 ```
 
+On Ubuntu and on Debian, `python` is not a command. Use `python3`, and install the two
+packages that make a virtual environment:
+
+```
+sudo apt install python3-venv python3-pip
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -e ".[dev,desktop,view3d]"
+```
+
+On a machine with no NVIDIA card, install the processor build of torch. The default
+wheel of torch adds about four gigabytes of CUDA libraries that such a machine cannot
+use:
+
+```
+python3 -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+python3 -m pip install numpy pettingzoo gymnasium tensorboard
+```
+
+The browser client is in `client/dist`, and the host serves it. Node is necessary only
+to build the client again (`cd client && npm install && npm run build`).
+
 Then play, measure, and compare:
 
 ```
@@ -94,6 +116,9 @@ sl-cli bench --scenario s01_guards_counterattack --workers 1,8,16 --minutes 10 -
 sl-cli tournament --agent-a v1 --agent-b v0 --games 20
 sl-cli gauntlet --candidate v7 --panel random,v1,v4,v5,v6 --games 20 --workers 16
 sl-cli gauntlet --candidate "v7[loss_scale=12,fire_floor=4]" --panel v1,v5,v6 --games 40 --anchor-only --workers 16
+sl-cli gauntlet --candidate "model:local*" --panel v7,v6 --games 8 --anchor-only --workers 4 --progress
+sl-cli evolve --base v7 --panel v7,v6 --games 16 --generations 12 --workers 16 --progress
+sl-cli shape --record --analyze --pairs v7:v7,v7:v6,v6:v6 --games 60 --workers 8 --out runs/shape_s01
 sl-cli runs --rebuild
 sl-cli boards --count 1000
 sl-cli boards --write runs/boards --count 12
@@ -148,7 +173,7 @@ API keys for SaaS providers go in `claude.key.txt`, `openai.key.txt`, `gemini.ke
 | Board generator | Five passes and four board types: city, hills, village, rural. Each type has a style record. TC-14a holds on 1,000 seeds. Generated mode plays scenario 1 with zone set up areas |
 | Hills | Rule 43: three levels, crest lines, the height advantage, and the blind hexes. The client draws the hill shades and the crest lines |
 | Release audit | `python tools/audit_release.py` reads the tree, the built page, and the run artifacts for TC-25, TC-28, and TC-29. It reports zero findings |
-| Model agents | Five SaaS providers and one local endpoint, with one adapter for each of the three API shapes |
+| Model agents | Five SaaS providers and five local endpoints, with one adapter for each of the three API shapes. The prompt gives each legal command its odds from the tables of the core and holds the victory conditions of the card. The cycle guard offers the model no command that gives a position the phase had. So a model cannot drop and pick up one weapon for hours. The tournament and the gauntlet record the rates of each model agent of each game |
 | Rules 22 to 27 | Flamethrowers, demolition charges, smoke, concealment, fanaticism, and sewer movement, with scenarios 2 and 3A |
 | Armies | German, Russian, and American counters, with the values of RV-1. A side can field two armies, and one project scenario starts with all three |
 | Boards side by side | FR-29: two to four generated boards make one playing surface, along the long edges or the short edges, with a turn of 180 degrees |
@@ -162,7 +187,11 @@ API keys for SaaS providers go in `claude.key.txt`, `openai.key.txt`, `gemini.ke
 | Rural terrain | Rule 44: a wheatfield that stops sight through it, a seasonal crop, the shellhole modifier, and cliff hexsides on a hill |
 | Hidden placement | Rule 42: a side the scenario names records a unit in a woods hex or a building hex, and the other player sees nothing of it |
 | Design your own | Game Set IV: a force point scale, random scenario construction from a seed, and the campaign game. A personal leader holds a rank, and the rank follows the record |
-| Agents | Eight scripted agents with named parameters, and a learned agent with PPO on the GPU, a league, and an Elo table. Agent v3 is the tanker and v4 the doctrine agent. Agent v5 adds vehicle fire to the threat map and suppression fire. Agent v6 is the tempo agent: the attacker keeps a schedule and moves on a path that the threat weights. Agent v7 trades on the odds: the expected result of each fire from the tables of the core, with no die. `sl-cli gauntlet` ranks an agent against a panel across scenarios, and `--workers` plays the games in parallel |
+| Agents | Eight scripted agents with named parameters, and a learned agent with PPO on the GPU, a league, and an Elo table. Agent v3 is the tanker and v4 the doctrine agent. Agent v5 adds vehicle fire to the threat map and suppression fire. Agent v6 is the tempo agent: the attacker keeps a schedule and moves on a path that the threat weights |
+| Agent v7 | It trades on the odds: the expected result of each fire from the tables of the core, with no die. It puts the smoke of rule 24 down by the same odds. A nation record of v7 goes by the role of its side: `v7:german` is the defence record where the German defends, and the attack record where it attacks |
+| The local model pool | `model:local*` is the pool of the five llama.cpp servers of the owner's network: four desktops and the workstation's RTX 5090, one model each. The seed of a game picks its host and the others are its failover, so `sl-cli gauntlet --workers 4` keeps the four desktops busy. A `request` field of a provider row goes into each request, and the local rows turn the thinking of Qwen3 off. `sl-cli gauntlet --progress` prints one line for each game that ends |
+| Parameter evolution | `sl-cli evolve` runs a (mu + lambda) evolution strategy on the named parameters of v7. Each candidate of a generation plays the same seeds against a fixed panel as each side. The elites play again in each generation, and the artifact names the best as a `v7[...]` text a person can play |
+| The shape study | `sl-cli shape` records the position at the end of each Movement Phase and each Advance Phase of many games. A position is a picture and a set of shape statistics, with the winner. The analysis gives the AUC of each statistic between the winners and the losers. It gives the information of the shape on top of the material in a cross validated model, and a picture net with its occlusion map |
 | The odds | `slagents.scripted.odds` gives the expected result of a fire group at a hex, as exact counts out of 1,296. It reads rules 8 to 12, 15, 16, 25, and 26 of the core. One test resolves the same groups with the core on 1,500 random number states, and the frequencies agree. Agent v7 forms a fire group where the expected loss of the enemy is highest (P2). It values a leader above a squad (P12), and it measures a move by the loss of the worst hex of its track (P8). Its plan goes for four of the five places, the near and the weak first (P5), and it traps a broken enemy (P11) |
 
 What works: `sl-cli play --scenario s01_guards_counterattack` plays scenario 1 headless with two scripted agents and replays it. `sl-cli tournament` plays N games with the sides balanced and writes a run artifact. `sl-cli bench` measures the environment step rate. `sl-cli boards` makes boards and checks them.

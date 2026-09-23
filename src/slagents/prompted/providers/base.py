@@ -78,9 +78,15 @@ class ProviderConfig:
     version: str = ""
     timeout_seconds: float = 90.0
     tier: str = "rc"
+    # The fields the adapter adds to each request, as the row gives them: the switch
+    # that turns the thinking of a model off, for one.
+    request: tuple[tuple[str, Any], ...] = ()
 
     @staticmethod
     def from_dict(d: Mapping[str, Any]) -> "ProviderConfig":
+        request = d.get("request") or {}
+        if not isinstance(request, Mapping):
+            raise ProviderError(f"the request field of provider {d.get('name')!r} must be an object")
         return ProviderConfig(
             name=str(d["name"]),
             kind=str(d["kind"]),
@@ -91,7 +97,11 @@ class ProviderConfig:
             version=str(d.get("version", "")),
             timeout_seconds=float(d.get("timeout_seconds", 90.0)),
             tier=str(d.get("tier", "rc")),
+            request=tuple(sorted((str(k), v) for k, v in request.items())),
         )
+
+    def request_fields(self) -> dict[str, Any]:
+        return {k: v for k, v in self.request}
 
 
 @dataclass
@@ -209,6 +219,36 @@ class Provider:
     def _safe(self, text: str) -> str:
         """No message from this module holds a key (SR-01)."""
         return keys.redact(text, self.config.key) if self.config.key else text
+
+
+# The host of the pool this process starts with, when a worker pool set one. A worker
+# that is bound to one host takes each game it gets to that host, so a fast host takes
+# more games than a slow one: the pool hands a game to the next free worker.
+_pool_offset: int | None = None
+
+
+def set_pool_offset(offset: int | None) -> None:
+    """Bind this process to one host of each pool (`local*`): the host at `offset`."""
+    global _pool_offset
+    _pool_offset = offset
+
+
+def pool_names(pattern: str, config: Config | None = None, seed: int = 0) -> list[str]:
+    """The providers of a pool, as `local*` names them, in the order a game uses them.
+
+    The first host is the one this process is bound to (`set_pool_offset`), or else the
+    one the seed of the game picks. The others follow in their order, so a host that
+    does not answer hands its game to the next one (the router).
+    """
+    if not pattern.endswith("*"):
+        return [pattern]
+    settings = config or load_config()
+    prefix = pattern[:-1]
+    names = sorted(row.name for row in settings.providers if row.name.startswith(prefix))
+    if not names:
+        raise ProviderError(f"no provider name starts with {prefix!r} in {PROVIDERS_FILE}")
+    start = (seed if _pool_offset is None else _pool_offset) % len(names)
+    return names[start:] + names[:start]
 
 
 def make_provider(name: str, config: Config | None = None) -> Provider:

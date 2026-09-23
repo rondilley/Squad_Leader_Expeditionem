@@ -7,5 +7,6 @@ slcore
 sldata
 slhost
 slruns
+slshape
 slwindow
 slwindow3d

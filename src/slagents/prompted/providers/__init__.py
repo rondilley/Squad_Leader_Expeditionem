@@ -9,7 +9,9 @@ from slagents.prompted.providers.base import (
     allowed_host,
     load_config,
     make_provider,
+    pool_names,
     providers_for,
+    set_pool_offset,
 )
 
 __all__ = [
@@ -21,5 +23,7 @@ __all__ = [
     "allowed_host",
     "load_config",
     "make_provider",
+    "pool_names",
     "providers_for",
+    "set_pool_offset",
 ]

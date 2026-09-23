@@ -108,10 +108,58 @@ def test_a_path_cannot_change_the_host(config):
 
 
 def test_the_configuration_names_the_local_endpoint_as_the_one_private_entry(config):
-    """SR-05: the local endpoint is the exception the requirement allows."""
+    """SR-05: the local endpoint is the exception the requirement allows. It is four
+    hosts of the owner's network with one model each, and no other private host."""
     private = [host for host in config.allowlist if host.startswith("http://")]
-    assert len(private) == 1, private
+    assert 1 <= len(private) <= 5, private
+    assert all(host.endswith(".uberadmin.com:5150") or host.startswith("http://172.20.1.") for host in private), private
+    assert "http://127.0.0.1:5150" not in private, "the loopback address is never a provider"
+    local_rows = [row for row in config.providers if row.name.startswith(LOCAL)]
+    assert len(local_rows) == len(private)
+    for row in local_rows:
+        assert any(row.endpoint.startswith(host) for host in private), row.endpoint
     assert make_provider(LOCAL, config).config.endpoint.startswith(private[0])
+
+
+def test_the_local_rows_turn_the_thinking_off_and_the_adapter_sends_it(config):
+    """A `request` field of a row goes into each request of that provider."""
+    from slagents.prompted.providers import pool_names
+    from slagents.prompted.providers.openai_compatible import OpenAiCompatibleProvider
+
+    row = config.by_name(LOCAL)
+    assert row.request_fields() == {"chat_template_kwargs": {"enable_thinking": False}}
+
+    class Captured(OpenAiCompatibleProvider):
+        """The adapter with its network call replaced by a record of the payload."""
+
+        sent: list = []
+
+        def post(self, path, payload, headers):
+            self.sent.append(payload)
+            return {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}], "usage": {}}
+
+    provider = Captured(row, config.allowlist)
+    provider.complete("system", "user", 10)
+    assert provider.sent[0]["chat_template_kwargs"] == {"enable_thinking": False}
+    assert provider.sent[0]["model"] == row.model
+    # The pool of the four hosts: the seed picks the first, and the others follow.
+    names = pool_names("local*", config, seed=0)
+    assert names[0] == LOCAL and len(names) == len([r for r in config.providers if r.name.startswith(LOCAL)])
+    turned = pool_names("local*", config, seed=1)
+    assert turned[0] == names[1] and turned[-1] == names[0]
+    assert pool_names("openai", config, seed=5) == ["openai"]
+    with pytest.raises(ProviderError):
+        pool_names("nosuch*", config)
+    # A process that a worker pool bound to one host starts each game there.
+    from slagents.prompted.providers import set_pool_offset
+
+    try:
+        set_pool_offset(2)
+        assert pool_names("local*", config, seed=0)[0] == names[2]
+        assert pool_names("local*", config, seed=7)[0] == names[2]
+    finally:
+        set_pool_offset(None)
+    assert pool_names("local*", config, seed=0)[0] == names[0]
 
 
 def test_the_tier_lists_the_providers_that_have_a_key_here(config):

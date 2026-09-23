@@ -167,3 +167,18 @@ def test_settled_ratings_do_not_depend_on_the_order_of_the_games():
     # The one pass rates the pair that played first by the games at the end of the list
     # as much as by its own, so the two tables differ. The settled one is the record.
     assert one_pass.to_dict() != forward
+
+
+def test_a_long_slug_is_cut_with_a_hash_of_the_whole():
+    """A v7 parameter text can be 300 characters, and a Windows path has 260. The slug
+    keeps its head and a hash of the whole, so two long texts give two run directories
+    and the same text gives the same one."""
+    from slruns.artifact import SLUG_LIMIT, slugify
+
+    long_a = "gauntlet-v7[" + ",".join(f"parameter_{i}={i}" for i in range(40)) + "]"
+    long_b = long_a.replace("parameter_39=39", "parameter_39=40")
+    a, b = slugify(long_a), slugify(long_b)
+    assert len(a) <= SLUG_LIMIT and len(b) <= SLUG_LIMIT
+    assert a != b and a == slugify(long_a)
+    assert a.startswith("gauntlet-v7-parameter-0-0")
+    assert slugify("gauntlet-v7") == "gauntlet-v7"

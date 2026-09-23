@@ -15,9 +15,11 @@ of rule 10.4 and the two dice of the check are the 36 by 36 outcomes, so each pr
 is an integer count out of 1,296 and the arithmetic is exact. No rule is written here: a
 change to a rule module changes these odds with it.
 
-The smoke die of rule 24.6 is a third roll. It is rare and it adds to the roll, so the
-odds here read the smoke as absent. An agent that wants the smoke in its odds asks for
-`smoke=True` and gets the mean of the die.
+The smoke die of rule 24.6 is a third roll. It adds to the roll of a group whose line of
+sight goes into, out of, or through a smoke hex, so a shot through smoke is worse for the
+firer. `smoke=True` puts the mean of that die in the odds, and `group_meets_smoke` says
+whether a group meets smoke on its line, by the same test the core uses (rule 24.6 with
+`r24_smoke.blocks_path`).
 """
 
 from __future__ import annotations
@@ -25,9 +27,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
-from slcore.game import PHASE_DEFENSIVE_FIRE, FireGroup, State
+from slcore.game import PHASE_DEFENSIVE_FIRE, PHASE_PREP_FIRE, FireGroup, State
 from slcore.geometry import HexRef
-from slcore.rules import r08_fire, r10_resolution, r11_terrain, r15_leadership, r25_concealment, r26_fanaticism
+from slcore.los_eval import evaluate as evaluate_los
+from slcore.rules import r08_fire, r10_resolution, r11_terrain, r15_leadership, r24_smoke, r25_concealment, r26_fanaticism
 from slcore.rules.r12_morale import BERSERK_ROLL, RUSSIAN, morale_value
 from slcore.tabledata import RESULT_KIA, RESULT_MC, RESULT_NONE
 from slcore.units import KIND_LEADER, KIND_SQUAD, KIND_SW, Unit, UnitType
@@ -182,6 +185,101 @@ def shot(
         if any_kia:
             kia += ways * WAYS
     return Shot(group.target, halves, halves // 2, drm, effect, kia, breaks, value)
+
+
+def group_meets_smoke(engine: Any, state: State, group: FireGroup) -> bool:
+    """Rule 24.6: the line of sight of one member goes into, out of, or through smoke.
+
+    The core asks the same question of a real fire group (`r10_resolution.smoke_modifier`),
+    so an agent that asks it here reads the board the rules read.
+    """
+    if not state.smoke:
+        return False
+    for uid, _weapon in group.members:
+        firer = state.units[uid].hex
+        if firer is None:
+            continue
+        traced = () if firer == group.target else evaluate_los(engine.board, engine.los, firer, group.target).traced
+        if r24_smoke.blocks_path(state, traced, firer, group.target):
+            return True
+    return False
+
+
+# One enemy fire group as a hex could draw it: its members and the best leader with them.
+EnemyGroup = tuple[tuple[tuple[int, int | None], ...], int | None]
+
+
+def enemy_groups(engine: Any, state: State, dst: HexRef, enemies: Iterable[Unit]) -> list[EnemyGroup]:
+    """The fire groups these enemy units could form against a hex, with the best leader of each.
+
+    Rule 8.6 chains the members of a group through adjacent hexes, so the shooters that
+    see the hex fall into clusters of adjacent hexes, and each cluster is one group. The
+    caller gives the enemy units, so a scripted agent gives the whole side and a prompt
+    gives the units its player can see (AR-09).
+    """
+    types = engine.types
+    by_hex: dict[HexRef, list[tuple[int, int | None]]] = {}
+    leaders: dict[HexRef, Unit] = {}
+    for enemy in enemies:
+        if enemy.hex is None or enemy.broken or enemy.is_vehicle or enemy.hex == dst or enemy.eliminated:
+            continue
+        if not evaluate_los(engine.board, engine.los, enemy.hex, dst).clear:
+            continue
+        if enemy.kind == KIND_LEADER:
+            held = leaders.get(enemy.hex)
+            if held is None or types[enemy.type_key].leadership < types[held.type_key].leadership:
+                leaders[enemy.hex] = enemy
+            continue
+        if r08_fire.member_firepower(state, types, enemy, None, dst, False) is not None:
+            by_hex.setdefault(enemy.hex, []).append((enemy.id, None))
+        for weapon in state.carried_by(enemy.id):
+            if weapon.kind != KIND_SW or weapon.broken or weapon.malfunction:
+                continue
+            if r08_fire.member_firepower(state, types, enemy, weapon, dst, False) is not None:
+                by_hex.setdefault(enemy.hex, []).append((enemy.id, weapon.id))
+    groups: list[EnemyGroup] = []
+    left = set(by_hex)
+    while left:
+        start = min(left)
+        cluster = [start]
+        left.discard(start)
+        i = 0
+        while i < len(cluster):
+            for near in engine.board.neighbors(cluster[i]):
+                if near in left:
+                    left.discard(near)
+                    cluster.append(near)
+            i += 1
+        members: list[tuple[int, int | None]] = []
+        leader: Unit | None = None
+        for h in sorted(cluster):
+            members.extend(by_hex[h])
+            candidate = leaders.get(h)
+            if candidate is not None and (leader is None or types[candidate.type_key].leadership < types[leader.type_key].leadership):
+                leader = candidate
+        groups.append((tuple(members), None if leader is None else leader.id))
+    return groups
+
+
+def loss(engine: Any, state: State, unit: Unit, dst: HexRef, moving: bool, groups: Iterable[EnemyGroup]) -> int:
+    """The chance, out of `ONE`, that this unit breaks or dies in `dst` under the fire of
+    these enemy groups. With `moving` the fire is the Defensive Fire Phase at a unit that
+    moved there, so open ground costs the minus two of rule 16.5. The worst group sets the
+    chance, because the defender spreads its groups over many targets and one hex draws
+    one of them. A group that meets smoke on its line takes the die of rule 24.6."""
+    stand_in = unit.with_(hex=dst, moved=moving, returned_from=None)
+    # The odds read the leaders that stand in the target hex for the check, and the
+    # mover brings none with it, so the others of the hex are out of the picture.
+    others = {u.id: u.with_(hex=None) for u in state.infantry_in(dst) if u.player == unit.player and u.id != unit.id}
+    hypothetical = state.with_units({unit.id: stand_in, **others})
+    phase = PHASE_DEFENSIVE_FIRE if moving else PHASE_PREP_FIRE
+    chance = 0
+    for members, leader in groups:
+        group = FireGroup(dst, members, leader)
+        smoke = group_meets_smoke(engine, hypothetical, group)
+        result = shot(engine, hypothetical, group, phase, smoke=smoke)
+        chance = max(chance, result.breaks.get(unit.id, 0))
+    return chance
 
 
 def stack_value(types: Mapping[str, UnitType], units: Iterable[Unit]) -> int:

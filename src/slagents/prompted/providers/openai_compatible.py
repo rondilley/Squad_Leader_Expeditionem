@@ -71,6 +71,7 @@ class OpenAiCompatibleProvider(Provider):
             "max_tokens": max_tokens,
             "temperature": temperature,
             "stream": False,
+            **self.config.request_fields(),
         }
         if json_schema is not None:
             # FR-62: the legal identities are the enum of the command field, so a model

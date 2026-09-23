@@ -301,7 +301,9 @@ The style record of FR-26 gives the density of each feature, and `STYLE_DEFAULTS
 
 A set up area is a zone: a predicate on the hexes of the board (FR-21). Three zones cover the forms that RV-2 section 6 reads off the cards.
 
-`stone_building` gives one building of a band, by rank. The band is a range of columns, a range of rows, or the two. A `near` parameter adds a distance: the building must be within that many hexes of a stone building of another band. `columns` gives each hex of a column band. `edge` gives each hex in a depth from one named edge. The last two also apply a terrain test: a terrain type, a road flag, or one hill level.
+`stone_building` gives one building of a band, by rank. The band is a range of columns, a range of rows, or the two. A `near` parameter adds a distance: the building must be at that count of hexes or less from a stone building of a different band.
+
+`columns` gives each hex of a column band, and `edge` gives each hex in a depth from one named edge. The last two also apply a terrain test: a terrain type, a road flag, or one hill level.
 
 Two rules hold for each board type. First, the outer ring of the board stays on ground level. A seam between two levels is a step that no rule describes, and two boards must connect along an edge. Second, no slope is steeper than one level. A step of two levels is a cliff hexside (rule 44.1), and an impassable hexside can cut a board in two.
 
@@ -551,6 +553,66 @@ The harness does not obey the model output. The answer names a command identity,
 harness looks that identity up in the frame the core gave. A name that is not in the frame
 is an invalid answer and a retry (SR-04).
 
+The odds in the text (2026-09-19). The first gauntlet of a local model gave 0 of 56
+against the scripted agents. The cause was plain: the scripted agents read the odds of
+the core, and the model read a list with no number on it. `oddsview.py` builds one
+`OddsView` for each decision from the acting player's view, and each legal command shows
+its odds from `slagents.scripted.odds`.
+
+- A shot shows its firepower and its modifier. It shows the chance of a result, the
+  chance of a kill, and the break chance of each unit in the target.
+- A move shows the terrain of its destination and the break chance at the worst hex of
+  its path. Rule 16.1 lets the defender fire at each hex of it.
+- A close combat shows the kill chance of each side, and a rally its chance.
+- Each own unit line has its break chance where it stands.
+- The text holds the victory conditions of the card with their buildings.
+
+Why this is right: a model has no fire table in its head, and the number is what the
+doctrine agent reads. The alternative is a rules summary in the prompt. It costs tokens
+on each call, and it gives the model a table to read by itself, which it does incorrectly
+(RV-6). Where it breaks: the odds of a shot name the units of the target hex, and a
+per-player view must not name a concealed unit (SR-09).
+
+Mitigation: a target below a concealment counter gets no odds. The loss of a hex counts
+the enemy units the player sees and no other. The system prompt says a missing number is
+unknown and not zero.
+
+The measure: the same model on the same seeds went from 0 of 40 to 1 of 40. So the odds alone did not make a 3 billion active parameter model a player. The
+tuned family is the next lever.
+
+The cycle guard (FR-65, 2026-09-20). One game of that gauntlet had 15,837 decisions, and
+the other 39 had 120 to 274: the model dropped and picked up one weapon for four and a
+half hours.
+
+The harness keeps the positions it saw in the turn and phase. A position is the state
+document without its command count, because the state hash counts each command. For
+each legal command the harness finds the position the command gives with
+the core's own `apply`, at about 20 milliseconds a decision. It offers the model no
+command that gives a seen position.
+
+The prompt says how many commands the guard held back. The schema constraint holds the
+model to the offered list, and the scripted default of the fallback obeys the guard too.
+When each command gives a seen position, the guard stands down and the full list goes
+out, so the agent always has a command (FR-47). The counters record the decisions where
+the guard held a command back (TC-16).
+
+The local pool (2026-09-19). The owner's network has five llama.cpp servers: four
+desktops with an AMD Ryzen AI Max+ 395 each and the workstation's RTX 5090. The provider
+table names each as a row, and the name `model:local*` in an agent name is the pool. The
+seed of the game picks the first host, and the other rows follow it as the failover
+sequence of the router. So the games of a gauntlet go across the hosts with no state and
+no coordination.
+
+A gauntlet worker binds to one host by its index, and `--workers 4`
+puts one game on each box.
+
+A provider row can hold a `request` field that the adapter adds to each request. The
+local rows turn the reasoning of Qwen3 off. The harness wants a short analysis and a
+JSON object, and a reasoning pass spends thousands of hidden tokens first. The gauntlet
+and the tournament record the harness counters of each model agent of each game. A
+gauntlet of a model agent is hours long, so `sl-cli gauntlet --progress` prints one line
+for each game that ends.
+
 ### 9.4 Tuned model agents
 
 The owner's directive of 2026-09-07 makes a fine-tuned local model a fourth family, tested in year one. The design has four parts.
@@ -697,12 +759,13 @@ Squad_Leader_AI/
     slagents/                    the four families behind one interface
       base.py
       scripted/                  v0.py (the baseline), v1.py (rules 1 to 21), v2.py (the engineer),
-                                 v3.py (the tanker, rules 28 to 41)
+                                 v3.py (the tanker, rules 28 to 41), v7.py (the doctrine agent), odds.py, evolve.py (the parameter search)
       learned/                   encoding.py (the tensors and the composed command), env.py
                                  (PettingZoo AEC), nets.py (the three heads), ppo.py, league.py
-      prompted/                  harness.py, keys.py, schema.py, router.py, providers/
+      prompted/                  harness.py (the text, the guard), oddsview.py (the odds), keys.py, schema.py, router.py, providers/
       tuned/                     traces.py (the trace writer), finetune.py (LoRA), export.py (GGUF)
     slruns/                      artifact.py (the four files), index.py (the SQLite index), elo.py (ratings and intervals)
+    slshape/                     picture.py, features.py, record.py, analyze.py (the shape study of positions)
     slwindow/                    the desktop window, a consumer of the host protocol
       app.py                     the window, the loop, the keys, and the pointer
       client.py                  the protocol client on a task of its own
@@ -855,6 +918,7 @@ Each requirement ID from `REQUIREMENTS.md` and the section of this document that
 | FR-59 | 9.3 | FR-60 | 9.4 |
 | FR-61 | 9.4 | FR-62 | 9.4 |
 | FR-63 | 9.4 | FR-64 | 9.4 |
+| FR-65 | 9.3 | | |
 | NFR-01 | 2, 5, 14 | NFR-02 | 8 |
 | NFR-03 | 14, plan | NFR-04 | 5 |
 | NFR-05 | 5 | NFR-06 | 11, client |

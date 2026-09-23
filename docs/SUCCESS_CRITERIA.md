@@ -97,7 +97,7 @@ The counter rubric (each item scored 1 to 5 by the owner):
 | ID | Criterion | Threshold | Proves |
 |---|---|---|---|
 | TC-15 | Each scripted agent completes 100 headless games in each of scenarios 1, 2, and 3A with 0 unhandled errors. | 0 unhandled errors | FR-44 |
-| TC-16 | The model agent harness records the invalid-command rate, the retry count, the fallback rate, and the timeout rate for each model. | Recorded for each game. The SaaS model in v0.4 has a fallback rate below 20 percent. The local model rate is a measurement with no gate. | FR-47, FR-59, OR-02 |
+| TC-16 | The model agent harness records four rates for each model: invalid commands, retries, fallbacks, and timeouts. It also records the count of decisions where the cycle guard held a command back. | Recorded for each game, in the tournament and in the gauntlet. The SaaS model in v0.4 has a fallback rate below 20 percent. The local model rate is a measurement with no gate. | FR-47, FR-59, FR-65, OR-02 |
 | TC-17 | The model agent does not send an image and does not run model output as code. | Static scan and a runtime assertion | FR-48, SR-04 |
 | TC-18 | The learning ladder runs. At 1 million steps the win rate against the random agent increases. At 10 million steps the win rate against the weakest versioned scripted agent increases. After 100 million steps the learned agent beats that agent. | 200 games with sides balanced, win rate above 50 percent, 95 percent confidence interval above 50 percent, scripted agent version in the artifact | FR-51, FR-52 |
 | TC-19 | The Elo table has an entry for each snapshot and each scripted agent after a training run. | 100 percent of agents in the run | FR-52, OR-04 |

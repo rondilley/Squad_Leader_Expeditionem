@@ -12,6 +12,7 @@ A run is self-contained: a future session reads it without the code that made it
 
 from __future__ import annotations
 
+import hashlib
 import json
 import platform
 import re
@@ -30,6 +31,10 @@ STATS = "stats.json"
 FILES = (MANIFEST, COMMANDS, LOG, STATS)
 
 SLUG_PATTERN = re.compile(r"[^a-z0-9]+")
+# A slug longer than this is cut, and the cut carries a hash of the whole, because a
+# Windows path has 260 characters and a v7 parameter text can be 300. The manifest
+# holds the whole text.
+SLUG_LIMIT = 72
 
 
 class ArtifactError(Exception):
@@ -38,6 +43,9 @@ class ArtifactError(Exception):
 
 def slugify(text: str) -> str:
     out = SLUG_PATTERN.sub("-", text.lower()).strip("-")
+    if len(out) > SLUG_LIMIT:
+        digest = hashlib.sha256(out.encode("ascii")).hexdigest()[:8]
+        out = out[: SLUG_LIMIT - 9].rstrip("-") + "-" + digest
     return out or "run"
 
 

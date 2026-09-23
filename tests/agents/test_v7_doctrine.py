@@ -25,10 +25,12 @@ import pytest
 from slcli.play import build_engine, make_agent, play_game
 from slcore import geometry
 from slcore.game import PHASE_DEFENSIVE_FIRE, PHASE_MOVEMENT, PHASE_PREP_FIRE, FireGroup
+from slcore.los_eval import evaluate as evaluate_los
+from slcore.rules import r08_fire
 from slcore.rules.r11_terrain import is_open_ground
 from slcore.units import KIND_LEADER
 from slagents.scripted import odds
-from slagents.scripted.v7 import SQUAD, ScriptedV7, UnknownNation, parameters_from_text, profile_for
+from slagents.scripted.v7 import SQUAD, Parameters, ScriptedV7, UnknownNation, parameters_from_text, profile_for
 
 SCENARIO = "s01_guards_counterattack"
 
@@ -227,6 +229,7 @@ def test_parameters_from_text_and_the_profiles():
     with pytest.raises(ValueError):
         parameters_from_text("loss_scale")
     assert profile_for("german").close_combat_margin == 0
+    assert profile_for("german", defending=True).close_combat_margin == -3
     assert profile_for("soviet").schedule_margin == 3
     assert profile_for("american").group_size == 7
     with pytest.raises(UnknownNation):
@@ -315,3 +318,173 @@ def test_the_set_up_by_the_odds_gives_a_legal_command(engine):
     assert state.phase != "setup"
     placed = [u for u in state.units if u.hex is not None and u.kind == "squad"]
     assert len(placed) >= 30
+
+
+def test_the_record_of_a_nation_goes_by_the_role_of_its_side():
+    """A record of one role does not go to the other role. The German record of the
+    evolution is a defence, and as the German attacker of scenario 2 it wins 6 of 100
+    where the attack record wins 23. So `side_defends` picks the record: a side with a
+    positional victory condition of its own attacks, and the other side defends."""
+    from slagents.scripted.v7 import DEFENCE_PROFILES, NATION_PROFILES, side_defends
+
+    first = build_engine("s01_guards_counterattack")
+    second = build_engine("s02_tractor_works")
+    # Scenario 1: the Russian has the building swing, so the German defends.
+    assert not side_defends(first, 0) and side_defends(first, 1)
+    # Scenario 2: each side has a positional condition, so neither one defends.
+    assert not side_defends(second, 0) and not side_defends(second, 1)
+    defence = make_agent("v7:german", first, 1, 1)
+    attack = make_agent("v7:german", second, 1, 0)
+    assert defence.v7 == DEFENCE_PROFILES["german"]
+    assert attack.v7 == NATION_PROFILES["german"]
+    assert defence.v7.fire_floor > attack.v7.fire_floor
+    # A nation with no record of the defence keeps its record of the attack.
+    soviet = make_agent("v7:soviet", first, 1, 1)
+    assert soviet.v7 == NATION_PROFILES["soviet"]
+    # The values of a study go on top of the record of the role.
+    study = make_agent("v7:german[smoke_horizon=1]", first, 1, 1)
+    assert study.v7.smoke_horizon == 1 and study.v7.fire_floor == DEFENCE_PROFILES["german"].fire_floor
+
+
+def test_the_german_profile_is_the_defence_the_evolution_found():
+    """The German profile of 2026-09-20 comes from candidate 167 of
+    `runs/20260920T201936Z-evolve-v7`, and it held 95 of 100 against the v7 Russian on
+    seeds no generation played, where the profile before it held 79. Its numbers are the
+    defence: fire only when the shot pays, no value for the fire a hex gives, a threat
+    counted in large units, and a high price on a loss."""
+    german = profile_for("german", defending=True)
+    default = Parameters()
+    assert german.fire_floor > default.fire_floor
+    assert german.fire_weight == 0
+    assert german.threat_scale > default.threat_scale
+    assert german.threat_aversion == 0
+    assert german.loss_scale > default.loss_scale
+    assert german.group_size < default.group_size
+    assert german.spare_targets < default.spare_targets
+    # The profile is a record of the evolution artifact, so the text is the candidate.
+    from slagents.scripted.evolve import genome_of, text_of
+
+    text = text_of(genome_of(german))
+    assert "fire_floor=4" in text and "fire_weight=0" in text and "loss_scale=30" in text
+
+
+# ----------------------------------------------------------------- rule 24, the smoke
+
+
+SMOKE_SCENARIO = "s02_tractor_works"
+
+
+def a_smoke_window(engine, seed: int = 3, agent: str = "v7", must_place: bool = False):
+    """A smoke window of a game, with the agent of the acting side and its selection.
+
+    Scenario 2 gives the German six counters and six assault engineer squads (rule 24.1),
+    and the window opens at the start of its Prep Fire Phase (rule 24.3). With
+    `must_place` the search goes on to the first window where the agent puts a counter
+    down, because a window early in the game can hold no hex worth the floor.
+    """
+    state = engine.new_game(seed)
+    agents = {p: make_agent(agent, engine, seed, p) for p in (0, 1)}
+    steps = 0
+    while not state.game_over and steps < 4000:
+        frame = engine.legal_commands(state)
+        offered = frame.sub_step == "smoke_window" and any(lc.command.action == "place_smoke" for lc in frame.commands)
+        chosen = frame.by_id(agents[frame.player].select(state, frame))
+        if offered and (not must_place or chosen.command.action == "place_smoke"):
+            return state, frame, agents[frame.player], chosen
+        state, _ = engine.apply(state, chosen.command, frame)
+        steps += 1
+    raise AssertionError("no smoke window with a placement")
+
+
+def test_the_odds_read_the_smoke_die_of_rule_24_6():
+    """A group whose line of sight meets smoke takes the die of rule 24.6, so its odds
+    fall. `group_meets_smoke` asks the question the core asks, and `odds.loss` uses it."""
+    from slagents.scripted import odds
+    from slcore.game import Smoke
+
+    engine = build_engine(SMOKE_SCENARIO)
+    state = engine.new_game(3)
+    scripted = {p: make_agent("v1", engine, 3, p) for p in (0, 1)}
+    while state.phase in ("setup", "rally"):
+        frame = engine.legal_commands(state)
+        state, _ = engine.apply(state, frame.by_id(scripted[frame.player].select(state, frame)).command, frame)
+    shooter = next(
+        u for u in state.player_units(0)
+        if u.hex is not None and u.kind == "squad" and not u.broken
+        and any(
+            r08_fire.member_firepower(state, engine.types, u, None, t.hex, False) is not None
+            and evaluate_los(engine.board, engine.los, u.hex, t.hex).clear
+            for t in state.player_units(1) if t.hex is not None and t.is_infantry
+        )
+    )
+    target = next(
+        t.hex for t in state.player_units(1)
+        if t.hex is not None and t.is_infantry
+        and r08_fire.member_firepower(state, engine.types, shooter, None, t.hex, False) is not None
+        and evaluate_los(engine.board, engine.los, shooter.hex, t.hex).clear
+    )
+    group = FireGroup(target, ((shooter.id, None),), None)
+    assert not odds.group_meets_smoke(engine, state, group)
+    clear = odds.shot(engine, state, group, PHASE_PREP_FIRE)
+    smoked = state.with_(smoke=state.smoke + (Smoke(target, 1),))
+    assert odds.group_meets_smoke(engine, smoked, group)
+    through = odds.shot(engine, smoked, group, PHASE_PREP_FIRE, smoke=True)
+    assert through.drm > clear.drm
+    assert through.effect <= clear.effect
+    # The loss of a hex falls behind a screen, which is what the agent trades on.
+    defender = next(u for u in state.player_units(1) if u.hex == target and u.is_infantry)
+    groups = odds.enemy_groups(engine, state, target, state.player_units(0))
+    assert groups
+    open_loss = odds.loss(engine, state, defender, target, False, groups)
+    screened = odds.loss(engine, smoked, defender, target, False, groups)
+    assert screened < open_loss
+
+
+def test_v7_places_the_smoke_where_it_takes_the_loss_off_its_force():
+    """Rule 24.3 with P15: the counter goes on the hex with the best fall of the expected
+    loss of our force, less the fire it costs us. The command is legal, and the hex is one
+    the host offered."""
+    engine = build_engine(SMOKE_SCENARIO)
+    state, frame, _agent, chosen = a_smoke_window(engine, must_place=True)
+    assert chosen is not None and chosen.command.action == "place_smoke"
+    offered = {lc.command.hex for lc in frame.commands if lc.command.action == "place_smoke"}
+    assert chosen.command.hex in offered
+    # The state after it holds one counter more, of our side (rule 24.3).
+    after, _ = engine.apply(state, chosen.command, frame)
+    assert len(after.smoke) == len(state.smoke) + 1
+    assert after.smoke[-1].player == frame.player
+    assert after.smoke_left[frame.player] == state.smoke_left[frame.player] - 1
+
+
+def test_a_high_floor_places_no_smoke():
+    """A counter that saves less than `smoke_floor` of a squad is not placed. A screen
+    over a force of twenty five units saves a few squads of expected loss, so a floor of
+    fifty squads is above each hex and the agent ends the window."""
+    engine = build_engine(SMOKE_SCENARIO)
+    state, frame, _agent, chosen = a_smoke_window(engine, must_place=True)
+    assert chosen.command.action == "place_smoke"
+    quiet = make_agent("v7[smoke_floor=5000]", engine, 3, frame.player)
+    chosen = frame.by_id(quiet.select(state, frame))
+    assert chosen is not None and chosen.command.action == "end_phase"
+
+
+def test_the_smoke_of_v7_is_measured_in_a_game():
+    """One game of scenario 2 with v7 on the two sides: the German places counters, and
+    it places no more than the scenario gives it (rule 24.1)."""
+    engine = build_engine(SMOKE_SCENARIO)
+    seed = 3
+    agents = {p: make_agent("v7", engine, seed, p) for p in (0, 1)}
+    state = engine.new_game(seed)
+    allowance = state.smoke_left
+    placed = 0
+    steps = 0
+    while not state.game_over and steps < 4000:
+        frame = engine.legal_commands(state)
+        chosen = frame.by_id(agents[frame.player].select(state, frame))
+        if chosen.command.action == "place_smoke":
+            placed += 1
+        state, _ = engine.apply(state, chosen.command, frame)
+        steps += 1
+    assert state.game_over
+    assert placed > 0
+    assert placed <= sum(allowance)

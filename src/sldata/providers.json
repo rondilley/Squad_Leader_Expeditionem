@@ -2,11 +2,16 @@
  "version": 1,
  "notes": [
   "The provider configuration (IR-01, IR-02, SR-05). A client sends a request only to a host on the allowlist, and the allowlist is here and in no other place. No user interface and no scenario file can set a provider address (SR-05).",
-  "The local endpoint is the llama-server on the owner's network. It is the only private-network entry, which is the exception that SR-05 names. Open question O-01 asked which endpoint is the reference for TR-06, and this is the answer.",
+  "The local endpoint is the llama.cpp server on the owner's network: four hosts with one model each, and the owner's workstation as the fifth (`local5`, 172.20.1.174, with the Q6_K file because its card holds 32 GB). SR-05 names the local endpoint as the one private-network exception, and the five hosts are that endpoint. The loopback address stays off the list. The name `local*` in an agent name is the pool of them: a game takes the host its worker is bound to, or the host its seed names, and the others are its failover.",
+  "A `request` field holds the fields the adapter adds to each request of that provider. The local rows turn the thinking of Qwen3 off, because the harness asks for a short analysis and a JSON object, and a thinking pass spends thousands of hidden tokens first.",
   "A provider with no key on the machine is unavailable, and a run says so and goes on (SR-02)."
  ],
  "allowlist": [
   "http://tars.uberadmin.com:5150",
+  "http://case.uberadmin.com:5150",
+  "http://kipp.uberadmin.com:5150",
+  "http://plex.uberadmin.com:5150",
+  "http://172.20.1.174:5150",
   "https://api.anthropic.com",
   "https://api.openai.com",
   "https://generativelanguage.googleapis.com",
@@ -18,11 +23,76 @@
    "name": "local",
    "kind": "openai_compatible",
    "endpoint": "http://tars.uberadmin.com:5150/v1",
-   "model": "unsloth/Llama-3.3-70B-Instruct-GGUF",
+   "model": "unsloth/Qwen3-30B-A3B-GGUF:Q8_0",
    "key": null,
    "health": "/models",
    "timeout_seconds": 120,
-   "tier": "v0.4"
+   "tier": "v0.4",
+   "request": {
+    "chat_template_kwargs": {
+     "enable_thinking": false
+    }
+   }
+  },
+  {
+   "name": "local2",
+   "kind": "openai_compatible",
+   "endpoint": "http://case.uberadmin.com:5150/v1",
+   "model": "unsloth/Qwen3-30B-A3B-GGUF:Q8_0",
+   "key": null,
+   "health": "/models",
+   "timeout_seconds": 120,
+   "tier": "v0.4",
+   "request": {
+    "chat_template_kwargs": {
+     "enable_thinking": false
+    }
+   }
+  },
+  {
+   "name": "local3",
+   "kind": "openai_compatible",
+   "endpoint": "http://kipp.uberadmin.com:5150/v1",
+   "model": "unsloth/Qwen3-30B-A3B-GGUF:Q8_0",
+   "key": null,
+   "health": "/models",
+   "timeout_seconds": 120,
+   "tier": "v0.4",
+   "request": {
+    "chat_template_kwargs": {
+     "enable_thinking": false
+    }
+   }
+  },
+  {
+   "name": "local4",
+   "kind": "openai_compatible",
+   "endpoint": "http://plex.uberadmin.com:5150/v1",
+   "model": "unsloth/Qwen3-30B-A3B-GGUF:Q8_0",
+   "key": null,
+   "health": "/models",
+   "timeout_seconds": 120,
+   "tier": "v0.4",
+   "request": {
+    "chat_template_kwargs": {
+     "enable_thinking": false
+    }
+   }
+  },
+  {
+   "name": "local5",
+   "kind": "openai_compatible",
+   "endpoint": "http://172.20.1.174:5150/v1",
+   "model": "unsloth/Qwen3-30B-A3B-GGUF:Q6_K",
+   "key": null,
+   "health": "/models",
+   "timeout_seconds": 120,
+   "tier": "v0.4",
+   "request": {
+    "chat_template_kwargs": {
+     "enable_thinking": false
+    }
+   }
   },
   {
    "name": "claude",

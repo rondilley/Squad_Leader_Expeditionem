@@ -37,12 +37,25 @@ Close combat reads the odds too. Rule 20.9 eliminates a broken unit in a melee h
 an advance into a hex of broken enemies is a sure kill (P18, pursue), and a declared
 attack is favorable when the chance of our kill is above the chance of theirs.
 
-The nation profiles are the v6 profiles with the v7 numbers. The American profile leans
-on fire (a lower floor, a wider group). The German profile is aggressive in close combat.
-The Soviet profile presses first and accepts the loss.
+The nation profiles: the American profile leans on fire (a lower floor, a wider group),
+and the Soviet profile presses first and accepts the loss. The German profile is the
+defence the parameter evolution of 2026-09-20 found, and it holds 95 of 100 against the
+v7 Russian where the profile before it held 79 (`NATION_PROFILES`).
 
-What v7 does not do yet: it has no reserve (P19), it does not block a rout (P11), it uses
-no smoke (P15), and it has no policy for a vehicle, so the tanker v3 drives them.
+The smoke of rule 24 is the sixth place the odds are read (P15, the screen). An assault
+engineer squad puts one counter in its hex or next to it, as the first action of its own
+Prep Fire Phase. The counter costs the firer the die of rule 24.6 on each line of sight
+that goes into, out of, or through the hex, so it is worth what it takes off the loss of
+the units it screens, less the fire it takes off the units that shoot across it.
+
+Agent v7 measures both with the odds: for each hex the host offers, the fall of the
+expected loss of its own force, and the fall of its own expected fire. It keeps the
+best, and it keeps nothing when the best is below `smoke_floor`. The loss model reads
+the smoke on the board too, so a unit that stands behind a screen knows it (`odds.loss`
+with `group_meets_smoke`).
+
+What v7 does not do yet: it has no reserve (P19), and it has no policy for a vehicle, so
+the tanker v3 drives them.
 """
 
 from __future__ import annotations
@@ -60,9 +73,10 @@ from slcore.rules import r05_movement, r08_fire, r10_resolution, r13_rout, r20_c
 from slcore.rules.r11_terrain import is_open_ground
 from slcore.rules.r13_rout import is_cover
 from slcore.units import KIND_LEADER, KIND_SW, Unit
+from typing import Any
 
 from slagents.scripted import odds
-from slagents.scripted.v6 import ENEMY_HEX_HALVES
+from slagents.scripted.v6 import ENEMY_HEX_HALVES, POSITIONAL_KINDS
 from slagents.scripted.v6 import Parameters as V6Parameters
 from slagents.scripted.v6 import ScriptedV6
 
@@ -113,8 +127,13 @@ class Parameters:
     dash_arrives: bool = True  # a forced run happens only when it reaches the target this turn
     setup_by_odds: bool = False  # a unit sets up in the hex of its zone with the best fire and the least loss; it lost on the measure
     field_weight: int = 1  # score points for each four open hexes a defender sees from its set up hex
+    smoke_floor: int = 5  # percent of a squad break a smoke counter has to save, or it is not placed
+    smoke_fire_share: int = 50  # percent of the fire it costs that counts against a smoke counter
+    smoke_horizon: int = 2  # turns of the route a screen is measured over, for the hexes it covers
 
 
+# The record of a nation on the attack: a side with a positional victory condition of
+# its own has a deadline and has to cross ground to reach it.
 NATION_PROFILES: dict[str, Parameters] = {
     "german": Parameters(aggression=3, cover_preference=3, threat_aversion=1, superiority_tenths=13, schedule_margin=2, close_combat_margin=0),
     "soviet": Parameters(aggression=3, cover_preference=2, threat_aversion=1, superiority_tenths=12, suppression_priority=1, schedule_margin=3, loss_scale=9),
@@ -122,22 +141,104 @@ NATION_PROFILES: dict[str, Parameters] = {
 }
 
 
+# The record of a nation on the defence, where a nation has one. The German record is
+# the result of the parameter evolution of 2026-09-20 (`runs/20260920T201936Z-evolve-v7`,
+# candidate 167): 30 generations of the defence of scenario 1 against the v7 Russian,
+# and then 100 games on seeds no generation played. It holds 95 of 100 where the record
+# before it held 79, and two other candidates of the same run held 91 and 92.
+#
+# What the numbers say as doctrine. The defender fires only when the shot is worth
+# something (`fire_floor` 4) and it does not value a hex for the fire it gives
+# (`fire_weight` 0), because it sits in the buildings the scenario gave it. It counts a
+# threat in large units (`threat_scale` 16) and it does not keep away from a threatened
+# hex (`threat_aversion` 0), because the enemy fires at each hex of its line. It puts a
+# high price on a loss (`loss_scale` 30), it keeps its groups small and without overkill
+# (`group_size` 4, `overkill_share` 1), and it holds what it has (`spare_targets` 1,
+# `garrison_hexes` 3, `field_weight` 4).
+#
+# The record is a record of the defence and of no other role. As the German attacker of
+# scenario 2 it wins 6 of 100 where the attack record wins 23, so the role picks the
+# record (`profile_for`, `side_defends`).
+DEFENCE_PROFILES: dict[str, Parameters] = {
+    "german": Parameters(
+        aggression=4,
+        cover_preference=5,
+        fire_priority=6,
+        group_size=4,
+        threat_aversion=0,
+        superiority_tenths=10,
+        threat_scale=16,
+        fire_floor=4,
+        fire_weight=0,
+        overkill_share=1,
+        loss_scale=30,
+        return_margin=6,
+        close_combat_margin=-3,
+        urgency_cap=10,
+        suicide_percent=67,
+        spare_targets=1,
+        garrison_hexes=3,
+        share_targets=1,
+        field_weight=4,
+        rout_block=False,
+        rout_by_loss=False,
+    ),
+}
+
+
 class UnknownNation(Exception):
     """The nation profile is not defined. British waits for its research pass."""
 
 
-def profile_for(nation: str) -> Parameters:
+def profile_for(nation: str, defending: bool = False) -> Parameters:
+    """The record of a nation in a role. A nation with no record of the defence keeps
+    its record of the attack, because a record of one role is better than none."""
     key = nation.strip().lower()
     if key not in NATION_PROFILES:
         raise UnknownNation(
             f"no v7 profile for {nation!r}. Defined: {', '.join(sorted(NATION_PROFILES))}. "
             f"British is not confirmed yet and waits for a follow-up research pass."
         )
+    if defending and key in DEFENCE_PROFILES:
+        return DEFENCE_PROFILES[key]
     return NATION_PROFILES[key]
+
+
+def side_defends(engine: Any, player: int) -> bool:
+    """True when this side has no positional victory condition of its own.
+
+    A side with one has a deadline and has to cross ground to reach it, which is the
+    attack. The other side holds what it has, which is the defence. It is the same test
+    the schedule of v6 uses (`_side_has_deadline`), so the record and the schedule read
+    the scenario the same way.
+    """
+    side = engine.scenario.players()[player]
+    for condition in engine.scenario.victory:
+        if condition.kind in POSITIONAL_KINDS and str(dict(condition.params).get("side", "")) == side:
+            return False
+    return True
 
 
 def with_parameters(**changes: object) -> Parameters:
     return replace(Parameters(), **changes)
+
+
+def parameters_of_name(name: str, defending: bool = False) -> Parameters:
+    """The record an agent name asks for: `v7`, `v7:<nation>`, `v7[...]`, or
+    `v7:<nation>[...]`.
+
+    The last form is a nation record with a few values of its own, which a study of one
+    rule on a record asks for (`v7:german[smoke_horizon=1]`). With `defending` a nation
+    name gives the record of the defence, where the nation has one.
+    """
+    if not name.startswith("v7"):
+        raise ValueError(f"not a v7 agent name: {name!r}")
+    rest = name[2:]
+    changes = ""
+    if rest.endswith("]") and "[" in rest:
+        rest, changes = rest[: rest.index("[")], rest[rest.index("[") + 1 : -1]
+    base = Parameters() if not rest else profile_for(rest[1:] if rest.startswith(":") else rest, defending)
+    return parameters_from_text(changes, base) if changes else base
 
 
 def parameters_from_text(text: str, base: Parameters | None = None) -> Parameters:
@@ -213,6 +314,18 @@ class ScriptedV7(ScriptedV6):
         self._exposure_key: tuple = ()
         self._exposure_now: dict[int, int] = {}
 
+    def select(self, state: State, frame: DecisionFrame) -> str:
+        """The smoke window of rule 24.3 comes first, and the rest goes to v6."""
+        if frame.sub_step == "smoke_window":
+            by_action: dict[str, list[LegalCommand]] = {}
+            for lc in frame.commands:
+                by_action.setdefault(lc.command.action, []).append(lc)
+            if by_action.get("place_smoke"):
+                self._refresh_routes(state)
+                self._refresh_objectives(state)
+                return self._smoke(state, by_action)
+        return super().select(state, frame)
+
     # ------------------------------------------------------------------ the plan
 
     def _targets_wanted(self) -> int:
@@ -255,84 +368,24 @@ class ScriptedV7(ScriptedV6):
             self._fire_map = {}
             self._moves_along = {}
 
-    def _enemy_groups(self, state: State, dst: HexRef) -> list[tuple[tuple[tuple[int, int | None], ...], int | None]]:
-        """The fire groups the enemy could form against a hex, with the best leader of each.
-
-        Rule 8.6 chains the members of a group through adjacent hexes, so the shooters
-        that see the hex fall into clusters of adjacent hexes, and each cluster is one
-        group.
-        """
-        types = self.engine.types
-        by_hex: dict[HexRef, list[tuple[int, int | None]]] = {}
-        leaders: dict[HexRef, Unit] = {}
-        for enemy in state.player_units(self.opponent):
-            if enemy.hex is None or enemy.broken or enemy.is_vehicle or enemy.hex == dst:
-                continue
-            if not evaluate_los(self.engine.board, self.engine.los, enemy.hex, dst).clear:
-                continue
-            if enemy.kind == KIND_LEADER:
-                held = leaders.get(enemy.hex)
-                if held is None or types[enemy.type_key].leadership < types[held.type_key].leadership:
-                    leaders[enemy.hex] = enemy
-                continue
-            if r08_fire.member_firepower(state, types, enemy, None, dst, False) is not None:
-                by_hex.setdefault(enemy.hex, []).append((enemy.id, None))
-            for weapon in state.carried_by(enemy.id):
-                if weapon.kind != KIND_SW or weapon.broken or weapon.malfunction:
-                    continue
-                if r08_fire.member_firepower(state, types, enemy, weapon, dst, False) is not None:
-                    by_hex.setdefault(enemy.hex, []).append((enemy.id, weapon.id))
-        groups: list[tuple[tuple[tuple[int, int | None], ...], int | None]] = []
-        left = set(by_hex)
-        while left:
-            start = min(left)
-            cluster = [start]
-            left.discard(start)
-            i = 0
-            while i < len(cluster):
-                for near in self.engine.board.neighbors(cluster[i]):
-                    if near in left:
-                        left.discard(near)
-                        cluster.append(near)
-                i += 1
-            members: list[tuple[int, int | None]] = []
-            leader: Unit | None = None
-            for h in sorted(cluster):
-                members.extend(by_hex[h])
-                candidate = leaders.get(h)
-                if candidate is not None and (leader is None or types[candidate.type_key].leadership < types[leader.type_key].leadership):
-                    leader = candidate
-            groups.append((tuple(members), None if leader is None else leader.id))
-        return groups
+    def _enemy_groups(self, state: State, dst: HexRef) -> list[odds.EnemyGroup]:
+        """The fire groups the enemy could form against a hex (rule 8.6), from the whole
+        enemy side: a scripted agent reads the state it plays in."""
+        return odds.enemy_groups(self.engine, state, dst, state.player_units(self.opponent))
 
     def _loss(self, state: State, unit: Unit, dst: HexRef, moving: bool) -> int:
         """The chance, out of `odds.ONE`, that this unit breaks or dies in `dst` under the
-        fire of each enemy group that sees the hex. With `moving` the fire is the Defensive
-        Fire Phase at a unit that moved there, so open ground costs the minus two of rule
-        16.5. The worst group sets the chance, because the defender spreads its groups over
-        many targets and one hex draws one of them."""
+        fire of each enemy group that sees the hex (`odds.loss`), held by hex, phase, and
+        unit type, because a decision asks the same hex many times."""
         key = (dst, moving, unit.type_key, unit.broken)
         found = self._loss_map.get(key)
         if found is not None:
             return found
         groups = self._enemy_groups(state, dst)
-        if not groups:
-            self._loss_map[key] = 0
-            return 0
-        stand_in = unit.with_(hex=dst, moved=moving, returned_from=None)
-        # The odds read the leaders that stand in the target hex for the check, and the
-        # mover brings none with it, so the others of the hex are out of the picture.
-        others = {u.id: u.with_(hex=None) for u in state.infantry_in(dst) if u.player == self.player and u.id != unit.id}
-        hypothetical = state.with_units({unit.id: stand_in, **others})
-        phase = PHASE_DEFENSIVE_FIRE if moving else PHASE_PREP_FIRE
-        # The defender has more targets than groups, so one group is what a hex draws:
-        # the chance is the worst group and not the product of all of them.
-        chance = 0
-        for members, leader in groups:
-            result = odds.shot(self.engine, hypothetical, FireGroup(dst, members, leader), phase)
-            chance = max(chance, result.breaks.get(unit.id, 0))
+        chance = odds.loss(self.engine, state, unit, dst, moving, groups) if groups else 0
         self._loss_map[key] = chance
         return chance
+
 
     def _fire_value(self, state: State, unit: Unit, dst: HexRef) -> int:
         """The expected loss of the enemy, in halves times `odds.ONE`, from the best shot
@@ -366,7 +419,8 @@ class ScriptedV7(ScriptedV6):
             if not evaluate_los(self.engine.board, self.engine.los, dst, target).clear:
                 continue
             members = [(unit.id, None)] + [(unit.id, w) for w in weapons]
-            value = odds.shot(self.engine, hypothetical, FireGroup(target, tuple(members), None), PHASE_PREP_FIRE).value
+            group = FireGroup(target, tuple(members), None)
+            value = odds.shot(self.engine, hypothetical, group, PHASE_PREP_FIRE, smoke=odds.group_meets_smoke(self.engine, hypothetical, group)).value
             if value > best:
                 best = value
         self._fire_map[key] = best
@@ -446,7 +500,6 @@ class ScriptedV7(ScriptedV6):
         if reference is None:
             return 0
         return self._loss(state, reference, hex_ref, True) * self.v7.route_loss // odds.ONE
-
     def _raw_exposure(self, state: State, unit: Unit, dst: HexRef | None, moving: bool) -> int:
         """The chance the unit is lost to the fire of the phase, out of `odds.ONE`, as the
         only target on the board.
@@ -733,7 +786,7 @@ class ScriptedV7(ScriptedV6):
             best_value = -1
             for lc in candidates:
                 trial = FireGroup(target, tuple(members + [self._member_of(lc)]), leader)
-                trial_value = odds.shot(self.engine, state, trial, phase).value
+                trial_value = odds.shot(self.engine, state, trial, phase, smoke=odds.group_meets_smoke(self.engine, state, trial)).value
                 if trial_value > best_value or (trial_value == best_value and best is not None and lc.id < best.id):
                     best, best_value = lc, trial_value
             if best is None:
@@ -767,7 +820,7 @@ class ScriptedV7(ScriptedV6):
     def _continue_group(self, state: State, group: FireGroup, by_action: dict[str, list[LegalCommand]], phase: str) -> str:
         """Add the next member of the plan, then the leader that lifts the odds, then fire."""
         adds = [lc for lc in by_action.get("group_add", []) + by_action.get("group_add_weapon", []) if lc.command.hex == group.target]
-        current = odds.shot(self.engine, state, group, phase).value
+        current = odds.shot(self.engine, state, group, phase, smoke=odds.group_meets_smoke(self.engine, state, group)).value
         if adds and len(group.members) < self.v7.group_size:
             plan = self._plan_for(state, group.target, adds, phase, base=group.members, leader=group.leader)
             share = SQUAD * self.v7.overkill_share // 100
@@ -779,7 +832,7 @@ class ScriptedV7(ScriptedV6):
             best_value = current
             for lc in leaders:
                 trial = replace(group, leader=lc.command.units[0])
-                trial_value = odds.shot(self.engine, state, trial, phase).value
+                trial_value = odds.shot(self.engine, state, trial, phase, smoke=odds.group_meets_smoke(self.engine, state, trial)).value
                 if trial_value > best_value or (trial_value == best_value and best_leader is not None and lc.id < best_leader.id):
                     best_leader, best_value = lc, trial_value
             if best_leader is not None:
@@ -839,7 +892,8 @@ class ScriptedV7(ScriptedV6):
             best = None
             best_value = -1
             for member in able:
-                trial_value = odds.shot(self.engine, state, FireGroup(target, tuple(members + [member]), None), PHASE_DEFENSIVE_FIRE).value
+                trial_group = FireGroup(target, tuple(members + [member]), None)
+                trial_value = odds.shot(self.engine, state, trial_group, PHASE_DEFENSIVE_FIRE, smoke=odds.group_meets_smoke(self.engine, state, trial_group)).value
                 if trial_value > best_value:
                     best, best_value = member, trial_value
             if best is None:
@@ -850,6 +904,100 @@ class ScriptedV7(ScriptedV6):
         share = SQUAD * self.v7.overkill_share // 100
         best_net = max((value - k * share for k, value in enumerate(values, start=1)), default=0)
         return self._worth(state, target, max(0, best_net))
+
+    # ----------------------------------------------------------------- rule 24
+
+    def _screened_units(self, state: State) -> list[tuple[int, int, tuple[HexRef, ...]]]:
+        """Each of our units a screen could cover: its worth and the hexes it needs.
+
+        The hexes of a unit are the hex it stands in and the hexes of its route that it
+        reaches inside `smoke_horizon` turns. A unit that has to cross open ground is
+        the unit a screen is for (P15). The list is by unit and not by hex, so a screen
+        over a whole route saves that unit one time and not one time for each hex.
+        """
+        types = self.engine.types
+        out: list[tuple[int, int, tuple[HexRef, ...]]] = []
+        allowance = self.v7.smoke_horizon
+        for unit in state.player_units(self.player):
+            if unit.hex is None or unit.broken or unit.is_vehicle or unit.kind == KIND_SW:
+                continue
+            hexes = {unit.hex}
+            target = self.assignment.get(unit.id, self.open_objectives)
+            if target:
+                field = self._route_field(state, target, safe=True)
+                here = field.get(unit.hex)
+                if here is not None:
+                    reach = allowance * max(1, types[unit.type_key].mf_halves)
+                    for hex_ref, cost in field.items():
+                        if cost < here and here - cost <= reach:
+                            hexes.add(hex_ref)
+            out.append((unit.id, odds.unit_value(types, unit), tuple(sorted(hexes))))
+        return out
+
+    def _loss_under(self, state: State, hex_ref: HexRef, moving: bool) -> int:
+        """The chance a squad of ours breaks in this hex, under the state as it stands.
+
+        The reference unit of the side stands in for the squad, as the route field does,
+        so one number covers the hex and not each unit of the force.
+        """
+        reference = self._reference_unit(state)
+        if reference is None:
+            return 0
+        groups = odds.enemy_groups(self.engine, state, hex_ref, state.player_units(self.opponent))
+        if not groups:
+            return 0
+        return odds.loss(self.engine, state, reference, hex_ref, moving, groups)
+
+    def _smoke(self, state: State, by_action: dict[str, list[LegalCommand]]) -> str:
+        """Rule 24.3: the counter goes where it takes the most loss off our force.
+
+        The value of a counter is what it saves: for each of our units, the best fall of
+        the expected loss over the hexes that unit needs, times the worth of the unit.
+        Against it stands a share of the fire we lose across the screen. A counter that
+        saves less than `smoke_floor` of a squad is not placed, because a side has a few
+        counters in a game (rule 24.1) and a later turn may want one.
+        """
+        from slcore.game import Smoke
+
+        screened = self._screened_units(state)
+        if not screened:
+            return self._first_of(by_action, ("end_phase",))
+        wanted = sorted({h for _uid, _worth, hexes in screened for h in hexes})
+        before_loss = {h: self._loss_under(state, h, True) for h in wanted}
+        best: LegalCommand | None = None
+        best_value = SQUAD * self.v7.smoke_floor // 100
+        for lc in sorted(by_action["place_smoke"], key=lambda c: c.id):
+            hex_ref = lc.command.hex
+            if hex_ref is None:
+                continue
+            hypothetical = state.with_(smoke=state.smoke + (Smoke(hex_ref, self.player),))
+            self._loss_map = {}
+            after_loss = {h: self._loss_under(hypothetical, h, True) for h in wanted}
+            gain = 0
+            for _uid, worth, hexes in screened:
+                fall = max(before_loss[h] - after_loss[h] for h in hexes)
+                if fall > 0:
+                    gain += fall * worth
+            # The screen costs us the fire that crosses it. The share is a parameter,
+            # because a unit that cannot fire this turn loses nothing by the smoke.
+            cost = 0
+            for unit in state.player_units(self.player):
+                if unit.hex is None or unit.broken or unit.kind == KIND_LEADER or unit.is_vehicle:
+                    continue
+                self._fire_map = {}
+                without = self._fire_value(state, unit, unit.hex)
+                self._fire_map = {}
+                with_smoke = self._fire_value(hypothetical, unit, unit.hex)
+                if without > with_smoke:
+                    cost += (without - with_smoke) * self.v7.smoke_fire_share // 100
+            value = gain - cost
+            if value > best_value:
+                best, best_value = lc, value
+        self._loss_map = {}
+        self._fire_map = {}
+        if best is None:
+            return self._first_of(by_action, ("end_phase",))
+        return best.id
 
     # ---------------------------------------------------------------- the set up
 

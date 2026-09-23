@@ -11,11 +11,13 @@ from slcli import (
     boards_cmd,
     campaign_cmd,
     cards_cmd,
+    evolve,
     gates,
     gauntlet,
     host_cmd,
     play,
     runs_cmd,
+    shape_cmd,
     tournament,
     traces_cmd,
     window_cmd,
@@ -33,6 +35,7 @@ try:  # the fine-tune needs the `finetune` extra
     from slcli import finetune_cmd
 except ImportError:  # pragma: no cover - exercised on a machine with no transformers
     finetune_cmd = None
+from slcli.shape_cmd import ShapeNotInstalled
 from slcli.window_cmd import DesktopNotInstalled
 from slcli.window3d_cmd import View3DNotInstalled
 from slruns.artifact import ArtifactError
@@ -48,6 +51,8 @@ def build_parser() -> argparse.ArgumentParser:
     tournament.add_parser(sub)
     gates.add_parser(sub)
     gauntlet.add_parser(sub)
+    evolve.add_parser(sub)
+    shape_cmd.add_parser(sub)
     host_cmd.add_parser(sub)
     runs_cmd.add_parser(sub)
     boards_cmd.add_parser(sub)
@@ -79,6 +84,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR {exc}", file=sys.stderr)
         return 4
     except View3DNotInstalled as exc:
+        print(f"ERROR {exc}", file=sys.stderr)
+        return 4
+    except ShapeNotInstalled as exc:
         print(f"ERROR {exc}", file=sys.stderr)
         return 4
     except (RuntimeError, ValueError, NotImplementedError) as exc:

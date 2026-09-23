@@ -16,6 +16,7 @@ src/slagents/learned/workers.py
 src/slagents/prompted/__init__.py
 src/slagents/prompted/harness.py
 src/slagents/prompted/keys.py
+src/slagents/prompted/oddsview.py
 src/slagents/prompted/router.py
 src/slagents/prompted/schema.py
 src/slagents/prompted/providers/__init__.py
@@ -24,6 +25,8 @@ src/slagents/prompted/providers/base.py
 src/slagents/prompted/providers/gemini.py
 src/slagents/prompted/providers/openai_compatible.py
 src/slagents/scripted/__init__.py
+src/slagents/scripted/evolve.py
+src/slagents/scripted/odds.py
 src/slagents/scripted/v0.py
 src/slagents/scripted/v1.py
 src/slagents/scripted/v2.py
@@ -31,6 +34,7 @@ src/slagents/scripted/v3.py
 src/slagents/scripted/v4.py
 src/slagents/scripted/v5.py
 src/slagents/scripted/v6.py
+src/slagents/scripted/v7.py
 src/slagents/tuned/__init__.py
 src/slagents/tuned/export.py
 src/slagents/tuned/finetune.py
@@ -58,6 +62,7 @@ src/slcli/bench.py
 src/slcli/boards_cmd.py
 src/slcli/campaign_cmd.py
 src/slcli/cards_cmd.py
+src/slcli/evolve.py
 src/slcli/finetune_cmd.py
 src/slcli/gates.py
 src/slcli/gauntlet.py
@@ -66,6 +71,7 @@ src/slcli/imitate_cmd.py
 src/slcli/main.py
 src/slcli/play.py
 src/slcli/runs_cmd.py
+src/slcli/shape_cmd.py
 src/slcli/tournament.py
 src/slcli/traces_cmd.py
 src/slcli/train.py
@@ -153,12 +159,19 @@ src/slruns/__init__.py
 src/slruns/artifact.py
 src/slruns/elo.py
 src/slruns/index.py
+src/slshape/__init__.py
+src/slshape/analyze.py
+src/slshape/features.py
+src/slshape/picture.py
+src/slshape/record.py
 src/slwindow/__init__.py
 src/slwindow/app.py
 src/slwindow/client.py
 src/slwindow/counters.py
 src/slwindow/embedded.py
 src/slwindow/layout.py
+src/slwindow/marks.py
+src/slwindow/overlay.py
 src/slwindow/panel.py
 src/slwindow/render.py
 src/slwindow/silhouettes.py

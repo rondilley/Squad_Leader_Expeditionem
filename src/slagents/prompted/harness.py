@@ -5,8 +5,12 @@ state and a frame, and it gives back one command identity. What it does between 
 is:
 
 1. Build a text state from the acting player's view and from nothing else (FR-45, SR-09).
-   The text has the units the player may see, the terrain of the hexes that matter, and
-   the legal command list with an identity for each command.
+   The text has the units the player may see, the terrain of the hexes that matter, the
+   victory conditions of the card, and the legal command list with an identity for each
+   command. Each command carries its odds from the tables of the core (`oddsview`): the
+   result and break chances of a shot, the break chance of a move, the kill chances of a
+   close combat, the chance of a rally. A model reads a number where the scripted agent
+   reads the same number.
 2. Send the text to a provider and let the model write its analysis in free text first,
    then one JSON object that a flat schema constrains (FR-46).
 3. When the object does not satisfy the schema, or its command identity is not in the
@@ -18,6 +22,15 @@ Three things the harness never does. It never sends an image (FR-48). It never r
 model output: the output is a command identity that the harness looks up in the frame the
 core gave (SR-04). It never puts a key in a log line or an artifact (SR-01).
 
+The cycle guard. A model that may drop a weapon and pick it up again does so for hours:
+one game of the gauntlet of 2026-09-19 had 15,837 decisions against 120 to 274 for the
+others. So the harness keeps the positions of the game it has seen in the phase, and it
+offers the model no command that returns the game to one of them. A position is the
+state document without its sequence number. The harness finds the position a command
+gives with the core's own `apply` on the state, which changes nothing, and the list the
+model reads is the legal list less those commands. When each command returns, the guard
+stands down and the full list goes out.
+
 The harness records the four rates that TC-16 asks for: invalid commands, retries,
 fallbacks, and timeouts. FR-59 says that a model with a median decision time above five
 seconds is an asynchronous opponent, so the harness records each decision time and says
@@ -26,23 +39,26 @@ which side of that line it is on.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import statistics
 import time
 from dataclasses import dataclass, field
 from typing import Any, Sequence
 
 from slagents.prompted import schema
+from slagents.prompted.oddsview import OddsView, objective_lines
 from slagents.prompted.providers import Answer, Provider, ProviderError, ProviderUnavailable
 from slcore import geometry
 from slcore.engine import Engine
-from slcore.frame import DecisionFrame
+from slcore.frame import DecisionFrame, LegalCommand
 from slcore.game import State
 from slcore.los_eval import evaluate as evaluate_los
 from slcore.view import build as build_view
 
 ASYNCHRONOUS_SECONDS = 5.0
 DEFAULT_RETRIES = 2
-MAX_COMMANDS_IN_PROMPT = 60
+MAX_COMMANDS_IN_PROMPT = 120
 MAX_PLANS = 3
 NEAREST_ENEMIES = 4
 
@@ -50,7 +66,15 @@ SYSTEM_PROMPT = (
     "You command one side in a tactical infantry game on a hex board. You get the state "
     "that your side can see and the list of legal commands. You select one command from "
     "that list. You never invent a command, and you never name a hex that is not in the "
-    "list. Write a short analysis first, then one JSON object."
+    "list. Each command carries its odds from the tables of the game: for a shot, the "
+    "chance of a result and the chance that each unit in the target breaks; for a move, "
+    "the chance that the mover breaks under the enemy fire that can reach it; for a close "
+    "combat, the kill chance of each side; for a rally, the chance it holds. A missing "
+    "number is unknown, not zero. Put the fire of many units on one target until its "
+    "break chance is high, then the next target. Move under cover toward the objective, "
+    "and cross open ground only when the break chance is low or the objective needs it. "
+    "Keep a leader with the squads, and rally the broken. Write a short analysis first, "
+    "then one JSON object."
 )
 
 
@@ -65,6 +89,8 @@ class Counters:
     fallbacks: int = 0
     timeouts: int = 0
     provider_errors: int = 0
+    refused: int = 0  # the decisions where the cycle guard held one command back or more
+    refused_commands: int = 0  # the commands it held back, in total
     seconds: list[float] = field(default_factory=list)
 
     def rate(self, count: int) -> float:
@@ -84,10 +110,24 @@ class Counters:
             "timeouts": self.timeouts,
             "timeout_rate": round(self.rate(self.timeouts), 4),
             "provider_errors": self.provider_errors,
+            "refused": self.refused,
+            "refused_rate": round(self.rate(self.refused), 4),
+            "refused_commands": self.refused_commands,
             "median_seconds": round(median, 3),
             "max_seconds": round(max(self.seconds), 3) if self.seconds else 0.0,
             "asynchronous": median > ASYNCHRONOUS_SECONDS,
         }
+
+
+def position_key(state: State) -> str:
+    """The position of the game: the state document without its sequence number.
+
+    The state hash of the core (FR-13) counts each command, so a drop and a pickup give a
+    new hash and the same position. The guard compares positions.
+    """
+    document = state.to_dict()
+    document.pop("seq", None)
+    return hashlib.sha256(json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")).hexdigest()
 
 
 def hex_line(engine: Engine, state: State, hex_ref, viewer: int) -> str:
@@ -128,25 +168,41 @@ def nearest_enemies(engine: Engine, state: State, unit, viewer: int) -> list[str
     return seen
 
 
-def text_state(engine: Engine, state: State, frame: DecisionFrame, viewer: int, plans: Sequence[str]) -> str:
-    """The compact text of FR-45, from the acting player's view alone (SR-09)."""
+def text_state(
+    engine: Engine,
+    state: State,
+    frame: DecisionFrame,
+    viewer: int,
+    plans: Sequence[str],
+    commands: Sequence[LegalCommand] | None = None,
+) -> str:
+    """The compact text of FR-45, from the acting player's view alone (SR-09).
+
+    `commands` is the list the model may take, when the cycle guard held some back. The
+    default is the legal list of the frame.
+    """
+    offered = list(frame.commands) if commands is None else list(commands)
     document = build_view(state, engine.types, viewer)
     side = engine.scenario.players()[viewer]
+    view = OddsView(engine, state, viewer)
     lines = [
         f"Scenario {engine.scenario.id}. You are the {side} side, player {viewer}.",
         f"Turn {document['turn']} of {document['turn_limit']}. Phase {document['phase']}, step {frame.sub_step}.",
         "",
-        "Your units:",
     ]
+    lines.extend(objective_lines(engine, state, viewer))
+    lines.append("")
+    lines.append("Your units (the break chance is under the enemy fire you can see):")
     own = [u for u in document["units"] if u["own"] and u["hex"] is not None]
     for unit in sorted(own, key=lambda u: u["id"]):
         marks = [name for name in ("broken", "moved", "prep_fired", "dm", "berserk", "malfunction") if unit[name]]
         state_text = f" [{', '.join(marks)}]" if marks else ""
         where = unit["hex"]
-        terrain = engine.board.hex(geometry.parse_hex_id(where)).terrain
+        hex_ref = geometry.parse_hex_id(where)
+        note = view.unit_note(state.units[unit["id"]])
         lines.append(
-            f"  {unit['id']}: {unit['type']}{' ' + unit['name'] if unit['name'] else ''} in {where} ({terrain}), "
-            f"morale {unit['morale']}{state_text}"
+            f"  {unit['id']}: {unit['type']}{' ' + unit['name'] if unit['name'] else ''} in {where} ({view.terrain(hex_ref)}), "
+            f"morale {unit['morale']}{state_text}{', ' + note if note else ''}"
         )
     lines.append("")
     lines.append("Enemy units you can see:")
@@ -154,7 +210,8 @@ def text_state(engine: Engine, state: State, frame: DecisionFrame, viewer: int, 
     if not other:
         lines.append("  none")
     for unit in sorted(other, key=lambda u: u["id"]):
-        lines.append(f"  {unit['id']}: {unit['type']} in {unit['hex']}")
+        hex_ref = geometry.parse_hex_id(unit["hex"])
+        lines.append(f"  {unit['id']}: {unit['type']} in {unit['hex']} ({view.terrain(hex_ref)}), morale {unit['morale']}")
     counters = {c["hex"]: c for c in document["concealment"]}
     if counters:
         lines.append("")
@@ -177,13 +234,17 @@ def text_state(engine: Engine, state: State, frame: DecisionFrame, viewer: int, 
         for plan in plans:
             lines.append(f"  {plan}")
     lines.append("")
-    lines.append("Legal commands. Answer with one of these identities:")
-    for legal in frame.commands[:MAX_COMMANDS_IN_PROMPT]:
-        lines.append(f"  {legal.id} {command_text(engine, legal.payload)}")
-    if len(frame.commands) > MAX_COMMANDS_IN_PROMPT:
-        lines.append(f"  ... and {len(frame.commands) - MAX_COMMANDS_IN_PROMPT} more of the same kinds")
+    lines.append("Legal commands, each with its odds. Answer with one of these identities:")
+    for legal in offered[:MAX_COMMANDS_IN_PROMPT]:
+        note = view.command_note(legal)
+        lines.append(f"  {legal.id} {command_text(engine, legal.payload)}{' -> ' + note if note else ''}")
+    if len(offered) > MAX_COMMANDS_IN_PROMPT:
+        lines.append(f"  ... and {len(offered) - MAX_COMMANDS_IN_PROMPT} more of the same kinds")
+    held = len(frame.commands) - len(offered)
+    if held > 0:
+        lines.append(f"  ({held} command{'s' if held != 1 else ''} that would return the game to a position of this phase are not offered.)")
     lines.append("")
-    lines.append(schema.describe([lc.id for lc in frame.commands]))
+    lines.append(schema.describe([lc.id for lc in offered]))
     return "\n".join(lines)
 
 
@@ -231,16 +292,49 @@ class PromptedAgent:
         self.plans: list[str] = []
         self.log: list[dict[str, Any]] = []
         self.version = f"{provider.name}:{provider.model}"
+        # The cycle guard: the positions seen in the phase, and the phase they belong to.
+        self._window: tuple[int, str] | None = None
+        self._seen: set[str] = set()
+
+    def offered(self, state: State, frame: DecisionFrame) -> tuple[list[LegalCommand], list[str]]:
+        """The commands the model may take, and the identities the cycle guard held back.
+
+        The guard forgets its positions when the turn or the phase changes, and it records
+        the position of each state it decides on. A command that gives a position it
+        recorded is held back. When each command does, the guard stands down.
+        """
+        window = (state.turn, state.phase)
+        if window != self._window:
+            self._window = window
+            self._seen = set()
+        self._seen.add(position_key(state))
+        if len(frame.commands) <= 1:
+            return list(frame.commands), []
+        kept: list[LegalCommand] = []
+        held: list[str] = []
+        for lc in frame.commands:
+            after, _ = self.engine.apply(state, lc.command, frame)
+            if position_key(after) in self._seen:
+                held.append(lc.id)
+            else:
+                kept.append(lc)
+        if not kept:
+            return list(frame.commands), []
+        return kept, held
 
     def select(self, state: State, frame: DecisionFrame) -> str:
         """One decision. It always gives an identity from the frame (FR-47)."""
         if not frame.commands:
             raise ValueError("no legal command")
         self.counters.decisions += 1
-        legal_ids = [lc.id for lc in frame.commands]
+        commands, held = self.offered(state, frame)
+        if held:
+            self.counters.refused += 1
+            self.counters.refused_commands += len(held)
+        legal_ids = [lc.id for lc in commands]
         if len(legal_ids) == 1:
             return legal_ids[0]
-        prompt = text_state(self.engine, state, frame, self.player, self.plans[-MAX_PLANS:])
+        prompt = text_state(self.engine, state, frame, self.player, self.plans[-MAX_PLANS:], commands)
         message = prompt
         started = time.perf_counter()
         for attempt in range(self.retries + 1):
@@ -266,16 +360,23 @@ class PromptedAgent:
                     self.counters.retries += 1
                     message = f"{prompt}\n\nYour last answer was refused: {exc}. Answer again."
                     continue
-                self._record(frame, answer, f"invalid answer: {exc}", attempt)
+                self._record(frame, answer, f"invalid answer: {exc}", attempt, held=held)
                 break
             self.counters.seconds.append(time.perf_counter() - started)
             if decision.plan:
                 self.plans.append(decision.plan)
-            self._record(frame, answer, "", attempt, decision)
+            self._record(frame, answer, "", attempt, decision, held=held)
             return decision.command_id
         self.counters.seconds.append(time.perf_counter() - started)
         self.counters.fallbacks += 1
-        return self.default_agent.select(state, frame)
+        fallback = self.default_agent.select(state, frame)
+        if fallback in held:
+            # The default agent stands under the guard too: its own choice of a return
+            # would be the cycle again. The first offered command of its kind, else the first.
+            kind = frame.by_id(fallback).command.action
+            same = [lc.id for lc in commands if lc.command.action == kind]
+            fallback = same[0] if same else legal_ids[0]
+        return fallback
 
     def _record(
         self,
@@ -284,6 +385,7 @@ class PromptedAgent:
         problem: str,
         attempt: int,
         decision: schema.Decision | None = None,
+        held: Sequence[str] = (),
     ) -> None:
         """One line of the harness log. It never holds a key or an opponent's hidden unit."""
         entry: dict[str, Any] = {
@@ -294,6 +396,8 @@ class PromptedAgent:
             "attempt": attempt,
             "problem": problem,
         }
+        if held:
+            entry["held"] = list(held)
         if answer is not None:
             entry["answer"] = answer.to_dict()
         if decision is not None:

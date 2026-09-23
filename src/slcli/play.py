@@ -16,7 +16,7 @@ from slagents.scripted.v3 import ScriptedV3
 from slagents.scripted.v4 import ScriptedV4, profile_for
 from slagents.scripted.v5 import ScriptedV5, profile_for as profile_for_v5
 from slagents.scripted.v6 import ScriptedV6, profile_for as profile_for_v6
-from slagents.scripted.v7 import ScriptedV7, parameters_from_text as parameters_v7, profile_for as profile_for_v7
+from slagents.scripted.v7 import ScriptedV7, parameters_from_text as parameters_v7
 from slagents.tuned.traces import TraceWriter, board_source
 from slcore.commands import Command
 from slcore.engine import Engine
@@ -152,14 +152,19 @@ def make_agent(kind: str, engine: Engine, seed: int, player: int) -> Agent:
         return ScriptedV6(engine, player)
     if kind.startswith("v6:"):
         return ScriptedV6(engine, player, profile_for_v6(kind.split(":", 1)[1]))
+    if kind.startswith("v7:"):
+        # A nation record, with a few values of its own in brackets when a study wants
+        # them. The role of the side picks the record: a side with a positional victory
+        # condition attacks, and the other side defends (`side_defends`).
+        from slagents.scripted.v7 import parameters_of_name, side_defends
+
+        return ScriptedV7(engine, player, parameters_of_name(kind, side_defends(engine, player)))
     if kind == "v7":
         return ScriptedV7(engine, player)
     if kind.startswith("v7[") and kind.endswith("]"):
         # The named parameters of FR-44 on the command line, as v7[loss_scale=8,route_loss=12],
         # so a parameter study runs through the gauntlet with no code change.
         return ScriptedV7(engine, player, parameters_v7(kind[3:-1]))
-    if kind.startswith("v7:"):
-        return ScriptedV7(engine, player, profile_for_v7(kind.split(":", 1)[1]))
     if kind.startswith("model:"):
         return make_model_agent(kind.split(":", 1)[1], engine, seed, player)
     if kind.startswith("tuned:"):
@@ -193,14 +198,17 @@ def make_learned_agent(snapshot_path: str, engine: Engine, seed: int, player: in
 def make_model_agent(providers: str, engine: Engine, seed: int, player: int, tuned: bool = False) -> Agent:
     """A model agent (FR-45). The name is a sequence, so `model:local+openai` fails over.
 
-    The tuned family is the same harness with the constraint of FR-62 on: the provider
-    holds the model to the schema, whose command field is the enum of the legal identities.
+    A name with a star is a pool: `model:local*` is each provider whose name starts with
+    `local`, and the seed of the game picks the first one, so the games of a gauntlet
+    spread across the hosts of the pool. The tuned family is the same harness with the
+    constraint of FR-62 on: the provider holds the model to the schema, whose command
+    field is the enum of the legal identities.
     """
     from slagents.prompted.harness import PromptedAgent
-    from slagents.prompted.providers import make_provider
+    from slagents.prompted.providers import make_provider, pool_names
     from slagents.prompted.router import Router
 
-    names = [name for name in providers.split("+") if name]
+    names = [name for part in providers.split("+") if part for name in pool_names(part, seed=seed)]
     if not names:
         raise ValueError("a model agent needs one provider name or more, as model:local+openai")
     clients = [make_provider(name) for name in names]

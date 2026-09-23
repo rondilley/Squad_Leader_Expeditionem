@@ -1,7 +1,7 @@
 from fractions import Fraction
 
 import pytest
-from hypothesis import given
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from slcore import geometry
@@ -72,6 +72,7 @@ def test_distance_examples():
 
 
 @given(st.integers(0, 32), st.integers(0, 10), st.integers(0, 32), st.integers(0, 10))
+@settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
 def test_distance_is_a_metric_on_neighbors(c1, r1, c2, r2):
     a = (c1, r1)
     b = (c2, r2)

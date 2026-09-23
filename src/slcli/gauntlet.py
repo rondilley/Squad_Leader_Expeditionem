@@ -31,8 +31,9 @@ wins from set up hides an agent that cannot attack behind an agent that can defe
 
 from __future__ import annotations
 
+import sys
 import time
-from multiprocessing import Pool
+from multiprocessing import Pool, Value
 from pathlib import Path
 from typing import Any
 
@@ -76,15 +77,56 @@ def _play_job(job: tuple[str, int, str, str]) -> dict[str, Any]:
         # without advancing the turn) must not abort the whole gauntlet. Record it and go
         # on, the way the gate command does (TC-04).
         return {"winner": None, "error": type(exc).__name__, "message": str(exc)[:300]}
-    return {"winner": record.result, "error": None}
+    # The four rates of TC-16 and the decision time of FR-59 of each model agent (OR-02).
+    harness = []
+    for player, agent in enumerate(agents):
+        counters = getattr(agent, "counters", None)
+        if counters is not None and hasattr(counters, "to_dict"):
+            harness.append({"player": player, "agent": (first, second)[player], **counters.to_dict()})
+    return {"winner": record.result, "error": None, "harness": harness}
 
 
-def _play_all(jobs: list[tuple[str, int, str, str]], workers: int) -> list[dict[str, Any]]:
+def _bind_worker(counter: Any) -> None:
+    """Each worker takes the next index and binds itself to that host of a model pool.
+
+    A worker bound to one host takes each game it gets to that host, and the pool hands
+    a game to the next free worker. So a fast host plays more games than a slow one,
+    which is the load sharing a mixed set of servers needs.
+    """
+    from slagents.prompted.providers import set_pool_offset
+
+    with counter.get_lock():
+        index = counter.value
+        counter.value += 1
+    set_pool_offset(index)
+
+
+def _progress(done: int, total: int, job: tuple[str, int, str, str], outcome: dict[str, Any], started: float) -> None:
+    """One line on the error stream for each game that ends, so a long gauntlet of a
+    model agent shows how far it is. The table on the output stream stays as it was."""
+    scenario, game_seed, first, second = job
+    result = outcome["error"] or outcome["winner"] or "draw"
+    minutes = (time.perf_counter() - started) / 60.0
+    print(f"game {done} of {total}: {first} vs {second} seed {game_seed} -> {result} ({minutes:.1f} min)", file=sys.stderr, flush=True)
+
+
+def _play_all(jobs: list[tuple[str, int, str, str]], workers: int, progress: bool = False) -> list[dict[str, Any]]:
     """The results of the jobs, in the order of the jobs."""
+    started = time.perf_counter()
+    outcomes: list[dict[str, Any]] = []
     if workers <= 1 or len(jobs) < 2:
-        return [_play_job(job) for job in jobs]
-    with Pool(processes=min(workers, len(jobs))) as pool:
-        return list(pool.imap(_play_job, jobs, chunksize=1))
+        for job in jobs:
+            outcomes.append(_play_job(job))
+            if progress:
+                _progress(len(outcomes), len(jobs), job, outcomes[-1], started)
+        return outcomes
+    counter = Value("i", 0)
+    with Pool(processes=min(workers, len(jobs)), initializer=_bind_worker, initargs=(counter,)) as pool:
+        for job, outcome in zip(jobs, pool.imap(_play_job, jobs, chunksize=1)):
+            outcomes.append(outcome)
+            if progress:
+                _progress(len(outcomes), len(jobs), job, outcome, started)
+    return outcomes
 
 
 def _field(candidate: str, panel: list[str]) -> list[str]:
@@ -104,8 +146,12 @@ def run_gauntlet(
     anchor_only: bool = False,
     balance: bool = True,
     workers: int = 1,
+    progress: bool = False,
 ) -> artifact.RunArtifact:
-    """Play the gauntlet and return the run artifact with the leaderboard in its stats."""
+    """Play the gauntlet and return the run artifact with the leaderboard in its stats.
+
+    With `progress` each game that ends prints one line on the error stream.
+    """
     field = _field(candidate, panel)
     if len(field) < 2:
         raise ValueError("the gauntlet needs the candidate and one panel agent or more")
@@ -132,6 +178,7 @@ def run_gauntlet(
 
     rows: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
+    harness_rows: list[dict[str, Any]] = []
     counter = 0
     started = time.perf_counter()
 
@@ -155,7 +202,7 @@ def run_gauntlet(
                     pair_jobs.append((len(jobs), order))
                     jobs.append((scenario, game_seed, order[0], order[1]))
                 pairs.append((scenario, first, second, pair_jobs))
-    outcomes = _play_all(jobs, workers)
+    outcomes = _play_all(jobs, workers, progress=progress)
 
     for scenario, first, second, pair_jobs in pairs:
         sides = sides_of[scenario]
@@ -181,6 +228,8 @@ def run_gauntlet(
                 )
                 continue
             art.seeds.append(game_seed)
+            for row in outcome.get("harness", []):
+                harness_rows.append({"scenario": scenario, "seed": game_seed, "side": sides[row["player"]], **row})
             winner = outcome["winner"]
             if winner == sides[0]:
                 outcome_first_in_order = 1.0
@@ -245,6 +294,8 @@ def run_gauntlet(
             name: {sc: rec.to_dict() for sc, rec in by_sc.items()} for name, by_sc in per_scenario.items()
         },
     }
+    if harness_rows:
+        art.stats["harness"] = harness_rows
     art.versions = {"candidate": candidate, "panel": ",".join(panel)}
     return art
 
@@ -326,6 +377,7 @@ def run(args: Any) -> int:
         anchor_only=args.anchor_only,
         balance=not args.no_balance,
         workers=args.workers,
+        progress=bool(args.progress),
     )
     directory = art.write(args.runs)
     conn = connect(Path(args.runs) / "runs.sqlite")
@@ -364,4 +416,5 @@ def add_parser(subparsers: Any) -> None:
     p.add_argument("--no-balance", action="store_true", help="keep each agent on one side")
     p.add_argument("--runs", default="runs", help="the run directory")
     p.add_argument("--workers", type=int, default=1, help="processes that play the games; the results do not change")
+    p.add_argument("--progress", action="store_true", help="print one line on the error stream for each game that ends")
     p.set_defaults(func=run)

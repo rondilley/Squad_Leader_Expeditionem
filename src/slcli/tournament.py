@@ -21,8 +21,14 @@ def run_tournament(
     seed: int,
     balance: bool = True,
     traces_root: str | Path | None = None,
+    factory: Any = make_agent,
 ) -> artifact.RunArtifact:
-    """Play `games` games. With balance on, the agents change sides on each odd game."""
+    """Play `games` games. With balance on, the agents change sides on each odd game.
+
+    `factory` builds an agent from its name, the engine, the seed, and the player, the
+    way `make_agent` does. A test gives one that builds a model agent on a provider of
+    its own, so the record of the harness is tested with no network.
+    """
     engine, board_record = build_engine_with_record(scenario, board)
     art = artifact.RunArtifact(
         kind="tournament",
@@ -41,12 +47,15 @@ def run_tournament(
     records = {agent_a: Record(), agent_b: Record()}
     elo = EloTable()
     rows: list[dict[str, Any]] = []
+    # The four rates of TC-16 and the decision time of FR-59, from each model agent of
+    # each game, so a run of the prompted family carries its own measurement (OR-02).
+    harness: list[dict[str, Any]] = []
     started = time.perf_counter()
     for i in range(games):
         game_seed = seed + i
         swap = balance and i % 2 == 1
         kind_for_player = (agent_b, agent_a) if swap else (agent_a, agent_b)
-        agents = (make_agent(kind_for_player[0], engine, game_seed, 0), make_agent(kind_for_player[1], engine, game_seed, 1))
+        agents = (factory(kind_for_player[0], engine, game_seed, 0), factory(kind_for_player[1], engine, game_seed, 1))
         writer = trace_writer(engine, game_seed, agents) if traces_root else None
         record = play_game(engine, game_seed, agents, traces=writer)
         if writer is not None:
@@ -67,6 +76,10 @@ def run_tournament(
             }
         )
         _score(records, elo, kind_for_player, sides, winner_side)
+        for player, agent in enumerate(agents):
+            counters = getattr(agent, "counters", None)
+            if counters is not None and hasattr(counters, "to_dict"):
+                harness.append({"game": i, "seed": game_seed, "agent": kind_for_player[player], "side": sides[player], **counters.to_dict()})
     art.stats = {
         "games": games,
         "seconds": round(time.perf_counter() - started, 1),
@@ -75,6 +88,8 @@ def run_tournament(
         "results": rows,
         "sides": list(sides),
     }
+    if harness:
+        art.stats["harness"] = harness
     art.versions = {"agent_a": agent_a, "agent_b": agent_b}
     return art
 

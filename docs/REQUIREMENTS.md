@@ -244,9 +244,9 @@ FR-44: The project MUST ship one scripted agent in v0.1 and three scripted agent
 
 *v0.1 and v0.3.*
 
-FR-45: The model agent harness MUST give the model a compact text state built from the agent's own view. The state has unit-level annotations (hex, terrain, LOS to the nearest enemies, morale, status) and the legal command list with IDs.
+FR-45: The model agent harness MUST give the model a compact text state built from the agent's own view. The state has unit-level annotations (hex, terrain, LOS to the nearest enemies, morale, status) and the legal command list with IDs. The state MUST hold the victory conditions of the scenario card. Each legal command MUST show its odds from the tables of the core (a shot its result and break chances, a move its break chance, a close combat the kill chances, a rally its chance). The odds MUST read the units the agent sees and no other, so a target below a concealment counter has no odds in the text.
 
-*v0.4.* Source: RV-6 recommendation and SR-09.
+*v0.4. The odds and the card since 2026-09-19.* Source: RV-6 recommendation, SR-09, and the gauntlet of 2026-09-19 (a model with the list and no number won 0 of 56).
 
 FR-46: The model agent harness MUST let the model give its analysis in free text first. Then the model MUST emit JSON that a flat schema constrains, with the command ID as an enum of the legal IDs.
 
@@ -311,6 +311,10 @@ FR-63: The tournament MUST compare the four agent families (scripted, learned, p
 FR-64: The project MUST support a subsequent step for the tuned model agent: self-play reinforcement learning on the language model (SPIRAL-style or GRPO with LoRA), only if FR-61 shows that the tuned model beats the prompted model.
 
 *Scale.* Source: RV-6 section 6.
+
+FR-65: The model agent harness MUST offer the model no command that gives the game a position seen in the same turn and phase. A position is the state without its command count. When each legal command gives a seen position, the harness MUST offer the full list, so the agent always has a command. The harness MUST record the count of decisions where it held a command back.
+
+*v0.4, 2026-09-20.* Source: the gauntlet of 2026-09-19, where one game of 40 had 15,837 decisions from a drop and a pickup of one weapon.
 
 ### 1.7 Runs, replay, and tournaments
 
@@ -688,7 +692,7 @@ Listed so that they are not argued again. None is rejected. Each has a re-entry 
 | Boards and LOS | FR-23 to FR-29 | RV-2 section 1, RV-3 section 5, owner decision, consolidated review |
 | Browser client | FR-30 to FR-36 | discovery notes 6.6, RV-8 signal 2, consolidated review |
 | Play modes | FR-37 to FR-42 | owner decision, RV-8 signal 3 |
-| Agents | FR-43 to FR-55, FR-59 to FR-64 | RV-5, RV-6, RV-8, siblings, consolidated review, owner directive |
+| Agents | FR-43 to FR-55, FR-59 to FR-65 | RV-5, RV-6, RV-8, siblings, consolidated review, owner directive |
 | Runs and tournaments | FR-56 to FR-58 | LocalLLMPerf_AI and SpaceWar_AI siblings |
 | Non-functional | NFR-01 to NFR-09 | RV-5 section 5, RV-6 section 6, RV-7, consolidated review |
 | Security | SR-01 to SR-10 | project rules, RV-4, consolidated review |
@@ -711,5 +715,5 @@ Listed so that they are not argued again. None is rejected. Each has a re-entry 
 | EA-5 Human versus computer | FR-39, FR-44, FR-59 | BC-01, BC-03, TC-15 |
 | EA-6 Computer versus computer | FR-40, FR-58, FR-63 | TC-04, TC-15, TC-19, TC-35 |
 | EA-7 Learning and evolution | FR-50 to FR-55, FR-61, FR-64 | TC-18, TC-19, BC-06, TC-35 |
-| EA-8 Local and SaaS models | FR-45 to FR-49, IR-01 to IR-06 | BC-03, TC-16, TC-20, TC-21 |
+| EA-8 Local and SaaS models | FR-45 to FR-49, FR-65, IR-01 to IR-06 | BC-03, TC-16, TC-20, TC-21 |
 | EA-9 A local model with training on the game as a play family (2026-09-07) | FR-60 to FR-63, IR-08, DR-08, NFR-09, SR-10 | TC-35, TC-36, TC-37 |
