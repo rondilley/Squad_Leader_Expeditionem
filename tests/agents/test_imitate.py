@@ -19,7 +19,7 @@ pytest.importorskip("pettingzoo")
 import numpy as np
 import torch
 
-from slagents.learned import imitate
+from slagents.learned import encoding, imitate
 from slagents.learned.agent import LearnedAgent, load_policy
 from slagents.learned.env import make_env
 from slagents.learned.nets import NetConfig, Policy
@@ -86,7 +86,7 @@ def test_the_snapshot_loads_as_a_training_snapshot_and_plays(tmp_path: Path, dem
     policy = Policy(env.spaces_record, SMALL)
     imitate.fit(policy, data, imitate.FitConfig(epochs=1, minibatch=64), env.spaces_record, seed=0)
     path = imitate.save(policy, tmp_path / "snapshot-0.pt", SMALL, {"teachers": ["v5", "v1"]})
-    saved = torch.load(path, map_location="cpu", weights_only=False)
+    saved = torch.load(path, map_location="cpu", weights_only=True)
     assert saved["step"] == 0 and saved["imitation"]["teachers"] == ["v5", "v1"]
     loaded = load_policy(path)
     assert loaded.config == SMALL
@@ -183,7 +183,7 @@ def test_the_label_teacher_of_a_side_names_the_command_and_the_actor_plays(engin
 
             def select(state, frame):
                 chosen = original(state, frame)
-                actors_chose.append(imitate.command_triple(frame.by_id(chosen).command, env.hexes))
+                actors_chose.append(encoding.command_triple(frame.by_id(chosen).command, env.hexes))
                 return chosen
 
             agent.select = select
@@ -198,6 +198,7 @@ def test_the_label_teacher_of_a_side_names_the_command_and_the_actor_plays(engin
         assert data.unit_mask[i][data.unit[i]] == 1
         assert data.action_mask[i].reshape(spaces.units, spaces.actions)[data.unit[i], data.action[i]] == 1
         assert data.target_mask[i][data.target[i]] == 1
+        assert data.option_mask[i][data.option[i]] == 1
     side_0 = [(data.unit[i], data.action[i], data.target[i]) for i in range(len(data)) if data.player[i] == 0]
     assert len(side_0) == len(actors_chose)
     assert any(label != chosen for label, chosen in zip(side_0, actors_chose)), "v5 and v1 differ in some state"
@@ -226,6 +227,7 @@ def test_a_dagger_round_records_the_policy_s_states_with_the_teacher_s_labels(en
         assert data.unit_mask[i][data.unit[i]] == 1
         assert data.action_mask[i].reshape(spaces.units, spaces.actions)[data.unit[i], data.action[i]] == 1
         assert data.target_mask[i][data.target[i]] == 1
+        assert data.option_mask[i][data.option[i]] == 1
     assert len(data.value) == len(data)
     before = len(data)
     more = imitate.Demonstrations()

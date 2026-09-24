@@ -52,7 +52,7 @@ def adjacent_enemy(state: State, unit: Unit) -> bool:
     board_neighbors = geometry.neighbors(*unit.hex)
     for n in board_neighbors:
         for other in state.infantry_in(n):
-            if other.player != unit.player and not other.broken:
+            if other.player != unit.player and not other.broken and not other.hidden:
                 return True
     return False
 
@@ -63,7 +63,7 @@ def known_enemies(ctx: RoutContext, state: State, unit: Unit) -> list[Unit]:
         return []
     out = []
     for other in state.units:
-        if other.player == unit.player or other.broken or other.eliminated or other.hex is None or not other.is_infantry:
+        if other.player == unit.player or other.broken or other.eliminated or other.hidden or other.hex is None or not other.is_infantry:
             continue
         if evaluate(ctx.move.board, ctx.los, other.hex, unit.hex).clear:
             out.append(other)

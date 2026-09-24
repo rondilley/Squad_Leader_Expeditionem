@@ -101,8 +101,8 @@ def apply_rally(state: State, types: Mapping[str, UnitType], command: Command) -
     }
     state = state.with_unit(state.units[unit.id].with_(rally_tried=True))
     if raw == SELF_CASUALTY_ROLL:
-        state = state.with_unit(state.units[unit.id].with_(eliminated=True, hex=None, carrier=None))
         state, drop = r12_morale.drop_weapons(state, unit.id)
+        state = state.with_unit(state.units[unit.id].with_(eliminated=True, hex=None, carrier=None))
         events = [Event(RULE_18_3, "eliminated", data)] + drop
         if unit.kind == KIND_LEADER and unit.hex is not None:
             for other in sorted(state.infantry_in(unit.hex), key=lambda u: u.id):

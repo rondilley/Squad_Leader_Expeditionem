@@ -374,7 +374,9 @@ def add_parser(subparsers: Any) -> None:
     p.add_argument("--parents", type=int, default=3, help="elites kept as parents (mu)")
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--side", default="both", help="the side the candidate plays: both, first, second, or a side name of the scenario")
-    p.add_argument("--workers", type=int, default=1, help="processes that play the games")
+    from slcli.worker_limit import workers_argument
+
+    p.add_argument("--workers", type=workers_argument, default=1, help="processes that play the games")
     p.add_argument("--runs", default="runs", help="the run directory")
     p.add_argument("--only", default="", help="the parameters the search moves, as smoke_floor,smoke_horizon; the rest keep the base (the default is each of them)")
     p.add_argument("--final-games", type=int, default=120, help="games of the final stage for each of the best candidates and the base, on seeds no generation used (0 is no final stage)")

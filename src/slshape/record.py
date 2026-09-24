@@ -200,6 +200,9 @@ def record_corpus(
     if workers <= 1 or len(jobs) < 2:
         results = [_job(job) for job in jobs]
     else:
+        from slcli.worker_limit import limit_workers
+
+        workers = limit_workers(workers)
         with Pool(processes=min(workers, len(jobs))) as pool:
             results = list(pool.imap(_job, jobs, chunksize=1))
     pictures: list[np.ndarray] = []

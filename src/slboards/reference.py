@@ -46,13 +46,20 @@ def available() -> bool:
 
 
 def layout_path(name: str) -> Path:
-    """The path of one layout, checked to be inside the reference directory."""
+    """The path of one layout, checked to be a file inside the layouts directory.
+
+    A name that climbs out of that directory can sit next to it and still be inside
+    the reference root. The check is the layouts directory, not the root.
+    """
+    if name != Path(name).name or name in (".", ".."):
+        raise ReferenceUnavailable(f"the layout name {name!r} points outside the layouts directory")
     root = reference_root().resolve()
-    target = (root / LAYOUT_DIRECTORY / f"{name}.json").resolve()
+    layout_dir = (root / LAYOUT_DIRECTORY).resolve()
+    target = (layout_dir / f"{name}.json").resolve()
     try:
-        target.relative_to(root)
+        target.relative_to(layout_dir)
     except ValueError as exc:
-        raise ReferenceUnavailable(f"the layout name {name!r} points outside the reference directory") from exc
+        raise ReferenceUnavailable(f"the layout name {name!r} points outside the layouts directory") from exc
     return target
 
 

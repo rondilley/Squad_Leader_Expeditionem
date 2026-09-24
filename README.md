@@ -1,8 +1,10 @@
-# Squad_Leader_AI
+# Squad Leader Expeditionem
+
+The repository name is `Squad_Leader_AI`. The public title of the game is Squad Leader Expeditionem. The window captions show that title.
 
 An edition of the 1977 Avalon Hill board game Squad Leader, with the 4th edition rules. It has a rules engine that shows the rule number for each result, and computer opponents that learn. It plays in a browser or in a window of its own on Windows and on Unix.
 
-This project is not affiliated with, sponsored by, or endorsed by Hasbro or Multi-Man Publishing. It ships no Avalon Hill art, scans, board layouts, or rulebook text. The game gets a different public title before a release. The repository name is a working name.
+This project is not affiliated with, sponsored by, or endorsed by Hasbro or Multi-Man Publishing. It ships no Avalon Hill art, scans, board layouts, or rulebook text.
 
 ## What it looks like
 
@@ -30,7 +32,11 @@ that gets into that directory stops a test, and the audit reports it (SR-07).
 
 ## What it is
 
-One rules core with no input or output plays rules 1 to 44 of the 4th edition text. That is the infantry game, the armor game, hills, hidden placement, and the rural terrain. The core keeps the rule ID of each rule it applies. The action log shows the rule, the dice, and the modifiers for each result, for the two sides. A local host owns each game and gives each player only that player's view, so concealment works in the browser. The boards come from a generator in the 1977 look, and the counters are new art from the 1977 values.
+One rules core with no input or output plays rules 1 to 44 of the 4th edition text. That is the infantry game, the armor game, hills, hidden placement, and the rural terrain. The core keeps the rule ID of each rule it applies. The action log shows the rule, the dice, and the modifiers for each result, for the two sides. A local host owns each game. Each outbound message is a view for one seat.
+
+A player sees that player's own units. A concealed enemy is a counter. A hidden enemy is not in that view. In a LAN room the legal command list goes to the seat that acts. The idle seat gets an empty list. Hot seat keeps the list.
+
+The boards come from a generator in the 1977 look, and the counters are new art from the 1977 values.
 
 Four play modes: two humans at one screen, or two clients on one LAN with a room code. Also a human against a computer opponent, and two computer opponents in a headless tournament. A client is a browser or the desktop window.
 
@@ -145,6 +151,8 @@ the defensive fire, or the advancing fire. A small burst on the target shows the
 The arrow keys and the wheel move the board and change its dimension. `f` fits the board
 in the window, `s` writes a picture, Escape clears the focus, and `q` stops.
 
+When the host sets strict mode, the line of sight answer is for a fire phase only.
+
 `sl-cli window3d --agents v6,v6` shows the same game in a 3D window with the same overlay,
 the same click, and the same pointer. The `view3d` extra is necessary for it (`pip install
 -e ".[view3d]"`). `i` hides the overlay, and `o` hides the marks of the focus unit.
@@ -153,9 +161,17 @@ the same click, and the same pointer. The `view3d` extra is necessary for it (`p
 change to the board drawing. The test in `tests/docs/` compares what the tool makes with
 what the tree holds.
 
+`--workers` is a count from 1 to 64. A larger count is an error. `sl-cli bench` gives exit code 0 when the measurement is complete and the best rate is 3,500 steps each second or more. A lower rate gives exit code 1.
+
+An agent name can name a nation and a parameter study. `v7:german` and `v7[loss_scale=8]` are names the play, host, window, campaign, and gate commands accept. A bad name gives a failure in `make_agent`, and the message names that name.
+
+The welcome message has `strict_los`. The browser shows that flag as text. The page has no mode control, and the client does not send a mode. In strict mode the host answers a line of sight question only in a fire phase (rule 19.3).
+
+A learned snapshot from 2026-09-22 or earlier does not load. The observation uses the player view, and the policy has a fourth head for two commands that share a unit, an action, and a hex.
+
 `sl-cli boards --count 1000` is the board gate. It makes the boards, checks the geomorphic edges, connects each board to the next, sets scenario 1 up on it, and writes a run artifact. `--write` puts the board documents in a directory for the owner's scoring session.
 
-A run artifact goes in `runs/<ISO8601-Z>-<slug>/` with a manifest, the command log, the action log, and the statistics. `runs/runs.sqlite` indexes them. Git does not record the run directory or the index.
+A run artifact goes in `runs/<ISO8601-Z>-<slug>/` with a manifest, the command log, the action log, and the statistics. `runs/runs.sqlite` indexes them. `sl-cli runs --rebuild` deletes the rows and writes the new rows in one transaction. A bad artifact does not empty the index. Git does not record the run directory or the index.
 
 API keys for SaaS providers go in `claude.key.txt`, `openai.key.txt`, `gemini.key.txt`, `mistral.key.txt`, and `xai.key.txt` at the project root. `.gitignore` lists them on its first line. A missing key marks that provider unavailable and stops nothing else.
 
@@ -187,12 +203,15 @@ API keys for SaaS providers go in `claude.key.txt`, `openai.key.txt`, `gemini.ke
 | Rural terrain | Rule 44: a wheatfield that stops sight through it, a seasonal crop, the shellhole modifier, and cliff hexsides on a hill |
 | Hidden placement | Rule 42: a side the scenario names records a unit in a woods hex or a building hex, and the other player sees nothing of it |
 | Design your own | Game Set IV: a force point scale, random scenario construction from a seed, and the campaign game. A personal leader holds a rank, and the rank follows the record |
-| Agents | Eight scripted agents with named parameters, and a learned agent with PPO on the GPU, a league, and an Elo table. Agent v3 is the tanker and v4 the doctrine agent. Agent v5 adds vehicle fire to the threat map and suppression fire. Agent v6 is the tempo agent: the attacker keeps a schedule and moves on a path that the threat weights |
+| Agents | Eight scripted agents with named parameters, and a learned agent with PPO on the GPU, a league, and an Elo table. Agent v3 is the tanker. Agent v4 adds the threat map of v1. Agent v5 adds vehicle fire and suppression fire. Agent v6 is the tempo agent: the attacker keeps a schedule and moves on a path that the threat weights |
 | Agent v7 | It trades on the odds: the expected result of each fire from the tables of the core, with no die. It puts the smoke of rule 24 down by the same odds. A nation record of v7 goes by the role of its side: `v7:german` is the defence record where the German defends, and the attack record where it attacks |
 | The local model pool | `model:local*` is the pool of the five llama.cpp servers of the owner's network: four desktops and the workstation's RTX 5090, one model each. The seed of a game picks its host and the others are its failover, so `sl-cli gauntlet --workers 4` keeps the four desktops busy. A `request` field of a provider row goes into each request, and the local rows turn the thinking of Qwen3 off. `sl-cli gauntlet --progress` prints one line for each game that ends |
 | Parameter evolution | `sl-cli evolve` runs a (mu + lambda) evolution strategy on the named parameters of v7. Each candidate of a generation plays the same seeds against a fixed panel as each side. The elites play again in each generation, and the artifact names the best as a `v7[...]` text a person can play |
 | The shape study | `sl-cli shape` records the position at the end of each Movement Phase and each Advance Phase of many games. A position is a picture and a set of shape statistics, with the winner. The analysis gives the AUC of each statistic between the winners and the losers. It gives the information of the shape on top of the material in a cross validated model, and a picture net with its occlusion map |
-| The odds | `slagents.scripted.odds` gives the expected result of a fire group at a hex, as exact counts out of 1,296. It reads rules 8 to 12, 15, 16, 25, and 26 of the core. One test resolves the same groups with the core on 1,500 random number states, and the frequencies agree. Agent v7 forms a fire group where the expected loss of the enemy is highest (P2). It values a leader above a squad (P12), and it measures a move by the loss of the worst hex of its track (P8). Its plan goes for four of the five places, the near and the weak first (P5), and it traps a broken enemy (P11) |
+| The odds | `slagents.scripted.odds` gives the expected result of a fire group at a hex, as counts out of 1,296. It reads the same fire functions as the core. A leader who breaks does not help the next unit in that hex. A chain of hexes uses the rating that helps the firer less (QA-15.2). One test on 1,500 states agrees with the core. v7 and the model prompt read only the enemy units the player can see, and v7 forms a fire group by that loss |
+| Rules, 2026-09-23 | The armour kill modifier goes on the attacker dice. A flamethrower, a demolition charge, a panzerfaust, and a bazooka stay out of a fire group. A squad fires at most four panzerfausts in one player turn. Canister fire and machine-gun fire spend an empty hex and stop on a wall. A killed unit drops its weapons, and close combat removes a broken squad first. A leader on a machine gun does not modify morale |
+| Learner, 2026-09-23 | The policy has four heads, and the option list holds 64 commands. The planes and the sneak term omit a hidden or concealed enemy. The load uses `weights_only=True`. A provider redirect is an error, and the key stays on the first host. A factory hex that each side counts pays one time |
+| Host, 2026-09-23 | An unjoined socket gets no frame. An incorrect room code closes the socket. A second join from a connection that holds a seat is refused. The origin check uses the address the server bound. The 3D side panel writes a draw error to the error stream and keeps the last good panel |
 
 What works: `sl-cli play --scenario s01_guards_counterattack` plays scenario 1 headless with two scripted agents and replays it. `sl-cli tournament` plays N games with the sides balanced and writes a run artifact. `sl-cli bench` measures the environment step rate. `sl-cli boards` makes boards and checks them.
 
@@ -204,7 +223,7 @@ What works: `sl-cli play --scenario s01_guards_counterattack` plays scenario 1 h
 
 What is decided: see `VIBE_HISTORY.md`.
 
-The printed board layouts are not in this repository. Generated mode makes a board from a seed and resolves the set up areas of a scenario by zone. Reference mode reads a layout from `background/reference/` on the owner's machine, and git does not record that directory.
+The printed board layouts are not in this repository. Generated mode makes a board from a seed and resolves the set up areas of a scenario by zone. Reference mode reads a layout from `background/reference/layouts/` on the owner's machine, and git does not record that directory. A layout name has to be a file in that layouts directory.
 
 ## Companion documents
 

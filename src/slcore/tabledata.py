@@ -192,11 +192,16 @@ class ArmorTables:
         return total
 
     def kill_number(self, target: str, weapon: str, vehicle: str = "") -> int | None:
-        """Rules 33.4 and 33.41: the number the firer must roll or less to kill.
+        """Rule 33.4: the base number the firer must roll or less to kill.
+
+        Rule 33.41 puts the vehicle modifier on the attacker's dice, not on this number.
+        `roll_kill` adds `kill_number_modifiers`. The `vehicle` argument stays so a caller
+        from before this correction still runs, and it does not change the number.
 
         None means NA: the weapon has no kill number against that target, and rule 51.4
         sends the attack to the Infantry Fire Table instead.
         """
+        del vehicle
         if target not in self.kill_rows:
             raise KeyError(f"the kill table has no row for the target {target!r}")
         if weapon not in self.weapons:
@@ -204,7 +209,7 @@ class ArmorTables:
         base = self.kill_rows[target][self.weapons.index(weapon)]
         if base is None:
             return None
-        return base + self.kill_number_modifiers.get(vehicle, 0)
+        return base
 
 
 def armor_from_dict(data: Mapping[str, Any]) -> ArmorTables:

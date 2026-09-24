@@ -64,7 +64,17 @@ def test_a_name_that_leaves_the_reference_directory_is_refused(tmp_path, monkeyp
     make_root(tmp_path, monkeypatch)
     with pytest.raises(reference.ReferenceUnavailable) as exc:
         reference.load_layout("../../secrets", TERRAIN)
-    assert "outside the reference directory" in str(exc.value)
+    assert "outside the layouts directory" in str(exc.value)
+
+
+def test_a_name_beside_the_layouts_directory_is_refused(tmp_path, monkeypatch):
+    """A path that climbs out of layouts and sits next to that directory does not load."""
+    make_root(tmp_path, monkeypatch)
+    (tmp_path / "beside.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(reference.ReferenceUnavailable) as exc:
+        reference.load_layout("../beside", TERRAIN)
+    assert "outside the layouts directory" in str(exc.value)
+    assert not (tmp_path / "layouts" / "beside.json").exists()
 
 
 def test_a_layout_that_is_not_there_names_the_directory(tmp_path, monkeypatch):

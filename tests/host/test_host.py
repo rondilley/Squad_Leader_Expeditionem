@@ -68,6 +68,7 @@ async def test_a_client_joins_with_the_room_code_and_gets_a_frame(engine):
             assert welcome["board"]["name"] == engine.board.name
             assert len(welcome["board"]["hexes"]) == len(engine.board)
             assert welcome["scenario"]["id"] == "s00_movement_drill"
+            assert welcome["strict_los"] is False
             frame = await client.receive_until(protocol.HOST_FRAME)
             assert frame["phase"] == "setup"
             assert frame["legal_commands"], "the client gets the legal list"
@@ -162,7 +163,8 @@ async def test_strict_mode_refuses_a_line_of_sight_question_outside_a_fire_phase
     try:
         async with connect(f"ws://127.0.0.1:{port}") as socket:
             client = Client(socket)
-            await client.join(host.room.code)
+            welcome = await client.join(host.room.code)
+            assert welcome["strict_los"] is True
             await client.receive_until(protocol.HOST_FRAME)
             await client.send({"type": "los_request", "from": "A1", "to": "A4"})
             error = await client.receive_until(protocol.HOST_ERROR)
@@ -245,5 +247,59 @@ def test_the_origin_check():
     assert origin_allowed(None, ()), "a tool has no origin, and the room code is its credential"
     assert origin_allowed("http://localhost:8731", ("http://localhost:8731",))
     assert not origin_allowed("http://evil.example", ("http://localhost:8731",))
+    # The third value is the address the server bound, not a Host header from the client.
     assert origin_allowed("http://127.0.0.1:8731", (), "127.0.0.1:8731"), "the page the host served"
     assert not origin_allowed("http://evil.example", (), "127.0.0.1:8731")
+
+
+async def test_a_view_request_before_join_gets_an_error_and_no_frame(engine):
+    host, manager, port = await open_host(engine)
+    try:
+        async with connect(f"ws://127.0.0.1:{port}") as socket:
+            client = Client(socket)
+            await client.send({"type": "view_request"})
+            answer = await client.receive()
+            assert answer["type"] == protocol.HOST_ERROR
+            assert answer["rule_id"] == "SR-03"
+            await client.send({"type": "los_request", "from": "A1", "to": "A2"})
+            answer = await client.receive()
+            assert answer["type"] == protocol.HOST_ERROR
+            assert "frame" not in answer
+    finally:
+        await manager.__aexit__(None, None, None)
+
+
+async def test_a_second_join_from_the_same_connection_is_refused(engine):
+    host, manager, port = await open_host(engine, hot_seat=False)
+    try:
+        async with connect(f"ws://127.0.0.1:{port}") as socket:
+            client = Client(socket)
+            welcome = await client.join(host.room.code)
+            assert welcome["type"] == protocol.HOST_WELCOME
+            await client.receive_until(protocol.HOST_FRAME)
+            held = dict(host.room.seats)
+            await client.send({"type": "join", "room_code": host.room.code, "display_name": "again"})
+            answer = await client.receive()
+            assert answer["type"] == protocol.HOST_ERROR
+            assert answer["rule_id"] == "SR-03"
+            assert host.room.seats == held, "the connection keeps the seat it already holds"
+    finally:
+        await manager.__aexit__(None, None, None)
+
+
+async def test_the_idle_seat_gets_an_empty_legal_list(engine):
+    host, manager, port = await open_host(engine, hot_seat=False)
+    try:
+        async with connect(f"ws://127.0.0.1:{port}") as left, connect(f"ws://127.0.0.1:{port}") as right:
+            first, second = Client(left), Client(right)
+            await first.join(host.room.code)
+            await second.join(host.room.code)
+            one = await first.receive_until(protocol.HOST_FRAME)
+            two = await second.receive_until(protocol.HOST_FRAME)
+            assert one["frame_id"] == two["frame_id"]
+            by_player = {one["player"]: one, two["player"]: two}
+            active = one["view"]["active"]
+            assert by_player[active]["legal_commands"], "the seat that acts gets its list"
+            assert by_player[1 - active]["legal_commands"] == [], "the idle seat gets an empty list"
+    finally:
+        await manager.__aexit__(None, None, None)

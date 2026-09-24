@@ -81,6 +81,11 @@ def test_a_block_quote_after_a_card_section_is_a_finding(tmp_path: Path):
     assert criteria(audit.check_quotes(tmp_path)) == ["TC-29"]
 
 
+def test_a_markdown_quote_after_a_rule_tag_is_a_finding(tmp_path: Path):
+    tree(tmp_path, {"docs/notes.md": "Rule 7.2 [RULES-4E]:\n\n> the quoted sentence\n"})
+    assert criteria(audit.check_quotes(tmp_path)) == ["TC-29"]
+
+
 def test_a_code_block_that_follows_ordinary_prose_is_not_a_finding(tmp_path: Path):
     tree(tmp_path, {"docs/notes.md": "How to run the gate:\n\n```\nsl-cli boards\n```\n"})
     assert audit.check_quotes(tmp_path) == []
@@ -134,6 +139,23 @@ def test_a_run_artifact_from_a_reference_board_is_a_finding(tmp_path: Path):
         json.dumps({"config": {"board_source": "reference_private"}}), encoding="utf-8"
     )
     assert criteria(audit.check_artifacts(tmp_path, tmp_path / "runs")) == ["SR-10"]
+
+
+def test_a_jsonl_artifact_from_a_reference_board_is_a_finding(tmp_path: Path):
+    runs = tmp_path / "runs" / "20260908T000000Z-x"
+    runs.mkdir(parents=True)
+    (runs / "trace.jsonl").write_text('{"board_source": "reference_private"}\n', encoding="utf-8")
+    assert criteria(audit.check_artifacts(tmp_path, tmp_path / "runs")) == ["SR-10"]
+
+
+def test_a_force_added_key_is_a_finding(tmp_path: Path):
+    import subprocess
+
+    tree(tmp_path, {".gitignore": "*.key.txt\n", "openai.key.txt": "secret\n"})
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "add", "-f", "openai.key.txt"], cwd=tmp_path, check=True, capture_output=True)
+    found = audit.check_keys(tmp_path)
+    assert any(item.path.endswith("openai.key.txt") for item in found)
 
 
 def test_a_run_artifact_from_a_generated_board_is_clean(tmp_path: Path):

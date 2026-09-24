@@ -208,7 +208,7 @@ def test_a_snapshot_of_the_wrong_board_size_raises(tmp_path: Path):
 
 
 def test_the_batched_scores_are_the_composed_log_probabilities_of_each_command():
-    """Each score is the sum of the three heads' log probabilities under the same masks."""
+    """Each score is the sum of the four heads' log probabilities under the same masks."""
     import numpy as np
     import torch
 
@@ -227,22 +227,24 @@ def test_the_batched_scores_are_the_composed_log_probabilities_of_each_command()
     groups = encoding.group_commands(frame, agent.hexes)
     player = frame.player
     board = torch.from_numpy(encoding.board_tensor(engine.board, state, engine.types, player, spaces, agent.objectives)).unsqueeze(0)
-    units = torch.from_numpy(encoding.unit_tensor(state, engine.types, player, spaces, engine.board, sorted({u for u, _, _ in groups}))).unsqueeze(0)
+    units = torch.from_numpy(encoding.unit_tensor(state, engine.types, player, spaces, engine.board, sorted({u for u, _, _, _ in groups}))).unsqueeze(0)
     scalars = torch.from_numpy(encoding.scalar_vector(state, frame, player)).unsqueeze(0)
     with torch.no_grad():
         trunk, embeddings = policy.encode(board, units, scalars)
         scores = agent._scores(trunk, embeddings, groups, torch, torch.device("cpu"))
     assert set(scores) == set(groups)
     unit_mask, action_mask = encoding.masks_from(groups, spaces)
-    for triple in sorted(groups)[:6]:
-        u, a, t = triple
+    for quad in sorted(groups)[:6]:
+        u, a, t, o = quad
         target_mask = encoding.target_mask_for(groups, spaces, u, a)
+        option_mask = encoding.option_mask_for(groups, spaces, u, a, t)
         with torch.no_grad():
             log_prob, _, _ = policy.evaluate(
                 board, units, scalars,
                 torch.from_numpy(unit_mask.astype(np.float32)).unsqueeze(0),
                 torch.from_numpy(action_mask.astype(np.float32)).unsqueeze(0),
                 torch.from_numpy(target_mask.astype(np.float32)).unsqueeze(0),
-                torch.tensor([u]), torch.tensor([a]), torch.tensor([t]),
+                torch.from_numpy(option_mask.astype(np.float32)).unsqueeze(0),
+                torch.tensor([u]), torch.tensor([a]), torch.tensor([t]), torch.tensor([o]),
             )
-        assert scores[triple] == pytest.approx(float(log_prob.item()), abs=1e-4)
+        assert scores[quad] == pytest.approx(float(log_prob.item()), abs=1e-4)

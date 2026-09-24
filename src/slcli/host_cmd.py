@@ -83,7 +83,7 @@ def add_parser(subparsers: Any) -> None:
     p.add_argument("--room-code", default=None, help="use this room code instead of a new one")
     p.add_argument("--client", default=None, help="the directory of the built client")
     p.add_argument("--origin", action="append", help="an allowed WebSocket origin; repeat for more")
-    p.add_argument("--agent", default=None, choices=("random", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7"), help="give one side to a computer opponent (FR-39)")
+    p.add_argument("--agent", default=None, help="give one side to a computer opponent (FR-39)")
     p.add_argument(
         "--agents",
         default=None,

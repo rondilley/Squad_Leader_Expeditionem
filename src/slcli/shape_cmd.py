@@ -213,7 +213,9 @@ def add_parser(subparsers: Any) -> None:
     p.add_argument("--scenario", default="s01_guards_counterattack")
     p.add_argument("--games", type=int, default=40, help="games of each pair, half with the sides swapped")
     p.add_argument("--seed", type=int, default=1)
-    p.add_argument("--workers", type=int, default=1)
+    from slcli.worker_limit import workers_argument
+
+    p.add_argument("--workers", type=workers_argument, default=1)
     p.add_argument("--out", default="runs/shape", help="the corpus directory")
     p.add_argument("--cnn", action="store_true", help="add the picture model (needs torch)")
     p.add_argument("--progress", action="store_true")

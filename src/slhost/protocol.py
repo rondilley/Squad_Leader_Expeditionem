@@ -71,8 +71,18 @@ def dump(message: dict[str, Any]) -> str:
     return json.dumps(message, separators=(",", ":"))
 
 
-def welcome(player: int, seat: str, board: dict[str, Any], scenario: dict[str, Any]) -> dict[str, Any]:
-    return {"type": HOST_WELCOME, "player": player, "seat": seat, "board": board, "scenario": scenario}
+def welcome(
+    player: int, seat: str, board: dict[str, Any], scenario: dict[str, Any], strict_los: bool = False
+) -> dict[str, Any]:
+    """The first message. `strict_los` is the host flag. The client shows it and does not choose it."""
+    return {
+        "type": HOST_WELCOME,
+        "player": player,
+        "seat": seat,
+        "board": board,
+        "scenario": scenario,
+        "strict_los": strict_los,
+    }
 
 
 def frame_message(player: int, view: dict[str, Any], frame: dict[str, Any], log_tail: list[dict[str, Any]]) -> dict[str, Any]:

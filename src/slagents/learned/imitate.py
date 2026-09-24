@@ -12,8 +12,8 @@ action space. A trace file of FR-60 holds the view and not the state, so it cann
 board tensor again; the games are played here instead. Nothing in this module knows a
 rule of the game: the teacher selects from the frame, and the environment asks the core.
 
-The fit is a cross entropy on the three heads: the negative log probability of the
-teacher's triple under the policy, with the same masks the trainer uses. The value head
+The fit is a cross entropy on the four heads: the negative log probability of the
+teacher's command under the policy, with the same masks the trainer uses. The value head
 fits the shaped return of the decision, divided by the trainer's reward scale, so that PPO
 starts with a value estimate and not with a zero.
 
@@ -42,14 +42,28 @@ import numpy as np
 import torch
 from torch import nn
 
-from slagents.learned.encoding import Spaces, command_triple
+from slagents.learned.encoding import Spaces, command_index
 from slagents.learned.env import SquadLeaderEnv
 from slagents.learned.league import write_snapshot
 from slagents.learned.nets import NetConfig, Policy
 from slagents.learned.ppo import PpoConfig, choose, policy_device
 
 
-FIELDS = ("board", "units", "scalars", "unit_mask", "action_mask", "target_mask", "unit", "action", "target", "value", "player")
+FIELDS = (
+    "board",
+    "units",
+    "scalars",
+    "unit_mask",
+    "action_mask",
+    "target_mask",
+    "option_mask",
+    "unit",
+    "action",
+    "target",
+    "option",
+    "value",
+    "player",
+)
 
 
 @dataclass
@@ -62,9 +76,11 @@ class GameBuffer:
     unit_mask: list[np.ndarray] = field(default_factory=list)
     action_mask: list[np.ndarray] = field(default_factory=list)
     target_mask: list[np.ndarray] = field(default_factory=list)
+    option_mask: list[np.ndarray] = field(default_factory=list)
     unit: list[int] = field(default_factory=list)
     action: list[int] = field(default_factory=list)
     target: list[int] = field(default_factory=list)
+    option: list[int] = field(default_factory=list)
     value: list[float] = field(default_factory=list)
     player: list[int] = field(default_factory=list)
 
@@ -80,9 +96,11 @@ class GameBuffer:
             "unit_mask": np.stack(self.unit_mask),
             "action_mask": np.stack(self.action_mask),
             "target_mask": np.stack(self.target_mask),
+            "option_mask": np.stack(self.option_mask),
             "unit": np.array(self.unit, dtype=np.int64),
             "action": np.array(self.action, dtype=np.int64),
             "target": np.array(self.target, dtype=np.int64),
+            "option": np.array(self.option, dtype=np.int64),
             "value": np.array(self.value, dtype=np.float32),
             "player": np.array(self.player, dtype=np.int64),
         }
@@ -150,25 +168,30 @@ def parse_labels(text: str) -> dict[int, str]:
     return out
 
 
-def _record(data: GameBuffer, env: SquadLeaderEnv, observation: dict[str, np.ndarray], triple: tuple[int, int, int], player: int) -> None:
+def _record(data: GameBuffer, env: SquadLeaderEnv, observation: dict[str, np.ndarray], key: tuple[int, int, int, int], player: int) -> None:
     data.board.append(observation["board"])
     data.units.append(observation["units"])
     data.scalars.append(observation["scalars"])
     data.unit_mask.append(observation["unit_mask"])
     data.action_mask.append(observation["action_mask"])
-    data.target_mask.append(env.target_mask(triple[0], triple[1]))
-    data.unit.append(triple[0])
-    data.action.append(triple[1])
-    data.target.append(triple[2])
+    data.target_mask.append(env.target_mask(key[0], key[1]))
+    data.option_mask.append(env.option_mask(key[0], key[1], key[2]))
+    data.unit.append(key[0])
+    data.action.append(key[1])
+    data.target.append(key[2])
+    data.option.append(key[3])
     data.player.append(player)
 
 
-def _teacher_triple(teacher: Any, env: SquadLeaderEnv) -> tuple[int, int, int]:
+def _teacher_key(teacher: Any, env: SquadLeaderEnv) -> tuple[int, int, int, int]:
+    """The four parts of the command the teacher names. The option is that command, not the lowest id."""
     legal = env.frame.by_id(teacher.select(env.state_, env.frame))
-    triple = command_triple(legal.command, env.hexes)
-    if triple not in env.groups:
-        raise RuntimeError(f"the teacher's command {legal.command} has no triple in the action space")
-    return triple
+    if legal is None:
+        raise RuntimeError("the teacher gave an ID that is not in the frame")
+    try:
+        return command_index(legal, env.groups)
+    except KeyError as exc:
+        raise RuntimeError(f"the teacher's command {legal.command} has no key in the action space") from exc
 
 
 def _close_game(data: Demonstrations, buffer: GameBuffer, env: SquadLeaderEnv, paid: list[float], players: list[int]) -> float:
@@ -257,8 +280,8 @@ def play_demonstration(
             break
         player = env.player_of(agent)
         observation = env.observe(agent)
-        triple = _teacher_triple(actors[player], env)
-        label = triple if labelers[player] is actors[player] else _teacher_triple(labelers[player], env)
+        triple = _teacher_key(actors[player], env)
+        label = triple if labelers[player] is actors[player] else _teacher_key(labelers[player], env)
         _record(buffer, env, observation, label, player)
         paid.append(float(env._cumulative_rewards[agent]))
         players.append(player)
@@ -334,17 +357,17 @@ def play_correction(
             break
         player = env.player_of(agent)
         observation = env.observe(agent)
-        label = _teacher_triple(labelers[player], env)
+        label = _teacher_key(labelers[player], env)
         if player == side:
             if mix > 0.0 and float(torch.rand((), generator=generator).item()) < mix:
                 triple = label
             else:
-                triple, _, _, _ = choose(policy, observation, env, generator)
+                triple, _, _, _, _ = choose(policy, observation, env, generator)
         elif labels[player] == kind:
             # The opponent is the label teacher of its side, so the label is its command.
             triple = label
         else:
-            triple = _teacher_triple(opponent, env)
+            triple = _teacher_key(opponent, env)
         _record(buffer, env, observation, label, player)
         paid.append(float(env._cumulative_rewards[agent]))
         players.append(player)
@@ -406,9 +429,11 @@ class Tensors:
         self.unit_mask = torch.from_numpy(data.unit_mask.astype(np.int8))
         self.action_mask = torch.from_numpy(data.action_mask.astype(np.int8).reshape(-1, spaces.units, spaces.actions))
         self.target_mask = torch.from_numpy(data.target_mask.astype(np.int8))
+        self.option_mask = torch.from_numpy(data.option_mask.astype(np.int8))
         self.unit = torch.from_numpy(data.unit).to(torch.long)
         self.action = torch.from_numpy(data.action).to(torch.long)
         self.target = torch.from_numpy(data.target).to(torch.long)
+        self.option = torch.from_numpy(data.option).to(torch.long)
         self.value = torch.from_numpy(data.value).to(torch.float32) / max(1e-9, scale)
 
     def __len__(self) -> int:
@@ -425,16 +450,18 @@ class Tensors:
             "unit_mask": self.unit_mask[index].to(d).float(),
             "action_mask": self.action_mask[index].to(d).float(),
             "target_mask": self.target_mask[index].to(d).float(),
+            "option_mask": self.option_mask[index].to(d).float(),
             "unit": self.unit[index].to(d),
             "action": self.action[index].to(d),
             "target": self.target[index].to(d),
+            "option": self.option[index].to(d),
             "value": self.value[index].to(d),
         }
 
     def losses(
         self, policy: Policy, index: torch.Tensor, value_coefficient: float, stop_weight: float = 1.0
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """The cross entropy of the teacher's triple, the value error, and their sum.
+        """The cross entropy of the teacher's command, the value error, and their sum.
 
         `stop_weight` weighs each decision whose label is in the slot of no unit, which
         is the decision that stops a phase or fires the group (`FitConfig.stop_weight`).
@@ -447,9 +474,11 @@ class Tensors:
             b["unit_mask"],
             b["action_mask"],
             b["target_mask"],
+            b["option_mask"],
             b["unit"],
             b["action"],
             b["target"],
+            b["option"],
         )
         weights = torch.where(b["unit"] == 0, torch.full_like(log_prob, stop_weight), torch.ones_like(log_prob))
         cross_entropy = -(log_prob * weights).sum() / weights.sum()
@@ -542,7 +571,8 @@ def argmax_matches(policy: Policy, tensors: Tensors, index: torch.Tensor) -> int
     # The target mask of the batch is the teacher's, for the teacher's unit and action. A
     # decision with another unit or action is wrong already, so its target does not count.
     target = policy.target_logits(trunk, unit_embeddings, unit, action, b["target_mask"]).argmax(dim=-1)
-    same = (unit == b["unit"]) & (action == b["action"]) & (target == b["target"])
+    option = policy.option_logits(trunk, unit_embeddings, unit, action, target, b["option_mask"]).argmax(dim=-1)
+    same = (unit == b["unit"]) & (action == b["action"]) & (target == b["target"]) & (option == b["option"])
     return int(same.sum().item())
 
 

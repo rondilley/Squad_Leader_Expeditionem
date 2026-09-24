@@ -83,7 +83,8 @@ def test_the_mask_allows_each_legal_command_and_no_other(engine):
         for unit in np.flatnonzero(observation["unit_mask"]):
             for action in np.flatnonzero(action_mask[unit]):
                 for target in np.flatnonzero(env.target_mask(int(unit), int(action))):
-                    allowed.add((int(unit), int(action), int(target)))
+                    for option in np.flatnonzero(env.option_mask(int(unit), int(action), int(target))):
+                        allowed.add((int(unit), int(action), int(target), int(option)))
         assert allowed == set(env.groups), "the mask and the legal list are the same set"
         triple = sorted(env.groups)[0]
         env.step(triple)
@@ -163,7 +164,9 @@ def test_the_command_triple_names_the_same_command_in_each_state(engine):
     hexes = env.hexes
     for legal in frame.commands[:20]:
         triple = encoding.command_triple(legal.command, hexes)
-        assert triple in env.groups
+        key = encoding.command_index(legal, env.groups)
+        assert key[:3] == triple
+        assert env.groups[key].id == legal.id
         again = encoding.command_triple(legal.command, hexes)
         assert triple == again
     shuffled = list(reversed(frame.commands))
@@ -177,7 +180,7 @@ def _play_scripted(env, engine, kinds: tuple[str, str], seed: int) -> tuple[int,
     Gives the decisions the environment asked for, the commands it applied, and the hash of
     the last state.
     """
-    from slagents.learned.encoding import command_triple
+    from slagents.learned.encoding import command_index
     from slcli.play import make_agent
     from slcore.hashing import hash_state
 
@@ -190,7 +193,7 @@ def _play_scripted(env, engine, kinds: tuple[str, str], seed: int) -> tuple[int,
             break
         state = env.state_
         legal = env.frame.by_id(agents[state.active].select(state, env.frame))
-        env.step(command_triple(legal.command, env.hexes))
+        env.step(command_index(legal, env.groups))
         decisions += 1
     return decisions, env.commands_applied, hash_state(env.state_)
 
@@ -240,7 +243,7 @@ def test_the_observation_shows_the_fire_group_the_legal_units_and_the_objective(
     """
     from slcore.game import PHASE_PREP_FIRE
     from slcore.rules.victory import controlled_by
-    from slagents.learned.encoding import command_triple
+    from slagents.learned.encoding import command_index
     from slcli.play import make_agent
 
     env = make_env(engine, seed=43)
@@ -252,7 +255,7 @@ def test_the_observation_shows_the_fire_group_the_legal_units_and_the_objective(
         if state.phase == PHASE_PREP_FIRE and state.fire_group is not None and state.fire_group.members:
             break
         legal = env.frame.by_id(agents[state.active].select(state, env.frame))
-        env.step(command_triple(legal.command, env.hexes))
+        env.step(command_index(legal, env.groups))
     else:
         raise AssertionError("no open fire group in 4000 commands")
     state = env.state_

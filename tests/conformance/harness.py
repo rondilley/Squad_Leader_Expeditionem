@@ -166,6 +166,8 @@ def build_case(case: dict[str, Any]) -> CaseState:
                 stay=bool(spec.get("stay", False)),
                 berserk=bool(spec.get("berserk", False)),
                 directed=bool(spec.get("directed", False)),
+                manned_mg=bool(spec.get("manned_mg", False)),
+                hidden=bool(spec.get("hidden", False)),
                 made_smoke=bool(spec.get("made_smoke", False)),
                 sewer_move=bool(spec.get("sewer_move", False)),
                 demo_placed=bool(spec.get("demo_placed", False)),

@@ -21,6 +21,7 @@ Elo code as the tournament, so one number means the same thing in the two places
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -175,11 +176,24 @@ def capped_shares(weights: list[float], cap: float) -> list[float]:
             shares[i] += excess * (shares[i] / free_total if free_total > 0 else 1.0 / len(free))
 
 
+def _json_object(extra: dict) -> dict:
+    """The extra record as JSON values, so a snapshot holds no object the loader cannot read."""
+    try:
+        plain = json.loads(json.dumps(extra))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("the snapshot extra must be JSON values") from exc
+    if not isinstance(plain, dict):
+        raise ValueError("the snapshot extra must be a JSON object")
+    return plain
+
+
 def write_snapshot(policy: Policy, path: Path, step: int, config: NetConfig, extra: dict | None = None) -> Path:
     """A policy on disk with the shape it needs to load again.
 
     The trainer writes one at each snapshot step, and the imitation fit writes one as the
-    start of a run. `extra` is a record the writer adds, as the imitation record.
+    start of a run. `extra` is a record the writer adds, as the imitation record. It must
+    be JSON values. The load uses `weights_only=True`, so a snapshot is weights and plain
+    records and nothing else.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     saved = {
@@ -192,17 +206,18 @@ def write_snapshot(policy: Policy, path: Path, step: int, config: NetConfig, ext
             "targets": policy.spaces.targets,
             "cols": policy.spaces.cols,
             "rows": policy.spaces.rows,
+            "options": policy.spaces.options,
         },
     }
     if extra:
-        saved.update(extra)
+        saved.update(_json_object(extra))
     torch.save(saved, path)
     return path
 
 
 def load_snapshot(path: Path, policy: Policy) -> Policy:
     """A snapshot back into a policy of the same shape."""
-    saved = torch.load(path, map_location="cpu", weights_only=False)
+    saved = torch.load(path, map_location="cpu", weights_only=True)
     policy.load_state_dict(saved["state_dict"])
     policy.eval()
     return policy

@@ -334,16 +334,18 @@ def roll_kill(
     """Rules 33.4 and 33.41: does the shell go through the armour."""
     face = r28_vehicles.target_face(target, firer_hex, ctx.types)
     armor_key = ctx.types[target.type_key].armor_key
-    needed = ctx.armor.kill_number(face, column, armor_key)
+    needed = ctx.armor.kill_number(face, column)
     rng, dice = roll_2d6(state.rng)
     state = state.with_(rng=rng)
     raw = dice[0] + dice[1]
+    # Rule 33.41: the modifier goes on the dice of the attacker. A negative number helps.
     modifier = ctx.armor.kill_number_modifiers.get(armor_key, 0)
-    killed = needed is not None and raw <= needed
+    adjusted = raw + modifier
+    killed = needed is not None and adjusted <= needed
     return state, Kill(
         killed=killed,
         raw=raw,
-        adjusted=raw,
+        adjusted=adjusted,
         needed=needed,
         face=face,
         column=column,
@@ -361,6 +363,7 @@ def kill_event(firer_id: int, target: Unit, result: Kill) -> Event:
             "face": result.face,
             "column": result.column,
             "raw": result.raw,
+            "adjusted": result.adjusted,
             "needed": result.needed,
             "armor_modifier": result.modifier,
             "killed": result.killed,

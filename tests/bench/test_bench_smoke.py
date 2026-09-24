@@ -21,6 +21,7 @@ def test_cli_play_and_bench_write_files(tmp_path: Path):
     doc = json.loads(files[0].read_text(encoding="utf-8"))
     assert doc["commands"][0]["payload"]["action"] in ("place", "place_weapon")
     stats = tmp_path / "stats.json"
-    assert main(["bench", "--workers", "1", "--seconds", "1", "--out", str(stats)]) == 0
+    code = main(["bench", "--workers", "1", "--seconds", "1", "--out", str(stats)])
     report = json.loads(stats.read_text(encoding="utf-8"))
     assert report["runs"][0]["steps"] > 0 and "hardware" in report
+    assert code == (0 if report["passed"] else 1)

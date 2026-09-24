@@ -40,6 +40,7 @@ screenshot uses the offscreen path (`render_screenshot`), which needs no display
 from __future__ import annotations
 
 import math
+import sys
 from typing import Any
 
 from direct.showbase.ShowBase import ShowBase
@@ -449,7 +450,8 @@ class Board3DApp(ShowBase):
         rect = pygame.Rect(0, 0, panel_w, win_h)
         try:
             panel.draw_panel(surface, rect, snapshot, self._panel_font, self._panel_small, -1, "")
-        except Exception:
+        except Exception as exc:
+            print(f"the 3D panel was not drawn: {exc}", file=sys.stderr)
             return
         texture = _surface_to_texture(surface, "hud")
         if self._hud is not None:

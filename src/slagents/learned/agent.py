@@ -5,13 +5,13 @@ This wrapper gives it the Agent interface, so it plays in a tournament, a gate, 
 game the same way a scripted agent does.
 
 The wrapper scores the legal commands that the core offers and returns the ID of the best
-one. It does not sample a triple and hope the triple is legal: it reads `frame.commands`,
-maps each legal command to its three parts with the same `command_triple` the trainer uses,
-and scores each triple with the policy's three heads. The command with the highest score is
+one. It does not sample a key and hope the key is legal: it reads `frame.commands`,
+maps each legal command to its four parts with the same `group_commands` the trainer uses,
+and scores each key with the policy's four heads. The command with the highest score is
 the choice. So the returned ID is always a real legal command, and the target mask does not
 have to be rebuilt outside the environment.
 
-The score of a command is the sum of the three per-head log probabilities, which is how
+The score of a command is the sum of the four per-head log probabilities, which is how
 `ppo.choose` composes the log probability of a whole command. The default is the argmax,
 because a tournament and a replay must give the same command for the same state. A seed
 turns on sampling for a run that wants variety.
@@ -72,7 +72,7 @@ def load_policy(snapshot_path: Path) -> "Policy":
     from slagents.learned.league import load_snapshot
     from slagents.learned.nets import NetConfig, Policy
 
-    saved = torch.load(snapshot_path, map_location="cpu", weights_only=False)
+    saved = torch.load(snapshot_path, map_location="cpu", weights_only=True)
     if "spaces" not in saved or "net" not in saved:
         raise KeyError(
             f"the snapshot {snapshot_path} has no spaces or net record; it is not a training snapshot"
@@ -84,6 +84,7 @@ def load_policy(snapshot_path: Path) -> "Policy":
         targets=int(s["targets"]),
         cols=int(s["cols"]),
         rows=int(s["rows"]),
+        options=int(s["options"]) if "options" in s else encoding.MAX_OPTIONS,
     )
     net = NetConfig(**{k: int(v) for k, v in saved["net"].items()})
     policy = Policy(spaces, net)
@@ -145,11 +146,11 @@ class LearnedAgent:
         return cls(engine, None, seed, policy=policy)
 
     def select(self, state: State, frame: DecisionFrame) -> str:
-        """The ID of the best legal command, by the policy's three heads.
+        """The ID of the best legal command, by the policy's four heads.
 
         A tie between two legal commands with the same three parts is broken by the lowest
-        command ID, which `group_commands` already does. A tie between two triples with the
-        same score is broken by the lowest triple, because the loop reads the triples in
+        command ID, which `group_commands` already does. A tie between two keys with the
+        same score is broken by the lowest key, because the loop reads the keys in
         ascending order and keeps the first of an equal score.
         """
         if not frame.commands:
@@ -166,7 +167,7 @@ class LearnedAgent:
             encoding.board_tensor(self.board, state, self.types, player, self.spaces, self.objectives)
         ).unsqueeze(0).to(device)
         units = torch.from_numpy(
-            encoding.unit_tensor(state, self.types, player, self.spaces, self.board, sorted({u for u, _, _ in groups}))
+            encoding.unit_tensor(state, self.types, player, self.spaces, self.board, sorted({u for u, _, _, _ in groups}))
         ).unsqueeze(0).to(device)
         scalars = torch.from_numpy(encoding.scalar_vector(state, frame, player)).unsqueeze(0).to(device)
         with torch.no_grad():
@@ -201,35 +202,37 @@ class LearnedAgent:
         return ordered[0]
 
     @staticmethod
-    def _by_score(scores: dict[tuple[int, int, int], float], groups) -> list[LegalCommand]:
-        """The legal commands from the highest score down, with the lowest triple as the tie break."""
-        return [groups[triple] for triple in sorted(scores, key=lambda t: (-scores[t], t))]
+    def _by_score(scores: dict[tuple[int, int, int, int], float], groups) -> list[LegalCommand]:
+        """The legal commands from the highest score down, with the lowest key as the tie break."""
+        return [groups[key] for key in sorted(scores, key=lambda t: (-scores[t], t))]
 
-    def _scores(self, trunk, unit_embeddings, groups: Mapping[tuple[int, int, int], LegalCommand], torch, device) -> dict[tuple[int, int, int], float]:
-        """The composed log probability of each legal triple.
+    def _scores(self, trunk, unit_embeddings, groups: Mapping[tuple[int, int, int, int], LegalCommand], torch, device) -> dict[tuple[int, int, int, int], float]:
+        """The composed log probability of each legal command.
 
-        Three forward calls score the whole set: the unit head once, the action head once
-        for all the legal unit slots as one batch, and the target head once for all the
-        legal unit and action pairs as one batch. The log probabilities come to the
-        processor once. The loop before this made one call and three waits for each
-        triple, which was 45 ms a decision on the card and an hour for an evaluation of
-        160 games (2026-09-16).
+        Four forward calls score the whole set: the unit head once, the action head once
+        for all the legal unit slots as one batch, the target head once for all the legal
+        unit and action pairs, and the option head once for all the legal unit, action,
+        and hex triples. The log probabilities come to the processor once.
         """
         import numpy as np
 
         spaces = self.spaces
-        triples = sorted(groups)
-        units = sorted({u for u, _, _ in triples})
-        pairs = sorted({(u, a) for u, a, _ in triples})
+        quads = sorted(groups)
+        units = sorted({u for u, _, _, _ in quads})
+        pairs = sorted({(u, a) for u, a, _, _ in quads})
+        aimed = sorted({(u, a, t) for u, a, t, _ in quads})
         unit_index = {u: i for i, u in enumerate(units)}
         pair_index = {pair: i for i, pair in enumerate(pairs)}
+        aim_index = {aim: i for i, aim in enumerate(aimed)}
         unit_mask = np.zeros(spaces.units, dtype=np.float32)
         action_mask = np.zeros((len(units), spaces.actions), dtype=np.float32)
         target_mask = np.zeros((len(pairs), spaces.targets), dtype=np.float32)
-        for u, a, t in triples:
+        option_mask = np.zeros((len(aimed), spaces.options), dtype=np.float32)
+        for u, a, t, o in quads:
             unit_mask[u] = 1.0
             action_mask[unit_index[u], a] = 1.0
             target_mask[pair_index[(u, a)], t] = 1.0
+            option_mask[aim_index[(u, a, t)], o] = 1.0
         u_logits = self.policy.unit_logits(trunk, unit_embeddings, torch.from_numpy(unit_mask).unsqueeze(0).to(device))
         u_logp = torch.log_softmax(u_logits.squeeze(0), dim=-1).cpu().numpy()
         n = len(units)
@@ -249,15 +252,30 @@ class LearnedAgent:
             torch.from_numpy(target_mask).to(device),
         )
         t_logp = torch.log_softmax(t_logits, dim=-1).cpu().numpy()
+        p = len(aimed)
+        o_logits = self.policy.option_logits(
+            trunk.expand(p, -1),
+            unit_embeddings.expand(p, -1, -1),
+            torch.tensor([u for u, _, _ in aimed], dtype=torch.long, device=device),
+            torch.tensor([a for _, a, _ in aimed], dtype=torch.long, device=device),
+            torch.tensor([t for _, _, t in aimed], dtype=torch.long, device=device),
+            torch.from_numpy(option_mask).to(device),
+        )
+        o_logp = torch.log_softmax(o_logits, dim=-1).cpu().numpy()
         return {
-            (u, a, t): float(u_logp[u] + a_logp[unit_index[u], a] + t_logp[pair_index[(u, a)], t])
-            for u, a, t in triples
+            (u, a, t, o): float(
+                u_logp[u]
+                + a_logp[unit_index[u], a]
+                + t_logp[pair_index[(u, a)], t]
+                + o_logp[aim_index[(u, a, t)], o]
+            )
+            for u, a, t, o in quads
         }
 
-    def _sample(self, scores: dict[tuple[int, int, int], float], groups, torch) -> LegalCommand:
-        """A seeded draw over the legal triples, weighted by the composed log probability.
+    def _sample(self, scores: dict[tuple[int, int, int, int], float], groups, torch) -> LegalCommand:
+        """A seeded draw over the legal commands, weighted by the composed log probability.
 
-        The composed score of each legal triple is a log probability, so the softmax over the
+        The composed score of each legal command is a log probability, so the softmax over the
         scores is a distribution over the legal commands. The seed makes the draw reproducible.
         """
         ordered = sorted(scores)

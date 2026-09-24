@@ -142,9 +142,12 @@ async def test_two_clients_take_one_seat_each_and_play_a_turn(engine):
             commands = 0
             while commands < SETUP_LIMIT:
                 frame = await both_at_the_newest(first, second)
-                if frame["phase"] != "setup" or not frame["legal_commands"]:
+                if frame["phase"] != "setup":
                     break
-                await by_player[frame["view"]["active"]].act(frame)
+                actor = by_player[frame["view"]["active"]]
+                if not actor.last or not actor.last["legal_commands"]:
+                    break
+                await actor.act(actor.last)
                 commands += 1
             assert commands > 0, "the clients placed their counters"
             assert host.game.state.phase != "setup", "the two sides completed set up"
@@ -164,8 +167,9 @@ async def test_a_client_may_not_act_for_the_other_seat(engine):
             await second.join(host.room.code)
             frame = await both_at_the_newest(first, second)
             active = frame["view"]["active"]
-            idle = first if first.player != active else second
-            await idle.act(frame)
+            actor = first if first.player == active else second
+            idle = second if actor is first else first
+            await idle.act(actor.last)
             error = await idle.receive_until(protocol.HOST_ERROR)
             assert error["rule_id"] == "SR-03"
             assert not host.game.commands, "the host applied no command"
@@ -204,12 +208,14 @@ async def test_the_time_from_one_client_to_the_other_is_inside_the_budget(engine
             samples: list[float] = []
             for _ in range(30):
                 frame = await both_at_the_newest(first, second)
-                if frame["phase"] != "setup" or not frame["legal_commands"]:
+                if frame["phase"] != "setup":
                     break
                 active = frame["view"]["active"]
                 actor, watcher = by_player[active], by_player[1 - active]
+                if not actor.last or not actor.last["legal_commands"]:
+                    break
                 started = time.perf_counter()
-                await actor.act(frame)
+                await actor.act(actor.last)
                 await watcher.next_frame()
                 samples.append((time.perf_counter() - started) * 1000.0)
             assert len(samples) >= 10, f"the test needs a set of samples, and it took {len(samples)}"

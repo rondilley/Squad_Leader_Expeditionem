@@ -37,6 +37,17 @@ class ProviderError(Exception):
     """A provider call did not give an answer. The message never holds a key."""
 
 
+class _RefuseRedirect(urllib.request.HTTPRedirectHandler):
+    """A 301, 302, 303, 307, or 308 is an error. The key stays on the first host."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__()
+        self._name = name
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ProviderError(f"{self._name} answered {code}: a redirect is refused")
+
+
 class ProviderUnavailable(ProviderError):
     """The provider has no key, or its endpoint does not answer."""
 
@@ -197,8 +208,11 @@ class Provider:
         return url
 
     def _send(self, request: urllib.request.Request) -> dict[str, Any]:
+        # A redirect would carry Authorization and the provider keys to the next host.
+        # The allowlist was checked on the first address only, so a redirect is a refusal.
+        opener = urllib.request.build_opener(_RefuseRedirect(self.name))
         try:
-            with urllib.request.urlopen(request, timeout=self.config.timeout_seconds) as answer:
+            with opener.open(request, timeout=self.config.timeout_seconds) as answer:
                 raw = answer.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")[:300] if exc.fp else ""

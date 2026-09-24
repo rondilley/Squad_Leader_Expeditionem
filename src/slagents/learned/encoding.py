@@ -18,15 +18,15 @@ and a state with five looked the same. So the rows say which units are in the gr
 leads it, and which units have a legal command now, and the planes say the target of the
 group, the buildings a positional victory condition names, and who holds each one.
 
-The command is composed of three parts, as FR-51 asks: which unit, which action, and
-which hex. A command with no unit uses the slot of the whole side, and a command with no
-hex uses the target slot of no hex. The masks say which parts are legal, so an illegal
-command cannot be selected by construction.
+The command is composed of four parts: which unit, which action, which hex, and which
+option. A command with no unit uses the slot of the whole side, and a command with no
+hex uses the target slot of no hex. Two support weapons at one hex share the first three
+parts. The option is that command's place in command-id order. The masks say which parts
+are legal, so an illegal command cannot be selected by construction.
 
-Why the three parts and not an index into the legal list: an index is a position, and a
-position moves when the list changes. The three parts name the same thing in each state
-and in each version of the code, which is the same reason the command ID is a hash of the
-payload and not a position (TC-38).
+Why these parts and not an index into the legal list: an index is a position, and a
+position moves when the list changes. The parts name the same thing in each state, which
+is the same reason the command ID is a hash of the payload and not a position (TC-38).
 """
 
 from __future__ import annotations
@@ -112,17 +112,23 @@ UNIT_FEATURES = 34
 SCALARS = len(PLAYER_TURN_PHASES) + 8
 NO_UNIT = 0  # slot 0 is the side itself, for a command that names no unit
 NO_HEX = 0  # target slot 0 is "no hex"
+# Two support weapons at one hex are two commands with the same unit, action, and hex.
+# A close combat hex does the same with every attack that starts with the same unit.
+# The option head names which command. Sixty-four covers that list on the scenarios
+# the trainer plays. A longer list keeps the lowest command ids.
+MAX_OPTIONS = 64
 
 
 @dataclass(frozen=True)
 class Spaces:
-    """The sizes of the three heads for one scenario."""
+    """The sizes of the heads for one scenario."""
 
     units: int
     actions: int
     targets: int
     cols: int
     rows: int
+    options: int = MAX_OPTIONS
 
     @property
     def board_shape(self) -> tuple[int, int, int]:
@@ -145,6 +151,7 @@ def spaces_for(board: Board, unit_count: int) -> Spaces:
         targets=len(board) + 1,
         cols=board.cols,
         rows=board.rows,
+        options=MAX_OPTIONS,
     )
 
 
@@ -163,23 +170,35 @@ def command_triple(command: Command, hexes: Mapping[HexRef, int]) -> tuple[int, 
     return unit, action, target
 
 
-def group_commands(frame: DecisionFrame, hexes: Mapping[HexRef, int]) -> dict[tuple[int, int, int], LegalCommand]:
-    """The legal commands by their three parts.
+def group_commands(frame: DecisionFrame, hexes: Mapping[HexRef, int]) -> dict[tuple[int, int, int, int], LegalCommand]:
+    """The legal commands by unit, action, hex, and option.
 
-    Two legal commands can have the same three parts, because a squad can fire one of two
-    support weapons at the same hex. The lowest command ID wins, which is a stable choice
-    in each version of the code.
+    Two support weapons at one hex share the first three parts. The options are those
+    commands in command-id order. Option 0 is the only command when the triple is unique.
+    The environment applies the command of the option. It does not apply the lowest id
+    and drop the other weapon.
     """
-    out: dict[tuple[int, int, int], LegalCommand] = {}
+    buckets: dict[tuple[int, int, int], list[LegalCommand]] = {}
     for legal in frame.commands:
-        key = command_triple(legal.command, hexes)
-        found = out.get(key)
-        if found is None or legal.id < found.id:
-            out[key] = legal
+        buckets.setdefault(command_triple(legal.command, hexes), []).append(legal)
+    out: dict[tuple[int, int, int, int], LegalCommand] = {}
+    for key, commands in buckets.items():
+        for option, legal in enumerate(sorted(commands, key=lambda c: c.id)[:MAX_OPTIONS]):
+            out[(*key, option)] = legal
     return out
 
 
-def masks_from(groups: Mapping[tuple[int, int, int], LegalCommand], spaces: Spaces) -> tuple[np.ndarray, np.ndarray]:
+def command_index(
+    legal: LegalCommand, groups: Mapping[tuple[int, int, int, int], LegalCommand]
+) -> tuple[int, int, int, int]:
+    """The four parts of one legal command in the map from `group_commands`."""
+    for key, command in groups.items():
+        if command.id == legal.id:
+            return key
+    raise KeyError(f"the command {legal.id} is not in the grouped legal list")
+
+
+def masks_from(groups: Mapping[tuple[int, int, int, int], LegalCommand], spaces: Spaces) -> tuple[np.ndarray, np.ndarray]:
     """The unit mask and the action mask of one state.
 
     The target mask is not here, because a mask over each unit, each action, and each hex
@@ -188,19 +207,30 @@ def masks_from(groups: Mapping[tuple[int, int, int], LegalCommand], spaces: Spac
     """
     unit_mask = np.zeros(spaces.units, dtype=np.int8)
     action_mask = np.zeros((spaces.units, spaces.actions), dtype=np.int8)
-    for unit, action, _ in groups:
+    for unit, action, _, _ in groups:
         unit_mask[unit] = 1
         action_mask[unit, action] = 1
     return unit_mask, action_mask
 
 
 def target_mask_for(
-    groups: Mapping[tuple[int, int, int], LegalCommand], spaces: Spaces, unit: int, action: int
+    groups: Mapping[tuple[int, int, int, int], LegalCommand], spaces: Spaces, unit: int, action: int
 ) -> np.ndarray:
     mask = np.zeros(spaces.targets, dtype=np.int8)
-    for u, a, t in groups:
+    for u, a, t, _ in groups:
         if u == unit and a == action:
             mask[t] = 1
+    return mask
+
+
+def option_mask_for(
+    groups: Mapping[tuple[int, int, int, int], LegalCommand], spaces: Spaces, unit: int, action: int, target: int
+) -> np.ndarray:
+    """The fourth head: which command of this unit, action, and hex is legal."""
+    mask = np.zeros(spaces.options, dtype=np.int8)
+    for u, a, t, option in groups:
+        if u == unit and a == action and t == target:
+            mask[option] = 1
     return mask
 
 
@@ -234,6 +264,47 @@ def objectives_for(engine) -> Objectives:
     return Objectives(tuple(sorted(buildings.items())), tuple(sorted(set(hexes))))
 
 
+def _seen_control(state: State, board: Board, building_id: str, player: int, viewer: int) -> bool:
+    """Whether this viewer sees `player` holding the building.
+
+    A hidden or concealed enemy does not change the plane. The victory rule still
+    counts that unit. This read is only the observation.
+    """
+    from slcore.rules.victory import buildings_on
+    from slcore.view import visible_to
+
+    hexes = buildings_on(board).get(building_id, ())
+    for h in hexes:
+        for unit in state.infantry_in(h):
+            if unit.player == player:
+                continue
+            if unit.player == viewer or visible_to(state, unit, viewer):
+                return False
+    if player != viewer:
+        return any(
+            visible_to(state, unit, viewer) and unit.player == player
+            for h in hexes
+            for unit in state.infantry_in(h)
+        )
+    return dict(state.last_occupant).get(building_id) == player
+
+
+def _seen_hex(state: State, hex_ref: HexRef, player: int, viewer: int) -> bool:
+    """The same rule as `_seen_control`, for one hex the card names."""
+    from slcore.view import visible_to
+
+    if state.in_melee(hex_ref):
+        return False
+    for unit in state.infantry_in(hex_ref):
+        if unit.player == player:
+            continue
+        if unit.player == viewer or visible_to(state, unit, viewer):
+            return False
+    if player != viewer:
+        return any(visible_to(state, unit, viewer) and unit.player == player for unit in state.infantry_in(hex_ref))
+    return dict(state.hex_occupant).get(geometry.hex_id(*hex_ref)) == player
+
+
 def board_tensor(
     board: Board,
     state: State,
@@ -250,8 +321,7 @@ def board_tensor(
     which of them this player holds and which the other side holds, from the evaluator's
     own control reading.
     """
-    from slcore.rules.victory import controlled_by, hex_controlled_by
-    from slcore.view import concealed_from
+    from slcore.view import visible_to
 
     planes = np.zeros(spaces.board_shape, dtype=np.float32)
     kinds = {name: i for i, name in enumerate(TERRAIN_KINDS)}
@@ -269,7 +339,7 @@ def board_tensor(
     for unit in state.units:
         if unit.eliminated or unit.hex is None or unit.carrier is not None:
             continue
-        if unit.player != player and concealed_from(state, unit, player):
+        if unit.player != player and not visible_to(state, unit, player):
             continue
         col, row = unit.hex
         own = unit.player == player
@@ -294,16 +364,16 @@ def board_tensor(
         planes[base, target[0], target[1]] = 1.0
     if objectives is not None:
         for building, hexes in objectives.buildings:
-            mine = controlled_by(state, board, building, player)
-            theirs = controlled_by(state, board, building, 1 - player)
+            mine = _seen_control(state, board, building, player, player)
+            theirs = _seen_control(state, board, building, 1 - player, player)
             for col, row in hexes:
                 planes[base + 1, col, row] = 1.0
                 planes[base + 2, col, row] = 1.0 if mine else 0.0
                 planes[base + 3, col, row] = 1.0 if theirs else 0.0
         for col, row in objectives.hexes:
             planes[base + 1, col, row] = 1.0
-            planes[base + 2, col, row] = 1.0 if hex_controlled_by(state, (col, row), player) else 0.0
-            planes[base + 3, col, row] = 1.0 if hex_controlled_by(state, (col, row), 1 - player) else 0.0
+            planes[base + 2, col, row] = 1.0 if _seen_hex(state, (col, row), player, player) else 0.0
+            planes[base + 3, col, row] = 1.0 if _seen_hex(state, (col, row), 1 - player, player) else 0.0
     return planes
 
 
@@ -321,7 +391,7 @@ def unit_tensor(
     list the core gave, so a row says whether its unit can still act in this phase.
     """
     rows = np.zeros(spaces.unit_shape, dtype=np.float32)
-    from slcore.view import concealed_from
+    from slcore.view import visible_to
 
     group = state.fire_group
     members = {member[0] for member in group.members} if group is not None else set()
@@ -333,7 +403,7 @@ def unit_tensor(
             continue
         if unit.eliminated:
             continue
-        if unit.player != player and concealed_from(state, unit, player):
+        if unit.player != player and not visible_to(state, unit, player):
             continue
         t = types[unit.type_key]
         row = rows[slot]

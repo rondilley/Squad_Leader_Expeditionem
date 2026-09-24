@@ -25,6 +25,35 @@ def parse(*words: str):
     return parser.parse_args(["host", *words])
 
 
+def test_a_nation_record_passes_the_parser():
+    """The command line keeps v7:german. make_agent is where a bad name fails."""
+    import argparse
+
+    from slcli.campaign_cmd import add_parser as add_campaign
+    from slcli.gates import add_parser as add_gate
+    from slcli.play import add_parser as add_play
+    from slcli.play import build_engine, make_agent
+    from slcli.window_cmd import add_parser as add_window
+
+    host_args = parse("--agent", "v7:german")
+    assert host_args.agent == "v7:german"
+
+    def parsed(add, command: str, *words: str):
+        parser = argparse.ArgumentParser()
+        add(parser.add_subparsers(dest="command"))
+        return parser.parse_args([command, *words])
+
+    assert parsed(add_play, "play", "--agent-a", "v7:german", "--agent-b", "v7[loss_scale=8]").agent_a == "v7:german"
+    assert parsed(add_play, "play", "--agent-a", "v7:german", "--agent-b", "v7[loss_scale=8]").agent_b == "v7[loss_scale=8]"
+    assert parsed(add_gate, "gate", "--agent-a", "v7:german").agent_a == "v7:german"
+    assert parsed(add_campaign, "campaign", "--agent-a", "v7:german").agent_a == "v7:german"
+    assert parsed(add_window, "window", "--agent", "v7:german").agent == "v7:german"
+    engine = build_engine("s00_movement_drill")
+    with pytest.raises(ValueError) as exc:
+        make_agent("no-such-agent", engine, 1, 0)
+    assert "no-such-agent" in str(exc.value)
+
+
 def test_the_command_takes_two_agents_and_a_delay():
     args = parse("--agents", "v1,v2", "--agent-delay", "0.25")
     assert args.agents == "v1,v2"

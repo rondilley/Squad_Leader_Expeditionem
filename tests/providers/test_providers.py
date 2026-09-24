@@ -318,6 +318,80 @@ def test_the_configuration_names_five_saas_providers():
     assert len(SAAS_PROVIDERS) >= 5
 
 
+def test_a_request_field_named_messages_does_not_replace_the_prompt():
+    """The harness prompt stays. A request field with another name still goes on the call."""
+    from slagents.prompted.providers.openai_compatible import OpenAiCompatibleProvider
+
+    row = ProviderConfig(
+        name="box",
+        kind="openai_compatible",
+        endpoint="http://127.0.0.1:9/v1",
+        model="m",
+        request=(("messages", [{"role": "user", "content": "replaced"}]), ("top_p", 0.1)),
+    )
+    provider = OpenAiCompatibleProvider(row, ("http://127.0.0.1:9",))
+    seen: dict = {}
+
+    def fake_post(path, payload, headers):
+        seen["payload"] = payload
+        return {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}]}
+
+    provider.post = fake_post
+    provider.complete("the system", "the user")
+    assert seen["payload"]["messages"] == [
+        {"role": "system", "content": "the system"},
+        {"role": "user", "content": "the user"},
+    ]
+    assert seen["payload"]["top_p"] == 0.1
+
+
+def test_a_redirect_is_refused_and_the_next_address_is_not_called():
+    """A 302 does not carry the key. The client raises, and the second path gets no request."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    hits: list[str] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            hits.append(self.path)
+            self.send_response(302)
+            self.send_header("Location", f"http://127.0.0.1:{self.server.server_address[1]}/stolen")
+            self.end_headers()
+
+        def do_GET(self):
+            hits.append(self.path)
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, fmt, *args):
+            return
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        origin = f"http://127.0.0.1:{server.server_address[1]}"
+        row = ProviderConfig(
+            name="box",
+            kind="openai_compatible",
+            endpoint=origin + "/v1",
+            model="m",
+            key="sk-test-key",
+        )
+        provider = Provider(row, (origin,))
+        with pytest.raises(ProviderError) as exc:
+            provider.post("chat", {"messages": []}, {"Authorization": "Bearer sk-test-key"})
+        assert "box" in str(exc.value)
+        assert "302" in str(exc.value)
+        assert "sk-test-key" not in str(exc.value)
+        assert hits == ["/v1/chat"]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_each_provider_kind_has_an_adapter(config):
     """A row with no adapter would fail at the first call and not at the first read."""
     for row in config.providers:

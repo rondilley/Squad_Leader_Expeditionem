@@ -206,6 +206,8 @@ class State:
     smoke_left: tuple[int, int] = (0, 0)
     fanatic_player: int = -1
     fanatic_hexes: tuple[HexRef, ...] = ()
+    # Rules 37.35 and 37.46: each anti-tank shot this player turn, as firer id and class.
+    at_shots: tuple[tuple[int, str], ...] = ()
 
     @property
     def defender(self) -> int:
@@ -329,6 +331,7 @@ class State:
             "smoke_left": list(self.smoke_left),
             "fanatic_player": self.fanatic_player,
             "fanatic_hexes": [list(h) for h in self.fanatic_hexes],
+            "at_shots": [[fid, weapon_class] for fid, weapon_class in self.at_shots],
         }
 
     @staticmethod
@@ -367,4 +370,5 @@ class State:
             smoke_left=_two(d.get("smoke_left", (0, 0))),
             fanatic_player=int(d.get("fanatic_player", -1)),
             fanatic_hexes=tuple((int(h[0]), int(h[1])) for h in d.get("fanatic_hexes", [])),
+            at_shots=tuple((int(pair[0]), str(pair[1])) for pair in d.get("at_shots", [])),
         )

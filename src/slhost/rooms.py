@@ -92,17 +92,18 @@ class Room:
         return self.seats.get(player) == connection_id
 
 
-def origin_allowed(origin: str | None, allowed: tuple[str, ...], host_header: str | None = None) -> bool:
+def origin_allowed(origin: str | None, allowed: tuple[str, ...], bound: str | None = None) -> bool:
     """The host examines the WebSocket origin (SR-03).
 
     A message with no origin comes from a tool, not from a browser, and the room code is
-    its credential. A browser page that the host itself served has the same origin as
-    the host, and it is allowed. Any other origin needs the `--origin` option.
+    its credential. `bound` is the address the server bound, in the form `host:port`.
+    It is not the Host header from the client. A browser origin is valid on the
+    `--origin` list, or when it is that bound address. Any other origin is refused.
     """
     if origin is None:
         return True
     if origin in allowed:
         return True
-    if host_header:
-        return origin in (f"http://{host_header}", f"https://{host_header}")
+    if bound:
+        return origin in (f"http://{bound}", f"https://{bound}")
     return False

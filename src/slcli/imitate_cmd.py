@@ -261,7 +261,9 @@ def add_parser(subparsers: Any) -> None:
         help="the weight of a decision that fires the group or ends a phase, against 1 for each other decision",
     )
     p.add_argument("--device", default="auto", help="auto, cpu, cuda, or cuda:0")
-    p.add_argument("--workers", type=int, default=1, help="processes that play the games; 1 plays them in this process")
+    from slcli.worker_limit import workers_argument
+
+    p.add_argument("--workers", type=workers_argument, default=1, help="processes that play the games; 1 plays them in this process")
     p.add_argument("--channels", type=int, default=32, help="convolution channels of the board encoder")
     p.add_argument("--hidden", type=int, default=256, help="width of the trunk and the heads")
     p.add_argument("--out", default="runs/imitate/snapshot-0.pt", help="the snapshot file")

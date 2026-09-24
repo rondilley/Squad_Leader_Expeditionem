@@ -52,6 +52,7 @@ CARD_SECTION = re.compile(
     re.I,
 )
 FENCE = re.compile(r"^\s*```")
+BLOCK_QUOTE = re.compile(r"^\s*>")
 PRINTED_BOARDS = re.compile(r"^board[1-4]\.json$", re.I)
 LICENCE_MARKERS = ("GPL-3", "GNU General Public License")
 SOURCE_MARKERS = ("Corresponding Source", "source code", "source:")
@@ -122,14 +123,24 @@ def check_keys(root: Path) -> list[Finding]:
             text=True,
             timeout=120,
         )
+        tracked = subprocess.run(
+            ["git", "ls-files", "-z"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return found + [Finding("TC-25", ".", 0, f"cannot read the git history: {exc}")]
-    if result.returncode != 0:
-        # A tree that git does not track yet has no history to audit, and that is a state.
-        return found
-    for name in {line.strip() for line in result.stdout.splitlines() if line.strip()}:
+    names: set[str] = set()
+    if result.returncode == 0:
+        names.update(line.strip() for line in result.stdout.splitlines() if line.strip())
+    if tracked.returncode == 0:
+        # A force-added key is in the index before it is in the history.
+        names.update(part for part in tracked.stdout.split("\0") if part)
+    for name in sorted(names):
         if name.endswith(KEY_SUFFIX):
-            found.append(Finding("TC-25", name, 0, "a key file is in the git history"))
+            found.append(Finding("TC-25", name, 0, "a key file is in the git history or the index"))
     return found
 
 
@@ -194,13 +205,21 @@ def check_quotes(root: Path) -> list[Finding]:
             continue
         lines = path.read_text(encoding="utf-8", errors="replace").split("\n")
         for i, line in enumerate(lines):
-            if not FENCE.match(line):
+            if FENCE.match(line):
+                context = _quote_context(lines, i, skip_quote=False)
+                if RULE_TAG.search(context) or CARD_SECTION.match(context):
+                    found.append(
+                        Finding(
+                            "TC-29",
+                            str(path.relative_to(root)),
+                            i + 1,
+                            f"a block quote follows {context.strip()[:60]!r}",
+                        )
+                    )
                 continue
-            context = ""
-            for back in range(1, 4):
-                if i - back >= 0 and lines[i - back].strip():
-                    context = lines[i - back]
-                    break
+            if not BLOCK_QUOTE.match(line):
+                continue
+            context = _quote_context(lines, i, skip_quote=True)
             if RULE_TAG.search(context) or CARD_SECTION.match(context):
                 found.append(
                     Finding(
@@ -211,6 +230,20 @@ def check_quotes(root: Path) -> list[Finding]:
                     )
                 )
     return found
+
+
+def _quote_context(lines: list[str], index: int, skip_quote: bool) -> str:
+    """The nearest earlier line that is not empty, and not another quote line when asked."""
+    for back in range(1, 6):
+        if index - back < 0:
+            break
+        earlier = lines[index - back]
+        if not earlier.strip():
+            continue
+        if skip_quote and BLOCK_QUOTE.match(earlier):
+            continue
+        return earlier
+    return ""
 
 
 def check_boards(root: Path) -> list[Finding]:
@@ -252,12 +285,17 @@ def check_artifacts(root: Path, runs: Path) -> list[Finding]:
     found: list[Finding] = []
     if not runs.is_dir():
         return found
-    for path in sorted(runs.rglob("*.json")):
+    paths = sorted(runs.rglob("*.json")) + sorted(runs.rglob("*.jsonl"))
+    for path in paths:
         try:
-            document = json.loads(path.read_text(encoding="utf-8", errors="replace"))
-        except (OSError, json.JSONDecodeError):
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
             continue
-        text = json.dumps(document)
+        if path.suffix == ".json":
+            try:
+                text = json.dumps(json.loads(text))
+            except json.JSONDecodeError:
+                continue
         if "reference_private" in text:
             found.append(
                 Finding("SR-10", str(path.relative_to(root)), 0, "a run artifact holds a reference-mode record")

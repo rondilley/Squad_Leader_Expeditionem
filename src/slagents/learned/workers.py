@@ -160,8 +160,9 @@ class WorkerPool:
     """The worker processes of one training run."""
 
     def __init__(self, scenario: str, workers: int, seed: int, max_commands: int, spaces: Any) -> None:
-        if workers < 1:
-            raise ValueError("a pool needs one worker or more")
+        from slcli.worker_limit import limit_workers
+
+        workers = limit_workers(workers)
         context = mp.get_context("spawn")
         # The sizes of the three heads, which the batched choice reads for its masks.
         self.spaces = spaces
@@ -283,6 +284,9 @@ def demonstrations_parallel(
     pairs = teacher_pairs(kinds)
     tasks = [(pairs[game % len(pairs)][0], pairs[game % len(pairs)][1], seed + game, labels) for game in range(games)]
     data = Demonstrations()
+    from slcli.worker_limit import limit_workers
+
+    workers = limit_workers(workers)
     context = mp.get_context("spawn")
     with context.Pool(workers, initializer=_init_imitation, initargs=(scenario, max_commands, None, None)) as pool:
         for game, (played, result) in enumerate(pool.imap(_demonstration_game, tasks)):
@@ -310,6 +314,9 @@ def corrections_parallel(
     state = {k: v.detach().cpu() for k, v in policy.state_dict().items()}
     tasks = [(labels, game % 2, opponents[game % len(opponents)], seed + game, mix) for game in range(games)]
     data = Demonstrations()
+    from slcli.worker_limit import limit_workers
+
+    workers = limit_workers(workers)
     context = mp.get_context("spawn")
     with context.Pool(workers, initializer=_init_imitation, initargs=(scenario, max_commands, state, policy.config.to_dict())) as pool:
         for game, (played, result) in enumerate(pool.imap(_correction_game, tasks)):
@@ -358,6 +365,9 @@ def evaluation_parallel(
     `LearnedAgent`, so the result is the one the one-process evaluation gives.
     """
     state = {k: v.detach().cpu() for k, v in policy.state_dict().items()}
+    from slcli.worker_limit import limit_workers
+
+    workers = limit_workers(workers)
     context = mp.get_context("spawn")
     with context.Pool(workers, initializer=_init_imitation, initargs=(scenario, max_commands, state, policy.config.to_dict())) as pool:
         return list(pool.imap(_evaluation_game, list(tasks)))

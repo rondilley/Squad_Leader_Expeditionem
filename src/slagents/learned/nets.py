@@ -87,6 +87,12 @@ class Policy(nn.Module):
             nn.ReLU(),
             nn.Linear(c.hidden, spaces.targets),
         )
+        self.target_embed = nn.Embedding(spaces.targets, c.unit_width)
+        self.option_head = nn.Sequential(
+            nn.Linear(c.hidden + c.unit_width * 3, c.hidden),
+            nn.ReLU(),
+            nn.Linear(c.hidden, spaces.options),
+        )
         self.value_head = nn.Sequential(
             nn.Linear(c.hidden, c.hidden),
             nn.ReLU(),
@@ -126,6 +132,20 @@ class Policy(nn.Module):
         acted = self.action_embed(action)
         return masked_logits(self.target_head(torch.cat([trunk, chosen, acted], dim=-1)), mask)
 
+    def option_logits(
+        self,
+        trunk: torch.Tensor,
+        unit_embeddings: torch.Tensor,
+        unit: torch.Tensor,
+        action: torch.Tensor,
+        target: torch.Tensor,
+        mask: torch.Tensor,
+    ) -> torch.Tensor:
+        chosen = self._gather_units(unit_embeddings, unit)
+        acted = self.action_embed(action)
+        aimed = self.target_embed(target)
+        return masked_logits(self.option_head(torch.cat([trunk, chosen, acted, aimed], dim=-1)), mask)
+
     def value(self, trunk: torch.Tensor) -> torch.Tensor:
         return self.value_head(trunk).squeeze(-1)
 
@@ -144,10 +164,12 @@ class Policy(nn.Module):
         unit_mask: torch.Tensor,
         action_mask: torch.Tensor,
         target_mask: torch.Tensor,
+        option_mask: torch.Tensor,
         unit: torch.Tensor,
         action: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """The masked logits of the three heads along the chosen unit and action, and the value.
+        target: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """The masked logits of the four heads along the chosen parts, and the value.
 
         The update reads them for the log probability and the entropy, and again from the
         anchor policy for the KL divergence, so the two policies read the same masks.
@@ -157,7 +179,8 @@ class Policy(nn.Module):
         a_mask = action_mask.gather(1, unit.view(-1, 1, 1).expand(-1, 1, action_mask.shape[-1])).squeeze(1)
         a_logits = self.action_logits(trunk, unit_embeddings, unit, a_mask)
         t_logits = self.target_logits(trunk, unit_embeddings, unit, action, target_mask)
-        return u_logits, a_logits, t_logits, self.value(trunk)
+        o_logits = self.option_logits(trunk, unit_embeddings, unit, action, target, option_mask)
+        return u_logits, a_logits, t_logits, o_logits, self.value(trunk)
 
     def evaluate(
         self,
@@ -167,17 +190,20 @@ class Policy(nn.Module):
         unit_mask: torch.Tensor,
         action_mask: torch.Tensor,
         target_mask: torch.Tensor,
+        option_mask: torch.Tensor,
         unit: torch.Tensor,
         action: torch.Tensor,
         target: torch.Tensor,
+        option: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """The log probability of the chosen command, the entropy, and the value."""
-        u_logits, a_logits, t_logits, value = self.head_logits(
-            board, units, scalars, unit_mask, action_mask, target_mask, unit, action
+        u_logits, a_logits, t_logits, o_logits, value = self.head_logits(
+            board, units, scalars, unit_mask, action_mask, target_mask, option_mask, unit, action, target
         )
         u_dist = torch.distributions.Categorical(logits=u_logits)
         a_dist = torch.distributions.Categorical(logits=a_logits)
         t_dist = torch.distributions.Categorical(logits=t_logits)
-        log_prob = u_dist.log_prob(unit) + a_dist.log_prob(action) + t_dist.log_prob(target)
-        entropy = u_dist.entropy() + a_dist.entropy() + t_dist.entropy()
+        o_dist = torch.distributions.Categorical(logits=o_logits)
+        log_prob = u_dist.log_prob(unit) + a_dist.log_prob(action) + t_dist.log_prob(target) + o_dist.log_prob(option)
+        entropy = u_dist.entropy() + a_dist.entropy() + t_dist.entropy() + o_dist.entropy()
         return log_prob, entropy, value

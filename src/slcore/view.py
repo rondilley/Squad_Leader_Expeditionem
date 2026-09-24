@@ -130,6 +130,69 @@ class UnitView:
         }
 
 
+_UNIT_KEYS = frozenset({"unit", "weapon", "leader", "carrier", "vehicle", "placer"})
+_UNIT_LIST_KEYS = frozenset({"units", "attackers", "targets"})
+
+
+def _named_unit_ids(value: Any, found: list[int]) -> None:
+    """The unit ids a log line names. A hex string and a die are not unit ids."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key in _UNIT_KEYS and isinstance(item, int):
+                found.append(item)
+            elif key in _UNIT_LIST_KEYS and isinstance(item, list):
+                for one in item:
+                    if isinstance(one, int):
+                        found.append(one)
+                    else:
+                        _named_unit_ids(one, found)
+            else:
+                _named_unit_ids(item, found)
+    elif isinstance(value, list):
+        for item in value:
+            _named_unit_ids(item, found)
+
+
+def secret_from(state: State, unit: Unit, viewer: int) -> bool:
+    """True when this viewer must not read a log line that names the unit.
+
+    An own unit stays in the owner's log, including after it is eliminated.
+    `visible_to` rejects every eliminated unit, and that would strip the owner's
+    own loss from the log. An enemy unit is secret while it is concealed or hidden,
+    and it stays secret after it dies if that mark is still on it.
+    """
+    if unit.player == viewer:
+        return False
+    if hidden_from(state, unit, viewer) or concealed_from(state, unit, viewer):
+        return True
+    if unit.eliminated:
+        return False
+    return not visible_to(state, unit, viewer)
+
+
+def event_visible(state: State, entry: dict[str, Any], viewer: int) -> bool:
+    """Whether this log line may go to this viewer (AR-09).
+
+    A line that names a unit `secret_from` rejects does not go out. A `demo_placed`
+    line goes only to the player who placed the charge. The check reads the state
+    now, so a move that was public becomes hidden once the unit is concealed.
+    """
+    data = entry.get("data") or {}
+    if entry.get("kind") == "demo_placed":
+        unit_id = data.get("unit")
+        if not isinstance(unit_id, int) or unit_id < 0 or unit_id >= len(state.units):
+            return False
+        return state.units[unit_id].player == viewer
+    named: list[int] = []
+    _named_unit_ids(data, named)
+    for unit_id in named:
+        if unit_id < 0 or unit_id >= len(state.units):
+            continue
+        if secret_from(state, state.units[unit_id], viewer):
+            return False
+    return True
+
+
 def visible_to(state: State, unit: Unit, viewer: int) -> bool:
     """A player sees each of its own counters, on the board or waiting for set up.
 
@@ -263,6 +326,38 @@ def nationalities_of(state: State) -> dict[str, str]:
     return out
 
 
+def _member_visible(state: State, unit_id: int, weapon_id: int | None, viewer: int) -> bool:
+    if not visible_to(state, state.units[unit_id], viewer):
+        return False
+    if weapon_id is not None and not visible_to(state, state.units[weapon_id], viewer):
+        return False
+    return True
+
+
+def _fire_group_view(state: State, viewer: int, spectator: bool) -> dict[str, Any] | None:
+    """The open fire group as this viewer may see it.
+
+    A member or a leader that `visible_to` rejects is omitted. The target hex stays,
+    because the hex of the shot is not the identity of a hidden unit.
+    """
+    group = state.fire_group
+    if group is None:
+        return None
+    if spectator:
+        members = [[u, w] for u, w in group.members]
+        leader = group.leader
+    else:
+        members = [[u, w] for u, w in group.members if _member_visible(state, u, w, viewer)]
+        leader = group.leader
+        if leader is not None and not visible_to(state, state.units[leader], viewer):
+            leader = None
+    return {
+        "target": geometry.hex_id(*group.target),
+        "members": members,
+        "leader": leader,
+    }
+
+
 def build(
     state: State, types: Mapping[str, UnitType], viewer: int, spectator: bool = False
 ) -> dict[str, Any]:
@@ -302,11 +397,7 @@ def build(
         "result": state.result,
         "result_cause": state.result_cause,
         "melee": [geometry.hex_id(*h) for h in state.melee],
-        "fire_group": None if state.fire_group is None else {
-            "target": geometry.hex_id(*state.fire_group.target),
-            "members": [[u, w] for u, w in state.fire_group.members],
-            "leader": state.fire_group.leader,
-        },
+        "fire_group": _fire_group_view(state, viewer, spectator),
         "units": units,
     }
 

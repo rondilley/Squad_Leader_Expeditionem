@@ -90,14 +90,25 @@ class Game:
         return view.build(self.state, self.engine.types, player)
 
     def log_tail(self) -> list[dict[str, Any]]:
-        """The newest entries of the log, each with its `seq` in the whole log.
+        """The newest entries of the full log, each with its `seq` in the whole log.
 
-        The host sends the tail again with each frame. The number lets a client merge the
-        tails into one log with no entry twice, and lets an overlay find the entries it
-        has not drawn.
+        A spectator of two computer opponents reads this. A seated player reads
+        `log_tail_for`, which drops a line that names a unit that player must not see.
         """
-        start = max(0, len(self.log) - LOG_TAIL)
-        return [{**entry, "seq": start + i} for i, entry in enumerate(self.log[start:])]
+        return self.log_tail_for(view.SPECTATOR, spectator=True)
+
+    def log_tail_for(self, viewer: int, spectator: bool = False) -> list[dict[str, Any]]:
+        """The newest lines this viewer may read. `seq` is the index in the whole log.
+
+        The filter runs first. `seq` is attached after it, and it stays the index in the
+        whole log so a client can merge tails. A gap is a line this viewer does not get.
+        """
+        kept: list[tuple[int, dict[str, Any]]] = []
+        for index, entry in enumerate(self.log):
+            if spectator or view.event_visible(self.state, entry, viewer):
+                kept.append((index, entry))
+        tail = kept[-LOG_TAIL:]
+        return [{**entry, "seq": index} for index, entry in tail]
 
     def apply(self, frame_id: str, command_id: str) -> list[dict[str, Any]]:
         """Apply one intent. Raises IllegalCommand or ProtocolError, and never both."""
@@ -216,12 +227,13 @@ class Host:
         connection_id = f"c{id(connection)}"
         address = connection.remote_address[0] if connection.remote_address else "unknown"
         origin = connection.request.headers.get("Origin") if connection.request else None
-        host_header = connection.request.headers.get("Host") if connection.request else None
-        if not rooms.origin_allowed(origin, self.allowed_origins, host_header):
+        # The address this socket is bound to. A client Host header is not this address.
+        local = connection.local_address
+        bound = f"{local[0]}:{local[1]}" if local else None
+        if not rooms.origin_allowed(origin, self.allowed_origins, bound):
             await self.send(connection, protocol.error_message("SR-03", "the origin is not allowed"))
             await connection.close()
             return
-        self.connections[connection_id] = connection
         try:
             async for raw in connection:
                 await self.on_message(connection, connection_id, address, raw)
@@ -243,8 +255,12 @@ class Host:
             elif message.type == protocol.CLIENT_INTENT:
                 await self.on_intent(connection, connection_id, message)
             elif message.type == protocol.CLIENT_VIEW_REQUEST:
+                if connection_id not in self.connections:
+                    raise ProtocolError("SR-03", "join before you ask for the view")
                 await self.send_frames()
             elif message.type == protocol.CLIENT_LOS_REQUEST:
+                if connection_id not in self.connections:
+                    raise ProtocolError("SR-03", "join before you ask for a line of sight")
                 await self.on_los_request(connection, message)
         except ProtocolError as exc:
             await self.send(connection, protocol.error_message(exc.rule_id, exc.message))
@@ -256,15 +272,24 @@ class Host:
             raise ProtocolError("SR-03", "too many join tries from this address")
         code = str(message.data.get("room_code", ""))
         if not rooms.code_matches(self.room.code, code):
-            raise ProtocolError("SR-03", "the room code is not correct")
+            await self.send(connection, protocol.error_message("SR-03", "the room code is not correct"))
+            await connection.close()
+            return
+        if connection_id in self.room.seats.values():
+            raise ProtocolError("SR-03", "this connection already holds a seat")
         self.attempts.reset(address)
         name = str(message.data.get("display_name", ""))[:40]
         player, seat = self.room.take(connection_id, name)
         if player < 0:
-            raise ProtocolError("SR-03", "the room is full")
+            await self.send(connection, protocol.error_message("SR-03", "the room is full"))
+            await connection.close()
+            return
+        self.connections[connection_id] = connection
         await self.send(
             connection,
-            protocol.welcome(player, seat, view.board_document(self.engine.board), self.scenario_document()),
+            protocol.welcome(
+                player, seat, view.board_document(self.engine.board), self.scenario_document(), self.strict_los
+            ),
         )
         if self.self_playing:
             # The watcher is here, so the two computer opponents start. One task for the
@@ -403,31 +428,48 @@ class Host:
         for connection in list(self.connections.values()):
             await self.send(connection, message)
 
-    async def send_frames(self) -> None:
-        """One view for each seated player (AR-09). Hot seat gets the view of the active side.
+    def outbound_frame(self, connection_id: str, player: int, spectator: bool = False) -> dict[str, Any]:
+        """The frame this connection may read (AR-09).
 
-        With a computer opponent, the human seat keeps its own view even while the
-        opponent acts, so no opponent-hidden state reaches it.
+        Hot seat and a spectator keep the legal list. In a LAN room the list goes only
+        to the connection that acts for the active seat. The other seat gets an empty
+        list. The log tail is the lines this viewer may see.
         """
         frame = self.game.frame()
-        tail = self.game.log_tail()
+        if spectator:
+            document = self.game.spectator_view(True)
+            tail = self.game.log_tail_for(view.SPECTATOR, spectator=True)
+            return protocol.frame_message(view.SPECTATOR, document, frame, tail)
+        commands = list(frame["commands"])
+        if not self.room.hot_seat and not self.room.controls(connection_id, self.game.state.active):
+            commands = []
+        seated_frame = {**frame, "commands": commands}
+        tail = self.game.log_tail_for(player)
+        return protocol.frame_message(player, self.game.view_for(player), seated_frame, tail)
+
+    async def send_frames(self) -> None:
+        """One view for each seated connection (AR-09). An unjoined socket is not in the set.
+
+        Hot seat gets the view of the side that acts, and it keeps the legal list, because
+        one client plays that side. A LAN seat gets its own view. The idle seat gets an
+        empty legal list.
+        """
         if self.self_playing:
-            payload = protocol.frame_message(
-                view.SPECTATOR, self.game.spectator_view(self.self_playing), frame, tail
-            )
+            payload = self.outbound_frame("", view.SPECTATOR, spectator=True)
             await self.broadcast(payload)
             return
         if self.room.hot_seat:
             player = self.human_player()
-            payload = protocol.frame_message(player, self.game.view_for(player), frame, tail)
-            await self.broadcast(payload)
+            for connection_id, connection in list(self.connections.items()):
+                payload = self.outbound_frame(connection_id, player)
+                await self.send(connection, payload)
             return
         # A copy, because a client that leaves during the send changes the seat map.
         for player, connection_id in sorted(self.room.seats.items()):
             connection = self.connections.get(connection_id)
             if connection is None:
                 continue
-            payload = protocol.frame_message(player, self.game.view_for(player), frame, tail)
+            payload = self.outbound_frame(connection_id, player)
             await self.send(connection, payload)
 
     # ------------------------------------------------------------------ server

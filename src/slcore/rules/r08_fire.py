@@ -33,6 +33,9 @@ RULE_5_75 = "5.75"
 
 MAX_WEAPONS_FOR_EACH_UNIT = 2
 MG_FREE_FIREPOWER = 4
+# Rules 22.3, 23, and 37: these weapons have their own commands. They do not join a group,
+# and they do not take the point-blank doubling of rule 9.1.
+NOT_A_GROUP_WEAPON = frozenset({"flamethrower", "demo", "panzerfaust", "bazooka"})
 
 
 @dataclass(frozen=True)
@@ -67,6 +70,8 @@ def can_fire_inherent(state: State, types: Mapping[str, UnitType], unit: Unit, p
 
 def can_fire_weapon(state: State, types: Mapping[str, UnitType], unit: Unit, weapon: Unit, phase_moved_rule: str) -> bool:
     """Rules 5.74, 5.75, 17.1 to 17.3, and 18.1 for a support weapon."""
+    if types[weapon.type_key].weapon_class in NOT_A_GROUP_WEAPON:
+        return False
     if weapon.carrier != unit.id or weapon.malfunction or weapon.fired or weapon.eliminated:
         return False
     if unit.broken or unit.hex is None or state.in_melee(unit.hex):
@@ -164,7 +169,11 @@ def group_firepower(state: State, types: Mapping[str, UnitType], group: FireGrou
         unit = state.units[uid]
         if unit.kind == KIND_LEADER:
             continue
-        mg_fp = sum(types[state.units[wid].type_key].firepower for u2, wid in group.members if u2 == uid and wid is not None)
+        mg_fp = sum(
+            types[state.units[wid].type_key].firepower
+            for u2, wid in group.members
+            if u2 == uid and wid is not None and types[state.units[wid].type_key].weapon_class == "mg"
+        )
         if mg_fp > MG_FREE_FIREPOWER:
             forfeit.add(uid)
     for uid, wid in group.members:

@@ -229,6 +229,8 @@ class Unit:
     dischargers_used: bool = False
     canister_spent: bool = False
     from_wreck: int | None = None
+    # Rule 17.4: this leader mans a machine gun, so rule 15.6 does not use the rating.
+    manned_mg: bool = False
 
     @property
     def placed(self) -> bool:
@@ -283,6 +285,7 @@ class Unit:
             "demo_placed": self.demo_placed,
             "routed": self.routed,
             "hidden": self.hidden,
+            "manned_mg": self.manned_mg,
         }
         # Only three kinds of counter ever leave one of these at a value that is not the
         # default: a vehicle, a unit that rides on one, and a crew counter in reserve. The
@@ -328,6 +331,7 @@ class Unit:
             demo_placed=bool(d.get("demo_placed", False)),
             routed=bool(d.get("routed", False)),
             hidden=bool(d.get("hidden", False)),
+            manned_mg=bool(d.get("manned_mg", False)),
             **{key: d[key] for key in _VEHICLE_DEFAULTS if key in d},
         )
 

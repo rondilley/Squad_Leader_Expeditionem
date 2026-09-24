@@ -212,6 +212,8 @@ The cost of a view has three cases. When no unit is concealed, the view is a cop
 
 When the scenario has hidden placement, the view drops the hidden units and the cost is the same as the second case. The benchmark of NFR-01 includes the view build, so TC-09 measures the cost. The view caches until a command changes the state.
 
+The host message is that view for one seat. An unjoined socket gets no frame. In a LAN room the legal list goes to the seat that acts. The idle seat gets an empty list. Hot seat keeps the list. The log tail omits a line that names a unit the viewer cannot see. A hidden unit is not in the other player's view.
+
 <!-- AI review 20260907-163721: xai, the view cost model -->
 
 Where it breaks: a view for each outbound message costs time in the trainer, which plays millions of games with no hidden information problem in self-play.
@@ -458,9 +460,9 @@ The protocol is small. <!-- AI review 20260907-163721: gemini and openai, the fr
 - `join(room_code, display_name)`.
 - `intent(frame_id, command_id)`. The frame ID is the one the host issued with the frame, and the command ID is one of the IDs in that frame.
 - `view_request()`.
-- `los_request(from_hex, to_hex)`. The host answers with the rule evaluator's result, because the client has no rule logic. In strict mode (FR-34) the host answers only at the times rule 19.3 lets a player use the tool. At other times it rejects the request with the rule ID.
+- `los_request(from_hex, to_hex)`. The host answers with the rule evaluator's result, because the client has no rule logic. In strict mode (FR-34) the host answers only at the times rule 19.3 lets a player use the tool. At other times it rejects the request with the rule ID. The welcome message carries `strict_los`. The client shows that flag as text and sends no mode.
 
-The host sends `frame(player, view, legal_commands, frame_id, log_tail)` after each command, `error(rule_id, message)` for a rejected intent, and `los_result(from_hex, to_hex, result)`. A stale client cannot apply a command against a state it has not seen. The host compares the frame ID in the intent with the frame ID of the current state. A mismatch is an error with a new frame. The client does not calculate and does not send a state hash (DR-04).
+The host sends `frame(player, view, legal_commands, frame_id, log_tail)` after each command, `error(rule_id, message)` for a rejected intent, and `los_result(from_hex, to_hex, result)`. The frame is the view of one seat. In a LAN room the idle seat gets an empty legal list. A stale client cannot apply a command against a state it has not seen. The host compares the frame ID in the intent with the frame ID of the current state. A mismatch is an error with a new frame. The client does not calculate and does not send a state hash (DR-04).
 
 NFR-02 measures the time from the host's receipt of an intent to the client's receipt of the next frame. The measurement is on localhost, in the Playwright test (TC-11). That time includes the core's apply, the view build, the frame build, and the transport. It does not include the browser render.
 
@@ -492,9 +494,11 @@ The project ships three of them (FR-44).
 
 Why a third agent and not a third parameter set: the difference between v1 and v2 is which commands they answer, not how they weigh a move. A parameter cannot make an agent use a rule its code does not know.
 
+The later agents are v3 to v7. v3 is the tanker. v4 extends the threat map of v1. v5 adds vehicle fire. v6 keeps an attack schedule. v7 trades on the odds and reads only the enemy units the player can see. v7 does not place concealment, use a demolition charge, use a flamethrower, or use a sewer. Smoke of rule 24 is in v7. A name such as `v7:german` selects the nation record for the role of that side.
+
 ### 9.2 Learned agents
 
-The environment is a PettingZoo AEC environment on the core, with the legal-command mask in each observation (FR-50). The observation is a stack of planes on the board plus a vector for the active unit. The planes are terrain, own units by type and state, enemy units in view, concealment counters, phase, turn, and side. The action is one composed command with a unit head, an action head, and a target head. Masks from the command tree of the frame apply to each head, and there is an end-phase action. The composed choice maps to a payload and its ID (section 3.4).
+The environment is a PettingZoo AEC environment on the core, with the legal-command mask in each observation (FR-50). The observation is a stack of planes on the board plus a vector for the active unit. The planes are terrain, own units by type and state, enemy units in view, concealment counters, phase, turn, and side. The action is one composed command with a unit head, an action head, a target head, and an option head. Masks from the command tree of the frame apply to each head, and there is an end-phase action. The composed choice maps to a payload and its ID (section 3.4).
 
 This is the Gym-uRTS template (RV-5 section 2). The trainer is PPO in raw torch in CleanRL style, as the siblings do.
 
@@ -510,15 +514,21 @@ board as planes, one row for each unit slot, a scalar vector, and the mask of th
 commands. The planes and the rows come from the view of the acting player. So a concealed
 stack is a counter and not the units below it (rule 25.2).
 
-The command has three parts, so the mask has three parts and the policy has three heads:
-which unit, which action, and which hex. The unit mask and the action mask are in the
-observation. The target mask comes from a method on the environment. A mask for each
-unit, each action, and each hex is a quarter of a million entries for one scenario. The
-policy reads one row of it, so the environment gives one row.
+The command has four parts, so the policy has four heads: which unit, which action,
+which hex, and which option. Two weapons at one hex, and many close-combat attacks that
+start with one unit, share the first three parts. The option names the command. The
+option list holds 64 commands. The unit mask and the action mask are in the observation.
+The target mask and the option mask come from methods on the environment.
 
-The reward is the result of the game and nothing else. The core gives the result from the
-victory conditions of the scenario. A reward for a broken enemy squad would teach the
-agent to break squads, and the game is about buildings.
+The planes and the unit rows use the player view. A hidden enemy and a concealed enemy
+are absent. A dummy concealment counter and a full concealed stack pay the same sneak
+term.
+
+The reward is the shaped reward of `slagents/learned/reward`. A win pays. A loss, a draw,
+and a truncation each cost the same large number. The step terms pay for a find, a shot,
+a break, a kill, cover, a sneak, and progress on a positional victory condition. A factory
+hex that each side counts pays one time. A snapshot written before 2026-09-23 does not
+load. The load uses `weights_only=True`.
 
 The league of `league.py` keeps three kinds of opponent: the random agent, the versioned
 scripted agents, and the snapshots of the policy. It samples by loss rate, with a floor so
@@ -759,9 +769,10 @@ Squad_Leader_AI/
     slagents/                    the four families behind one interface
       base.py
       scripted/                  v0.py (the baseline), v1.py (rules 1 to 21), v2.py (the engineer),
-                                 v3.py (the tanker, rules 28 to 41), v7.py (the doctrine agent), odds.py, evolve.py (the parameter search)
+                                 v3.py (the tanker), v4.py, v5.py, v6.py (the tempo agent),
+                                 v7.py (the doctrine agent), odds.py, evolve.py (the parameter search)
       learned/                   encoding.py (the tensors and the composed command), env.py
-                                 (PettingZoo AEC), nets.py (the three heads), ppo.py, league.py
+                                 (PettingZoo AEC), nets.py (the four heads), ppo.py, league.py
       prompted/                  harness.py (the text, the guard), oddsview.py (the odds), keys.py, schema.py, router.py, providers/
       tuned/                     traces.py (the trace writer), finetune.py (LoRA), export.py (GGUF)
     slruns/                      artifact.py (the four files), index.py (the SQLite index), elo.py (ratings and intervals)

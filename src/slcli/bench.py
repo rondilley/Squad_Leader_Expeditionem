@@ -68,6 +68,9 @@ def worker(scenario: str, board: str | None, seed_start: int, seconds: float, ou
 
 
 def run_bench(scenario: str, board: str | None, workers: int, seconds: float) -> dict[str, Any]:
+    from slcli.worker_limit import limit_workers
+
+    workers = limit_workers(workers)
     ctx = mp.get_context("spawn")
     results_queue: Any = ctx.Queue()
     procs = []
@@ -148,14 +151,16 @@ def run(args: Any) -> int:
         write_report(path, report)
         print(f"wrote {path}", flush=True)
     print(f"best {best:.0f} steps/s against the threshold of 3,500: {'satisfied' if report['passed'] else 'NOT SATISFIED'}", flush=True)
-    return 0 if report["measurement_complete"] else 1
+    return 0 if report["passed"] else 1
 
 
 def add_parser(subparsers: Any) -> None:
     p = subparsers.add_parser("bench", help="measure environment steps per second")
     p.add_argument("--scenario", default="s00_movement_drill")
     p.add_argument("--board", default=None)
-    p.add_argument("--workers", default="1")
+    from slcli.worker_limit import worker_list_argument
+
+    p.add_argument("--workers", type=worker_list_argument, default="1")
     p.add_argument("--minutes", type=float, default=0.0)
     p.add_argument("--seconds", type=float, default=10.0)
     p.add_argument("--out", default=None, help="stats file path")

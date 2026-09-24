@@ -146,3 +146,125 @@ def test_a_leader_is_worth_more_than_a_squad_and_a_broken_unit_less():
     assert odds.check_fail_ways(7, 0) == sum(c for r, c in odds.DICE_WAYS.items() if r > 7)
     assert odds.check_fail_ways(7, 2) > odds.check_fail_ways(7, 0)
     assert odds.check_fail_ways(12, 0) == 0
+
+
+def _line_of_sight(engine):
+    """Two adjacent open hexes that both see a third open hex."""
+    from slcore.los_eval import evaluate
+
+    board = engine.board
+    opens = [h for h in board.order if board.hex(h).terrain == "open"]
+    for left in opens:
+        for right in board.neighbors(left):
+            if right not in board or board.hex(right).terrain != "open":
+                continue
+            for target in opens:
+                if target in (left, right):
+                    continue
+                if evaluate(board, engine.los, left, target).clear and evaluate(board, engine.los, right, target).clear:
+                    return left, right, target
+    raise AssertionError("the board has no two-hex line of sight")
+
+
+def _stand(state, unit, hex_ref, **changes):
+    return unit.with_(hex=hex_ref, broken=False, fired=False, directed=False, prep_fired=False, hidden=False, **changes)
+
+
+def test_a_leader_in_one_hex_of_a_chain_gives_no_modifier():
+    """The core lets a leader direct a group only when every hex of the chain has one."""
+    engine = build_engine(SCENARIO)
+    left, right, target = _line_of_sight(engine)
+    state = engine.new_game(1)
+    germans = [u for u in state.units if u.type_key.startswith("german:") and u.kind == "squad"]
+    leader = next(u for u in state.units if u.type_key == "german:8-1")
+    changed = {
+        germans[0].id: _stand(state, germans[0], left),
+        germans[1].id: _stand(state, germans[1], right),
+        leader.id: _stand(state, leader, left),
+    }
+    stood = state.with_units(changed)
+    groups = odds.enemy_groups(engine, stood, target, [stood.units[i] for i in changed])
+    assert groups
+    assert all(leader_id is None for _members, leader_id in groups)
+
+
+def test_a_leader_in_each_hex_gives_the_best_rating():
+    engine = build_engine(SCENARIO)
+    left, right, target = _line_of_sight(engine)
+    state = engine.new_game(1)
+    squads = [u for u in state.units if u.type_key.startswith("german:") and u.kind == "squad"]
+    best = next(u for u in state.units if u.type_key == "german:9-2")
+    weak = next(u for u in state.units if u.type_key == "german:8-1")
+    changed = {
+        squads[0].id: _stand(state, squads[0], left),
+        squads[1].id: _stand(state, squads[1], right),
+        best.id: _stand(state, best, left),
+        weak.id: _stand(state, weak, right),
+    }
+    stood = state.with_units(changed)
+    groups = odds.enemy_groups(engine, stood, target, [stood.units[i] for i in changed])
+    assert len(groups) == 1
+    assert groups[0][1] == best.id
+    from slcore.game import FireGroup
+    from slcore.rules import r10_resolution
+
+    group = FireGroup(target, groups[0][0], groups[0][1])
+    _drm, parts = r10_resolution.common_modifier(engine.fire_ctx, stood, group)
+    leader_part = next(part for part in parts if part["rule"] == "15.2")
+    # QA-15.2: the chain uses the least effective leader, the 8-1, not the named 9-2.
+    assert leader_part["value"] == engine.types[weak.type_key].leadership
+
+
+def test_a_leader_with_a_machine_gun_contributes_that_weapon():
+    engine = build_engine(SCENARIO)
+    left, _right, target = _line_of_sight(engine)
+    state = engine.new_game(1)
+    leader = next(u for u in state.units if u.type_key == "german:8-1")
+    weapon = next(u for u in state.units if u.type_key == "german:LMG")
+    stood = state.with_units({
+        leader.id: _stand(state, leader, left),
+        weapon.id: weapon.with_(carrier=leader.id, hex=None, fired=False, malfunction=False, eliminated=False),
+    })
+    groups = odds.enemy_groups(engine, stood, target, [stood.units[leader.id], stood.units[weapon.id]])
+    members = [member for group_members, _leader in groups for member in group_members]
+    assert (leader.id, weapon.id) in members
+
+
+def test_a_squad_that_stands_with_a_leader_breaks_less_often():
+    """Rule 15.6: a squad that is not moving keeps the leader in its hex."""
+    engine = build_engine(SCENARIO)
+    left, _right, target = _line_of_sight(engine)
+    state = engine.new_game(1)
+    shooter = next(u for u in state.units if u.type_key.startswith("german:") and u.kind == "squad")
+    squad = next(u for u in state.units if u.type_key.startswith("russian:") and u.kind == "squad")
+    leader = next(u for u in state.units if u.type_key == "russian:10-2")
+    base = {
+        shooter.id: _stand(state, shooter, left),
+        squad.id: _stand(state, squad, target),
+    }
+    alone = state.with_units(base)
+    with_leader = state.with_units({**base, leader.id: _stand(state, leader, target)})
+    enemies = [alone.units[shooter.id]]
+    groups = odds.enemy_groups(engine, alone, target, enemies)
+    assert groups
+    without = odds.loss(engine, alone, alone.units[squad.id], target, False, groups)
+    covered = odds.loss(engine, with_leader, with_leader.units[squad.id], target, False, groups)
+    assert covered < without
+
+
+def test_a_berserk_squad_does_not_share_a_loss_cache_entry():
+    from slagents.prompted.oddsview import OddsView
+    from slagents.scripted.v7 import ScriptedV7
+
+    engine = build_engine(SCENARIO)
+    state = engine.new_game(1)
+    squad = next(u for u in state.units if u.player == 0 and u.kind == "squad")
+    dst = next(iter(engine.board.order))
+    agent = ScriptedV7(engine, 0)
+    agent._loss(state, squad, dst, False)
+    agent._loss(state, squad.with_(berserk=True), dst, False)
+    assert len(agent._loss_map) == 2
+    view = OddsView(engine, state, 0)
+    view.loss(squad, dst, False)
+    view.loss(squad.with_(berserk=True), dst, False)
+    assert len(view._loss) == 2

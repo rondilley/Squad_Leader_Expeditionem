@@ -13,10 +13,10 @@ from __future__ import annotations
 
 from slcore import geometry
 from slcore.events import Event
-from slcore.game import PHASE_DEFENSIVE_FIRE, FireGroup, State
+from slcore.game import FireGroup, State
 from slcore.geometry import HexRef
 from slcore.rng import roll_2d6
-from slcore.rules import r10_resolution, r11_terrain, r28_vehicles, r33_afv_combat
+from slcore.rules import r10_resolution, r28_vehicles, r32_afv_cover, r33_afv_combat
 from slcore.rules.r10_resolution import FireContext
 from slcore.rules.r33_afv_combat import AMMO_HE, ArmorContext
 from slcore.units import Unit
@@ -34,8 +34,6 @@ RULE_38_2 = "38.2"
 
 # Rule 34.5: a hit at point blank range is worth twice the firepower.
 POINT_BLANK = 1
-# Rule 34.6: the effect roll of a hit on infantry that moved in the open takes a minus two.
-MOVED_IN_OPEN = -2
 # Rule 34.9: canister has a range of three hexes, a penetration factor of three, and the
 # firepower of twenty infantry factors. A to-hit roll of seven or more spends the rounds.
 CANISTER_RANGE = 3
@@ -65,15 +63,14 @@ def moving_target(state: State, target: HexRef, firer_player: int) -> bool:
 def effect_modifier(
     ctx: ArmorContext, fire_ctx: FireContext, state: State, firer: Unit, target: HexRef, phase: str
 ) -> tuple[int, list[dict]]:
-    """Rules 11.1 and 34.6: the modifiers of the effect roll on the Infantry Fire Table."""
+    """Rule 11.1: the modifiers that apply to every unit in the target hex.
+
+    Rule 34.6, the minus two for infantry that moved in the open, is per unit. `apply_to_hex`
+    adds it, and it adds it one time. A second add here put the modifier on twice.
+    """
+    del ctx, phase
     group = FireGroup(target, ((firer.id, None),), None)
-    total, parts = r10_resolution.common_modifier(fire_ctx, state, group)
-    if phase == PHASE_DEFENSIVE_FIRE:
-        open_ground = r11_terrain.moving_in_open_modifier(ctx.board, target)
-        if open_ground and moving_target(state, target, firer.player):
-            total += MOVED_IN_OPEN
-            parts.append({"rule": RULE_34_6, "value": MOVED_IN_OPEN, "cause": "the target moved in the open"})
-    return total, parts
+    return r10_resolution.common_modifier(fire_ctx, state, group)
 
 
 def fire_main(
@@ -102,9 +99,29 @@ def fire_main(
     if not result.hit:
         return state, events
     halves = CANISTER_FIREPOWER * 2 if canister else firepower_halves(ctx, firer, target)
-    state, effect = resolve_effect(ctx, fire_ctx, state, firer, target, halves, phase, RULE_34_2)
+    state, effect = resolve_effect(
+        ctx,
+        fire_ctx,
+        state,
+        firer,
+        target,
+        halves,
+        phase,
+        RULE_34_2,
+        CANISTER_PENETRATION if canister else 0,
+    )
     events.extend(effect)
     return state, events
+
+
+def open_ground_cancelled(
+    ctx: ArmorContext, fire_ctx: FireContext, state: State, firer: Unit, target: HexRef, phase: str
+) -> bool:
+    """Rules 32.2 and 32.7: a vehicle that is the cover takes the open-ground modifier away."""
+    if not fire_ctx.vehicles_in_play:
+        return False
+    group = FireGroup(target, ((firer.id, None),), None)
+    return r32_afv_cover.group_cancels_open_ground(ctx.board, ctx.los, state, group, phase)
 
 
 def resolve_effect(
@@ -116,6 +133,7 @@ def resolve_effect(
     halves: int,
     phase: str,
     rule_id: str,
+    penetration: int = 0,
 ) -> tuple[State, list[Event]]:
     """One roll on the Infantry Fire Table for a hit that is already secured."""
     rng, dice = roll_2d6(state.rng)
@@ -139,9 +157,25 @@ def resolve_effect(
         )
     ]
     state, hit = r10_resolution.apply_to_hex(
-        fire_ctx, state, target, halves, raw, drm, phase, firer.player
+        fire_ctx,
+        state,
+        target,
+        halves,
+        raw,
+        drm,
+        phase,
+        firer.player,
+        open_ground_cancelled=open_ground_cancelled(ctx, fire_ctx, state, firer, target, phase),
     )
     events.extend(hit)
+    if penetration > 1 and firer.hex is not None:
+        # Rule 34.9: canister keeps going for its penetration factor. The target hex
+        # spent the first factor. The walk is the machine-gun walk of rule 17.5.
+        group = FireGroup(target, ((firer.id, None),), None)
+        state, pen = r10_resolution.penetrate(
+            fire_ctx, state, group, halves, raw, phase, factor_limit=penetration
+        )
+        events.extend(pen)
     return state, events
 
 
@@ -185,7 +219,15 @@ def fire_mg(
         events.append(Event(RULE_38_2, "mg_malfunction", {"unit": firer.id, "roll": raw}))
     state = state.with_unit(marked)
     state, hit = r10_resolution.apply_to_hex(
-        fire_ctx, state, target, halves, raw, drm, phase, firer.player
+        fire_ctx,
+        state,
+        target,
+        halves,
+        raw,
+        drm,
+        phase,
+        firer.player,
+        open_ground_cancelled=open_ground_cancelled(ctx, fire_ctx, state, firer, target, phase),
     )
     events.extend(hit)
     state, exposed = expose_crew(ctx, state, firer, target)

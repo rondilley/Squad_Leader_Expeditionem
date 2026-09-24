@@ -146,6 +146,13 @@ def resolve(state: State, types: Mapping[str, UnitType], table: CcTable) -> tupl
             events.append(Event(RULE_20_3, "cc_kill", data))
         else:
             events.append(Event(RULE_20_3, "cc_miss", data))
+    for uid in sorted(eliminated):
+        unit = state.units[uid]
+        if unit.eliminated:
+            continue
+        # Rule 13.5: drop while the carrier still has its hex.
+        state, drop = r12_morale.drop_weapons(state, uid)
+        events.extend(drop)
     changed = {}
     for uid in sorted(eliminated):
         unit = state.units[uid]
@@ -154,12 +161,10 @@ def resolve(state: State, types: Mapping[str, UnitType], table: CcTable) -> tupl
         changed[uid] = unit.with_(eliminated=True, hex=None, carrier=None)
     if changed:
         state = state.with_units(changed)
-    for uid in sorted(changed):
-        state, drop = r12_morale.drop_weapons(state, uid)
-        events.extend(drop)
-    state, ev = leaders_without_squads(state, hexes_before)
-    events.extend(ev)
+    # Rule 20.9 removes a broken squad before rule 20.71 looks for a squad left in the hex.
     state, ev = broken_in_melee(state)
+    events.extend(ev)
+    state, ev = leaders_without_squads(state, hexes_before)
     events.extend(ev)
     state, ev = update_melee(state)
     events.extend(ev)

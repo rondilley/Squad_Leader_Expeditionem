@@ -587,6 +587,285 @@
    "expect_alive": [
     "a"
    ]
+  },
+  {
+   "id": "r22.3-a-flamethrower-does-not-join-a-fire-group",
+   "rule": "22.3",
+   "type": "invalid",
+   "citation": "Rule 22.3: a flamethrower fires alone. It does not join a fire group, and it does not take the point-blank doubling of rule 9.1.",
+   "check": "legality",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {"ref": "e", "side": "german", "type": "8-3-8", "hex": "A1"},
+    {"ref": "ft", "side": "german", "type": "FT", "carrier": "e"},
+    {"ref": "t", "side": "russian", "type": "4-4-7", "hex": "A2"}
+   ],
+   "legal": [
+    {"action": "ft_fire", "units": ["e"], "weapon": "ft", "hex": "A2"}
+   ],
+   "illegal": [
+    {"action": "group_add_weapon", "units": ["e"], "weapon": "ft", "hex": "A2"}
+   ]
+  },
+  {
+   "id": "r23.3-a-demolition-charge-is-placed-and-not-fired-in-a-group",
+   "rule": "23.3",
+   "type": "invalid",
+   "citation": "Rule 23.3: an assault engineer places a demolition charge on an adjacent hex. The charge is not a fire-group weapon.",
+   "check": "legality",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {"ref": "e", "side": "german", "type": "8-3-8", "hex": "A1"},
+    {"ref": "dc", "side": "german", "type": "DC", "carrier": "e"}
+   ],
+   "legal": [
+    {"action": "place_demo", "units": ["e"], "weapon": "dc", "hex": "B1"}
+   ],
+   "illegal": [
+    {"action": "group_add_weapon", "units": ["e"], "weapon": "dc", "hex": "B1"}
+   ]
+  },
+  {
+   "id": "r17.2-one-machine-gun-above-four-factors-forfeits-the-squad",
+   "rule": "17.2",
+   "type": "boundary",
+   "citation": "Rules 17.1 and 17.2: a squad fires one machine gun of more than 4 factors only by forfeiting its inherent firepower. A flamethrower is not a machine gun and does not cause that forfeit.",
+   "check": "group_firepower",
+   "units": [
+    {"ref": "s", "side": "german", "type": "4-6-7", "hex": "A1"},
+    {"ref": "hmg", "side": "german", "type": "HMG", "carrier": "s"},
+    {"ref": "t", "side": "russian", "type": "4-4-7", "hex": "A2"}
+   ],
+   "target": "A2",
+   "members": [["s", null], ["s", "hmg"]],
+   "expect_halves": 24,
+   "expect_members": 1
+  },
+  {
+   "id": "r22.3-a-flamethrower-does-not-forfeit-the-squad",
+   "rule": "22.3",
+   "type": "boundary",
+   "citation": "Rule 22.3: a flamethrower does not join the machine-gun count of rules 17.1 and 17.2. The squad keeps its inherent firepower.",
+   "check": "group_firepower",
+   "units": [
+    {"ref": "e", "side": "german", "type": "8-3-8", "hex": "A1"},
+    {"ref": "ft", "side": "german", "type": "FT", "carrier": "e"},
+    {"ref": "t", "side": "russian", "type": "4-4-7", "hex": "A2"}
+   ],
+   "target": "A2",
+   "members": [["e", null], ["e", "ft"]],
+   "expect_halves": 112,
+   "expect_members": 2
+  },
+  {
+   "id": "r42.4-a-hidden-unit-is-not-a-fire-target",
+   "rule": "8.2",
+   "type": "invalid",
+   "citation": "Rule 42.1: a hidden unit has no counter the other player can see. Fire needs a target the firer can see. A concealed counter stays on the target list.",
+   "check": "legality",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {"ref": "s", "side": "german", "type": "4-6-7", "hex": "A1"},
+    {"ref": "seen", "side": "russian", "type": "4-4-7", "hex": "A2"},
+    {"ref": "hid", "side": "russian", "type": "4-4-7", "hex": "A3", "hidden": true}
+   ],
+   "concealment": [{"side": "russian", "hex": "A2"}],
+   "legal": [
+    {"action": "group_add", "units": ["s"], "hex": "A2"}
+   ],
+   "illegal": [
+    {"action": "group_add", "units": ["s"], "hex": "A3"}
+   ]
+  },
+  {
+   "id": "r13.4-a-hidden-enemy-does-not-force-a-rout",
+   "rule": "13.4",
+   "type": "valid",
+   "citation": "Rule 13.4: a broken unit in cover routs when it is next to an enemy unit it can know about. A hidden unit gives no such requirement.",
+   "check": "legality",
+   "phase": "rout",
+   "sub_step": "rout_window",
+   "actor": "phasing",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {"ref": "b", "side": "german", "type": "4-6-7", "hex": "E2", "broken": true},
+    {"ref": "hid", "side": "russian", "type": "4-4-7", "hex": "E3", "hidden": true}
+   ],
+   "legal": [
+    {"action": "stay", "units": ["b"]}
+   ]
+  },
+  {
+   "id": "r13.5-a-second-break-leaves-the-weapon-in-the-hex",
+   "rule": "13.5",
+   "type": "boundary",
+   "citation": "Rule 13.5: a unit that breaks abandons its support weapons in its hex. Rule 13.6 eliminates a broken unit that fails again. The weapon stays in the hex.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [4, 4, 6, 6],
+   "units": [
+    {"ref": "s", "side": "german", "type": "4-6-7", "hex": "A1"},
+    {"ref": "t", "side": "russian", "type": "4-4-7", "hex": "A2", "broken": true},
+    {"ref": "lmg", "side": "russian", "type": "LMG", "carrier": "t"}
+   ],
+   "apply": [
+    {"action": "group_add", "units": ["s"], "hex": "A2"},
+    {"action": "group_fire"}
+   ],
+   "expect_eliminated": ["t"],
+   "expect_units": {"lmg": {"hex": "A2", "carrier": null, "eliminated": false}}
+  },
+  {
+   "id": "r8.8-a-kia-leaves-the-weapon-in-the-hex",
+   "rule": "8.8",
+   "type": "boundary",
+   "citation": "Rule 8.8 eliminates the personnel of a KIA hex. Rule 13.5 leaves the support weapons of a killed squad in that hex.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [1, 1],
+   "units": [
+    {"ref": "s", "side": "german", "type": "4-6-7", "hex": "A1"},
+    {"ref": "t", "side": "russian", "type": "4-4-7", "hex": "A2"},
+    {"ref": "lmg", "side": "russian", "type": "LMG", "carrier": "t"}
+   ],
+   "apply": [
+    {"action": "group_add", "units": ["s"], "hex": "A2"},
+    {"action": "group_fire"}
+   ],
+   "expect_eliminated": ["t"],
+   "expect_units": {"lmg": {"hex": "A2", "carrier": null, "eliminated": false}}
+  },
+  {
+   "id": "r20.71-a-leader-goes-with-the-last-broken-squad",
+   "rule": "20.71",
+   "type": "boundary",
+   "citation": "Rule 20.9 eliminates a broken unit in a melee hex. Rule 20.71 then eliminates a leader who has no friendly squad left in that hex.",
+   "check": "effect",
+   "phase": "close_combat",
+   "sub_step": "cc_declare",
+   "actor": "phasing",
+   "phasing": "german",
+   "active": "german",
+   "units": [
+    {"ref": "leader", "side": "german", "type": "9-1", "hex": "A1"},
+    {"ref": "squad", "side": "german", "type": "4-6-7", "hex": "A1", "broken": true},
+    {"ref": "enemy", "side": "russian", "type": "4-4-7", "hex": "A1"}
+   ],
+   "apply": [
+    {"action": "end_phase"},
+    {"action": "end_phase"}
+   ],
+   "expect_eliminated": ["leader", "squad"],
+   "expect_alive": ["enemy"]
+  },
+  {
+   "id": "r17.4-a-leader-who-only-points-still-modifies-morale",
+   "rule": "17.4",
+   "type": "valid",
+   "citation": "Rule 17.4 takes the leadership benefit from a leader who mans a machine gun. Rule 15.2 lets a leader who only directs squad fire keep it. Rule 15.6 applies that rating to the morale check.",
+   "check": "morale",
+   "dice": [6, 6],
+   "unit": "s",
+   "units": [
+    {"ref": "s", "side": "german", "type": "4-6-7", "hex": "A1"},
+    {"ref": "leader", "side": "german", "type": "9-1", "hex": "A1", "directed": true}
+   ],
+   "expect_events": [
+    {"kind": "broken", "data": {"leadership": -1}}
+   ]
+  },
+  {
+   "id": "r17.4-a-leader-who-manned-a-machine-gun-does-not-modify-morale",
+   "rule": "17.4",
+   "type": "boundary",
+   "citation": "Rule 17.4: a leader who mans a machine gun does not apply a leadership modifier to the morale checks in the hex.",
+   "check": "morale",
+   "dice": [6, 6],
+   "unit": "s",
+   "units": [
+    {"ref": "s", "side": "german", "type": "4-6-7", "hex": "A1"},
+    {"ref": "leader", "side": "german", "type": "9-1", "hex": "A1", "manned_mg": true}
+   ],
+   "expect_events": [
+    {"kind": "broken", "data": {"leadership": 0}}
+   ]
+  },
+  {
+   "id": "r34.6-open-ground-is-minus-two-one-time",
+   "rule": "34.6",
+   "type": "boundary",
+   "citation": "Rule 34.6 with rule 16.5: infantry that moved in the open take minus two on the effect roll, one time. A squad in the same hex that did not move takes no open-ground modifier.",
+   "check": "effect",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "actor": "defender",
+   "phasing": "german",
+   "active": "russian",
+   "dice": [1, 1, 4, 4],
+   "units": [
+    {"ref": "tank", "side": "russian", "type": "T34", "hex": "C1", "facing": 0},
+    {"ref": "moved", "side": "german", "type": "4-6-7", "hex": "F1", "moved": true},
+    {"ref": "stood", "side": "german", "type": "4-6-7", "hex": "F1"}
+   ],
+   "apply": [
+    {"action": "afv_fire", "units": ["tank"], "hex": "F1", "aim": "infantry", "ammo": "he"}
+   ],
+   "expect_events": [
+    {"kind": "fire_result", "data": {"adjusted": 6}},
+    {"kind": "fire_result", "data": {"adjusted": 8}}
+   ]
+  },
+  {
+   "id": "r37.35-a-squad-fires-four-panzerfausts",
+   "rule": "37.35",
+   "type": "boundary",
+   "citation": "Rule 37.35: a squad may fire four panzerfausts in one player turn. The fifth shot is not a legal command. Each used panzerfaust leaves the game, so the count is of shots, not of counters that remain.",
+   "check": "effect",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "active": "german",
+   "dice": [2, 5, 5, 3, 2, 6, 4, 6],
+   "units": [
+    {"ref": "s", "side": "german", "type": "4-6-7", "hex": "A1"},
+    {"ref": "pf1", "side": "german", "type": "PF", "carrier": "s"},
+    {"ref": "pf2", "side": "german", "type": "PF", "carrier": "s"},
+    {"ref": "pf3", "side": "german", "type": "PF", "carrier": "s"},
+    {"ref": "pf4", "side": "german", "type": "PF", "carrier": "s"},
+    {"ref": "pf5", "side": "german", "type": "PF", "carrier": "s"},
+    {"ref": "pf6", "side": "german", "type": "PF", "carrier": "s"},
+    {"ref": "tank", "side": "russian", "type": "T34", "hex": "A3", "facing": 0}
+   ],
+   "apply": [
+    {"action": "at_fire", "units": ["s"], "weapon": "pf1", "hex": "A3"},
+    {"action": "at_fire", "units": ["s"], "weapon": "pf2", "hex": "A3"},
+    {"action": "at_fire", "units": ["s"], "weapon": "pf3", "hex": "A3"},
+    {"action": "at_fire", "units": ["s"], "weapon": "pf4", "hex": "A3"}
+   ],
+   "expect_eliminated": ["pf1", "pf2", "pf3", "pf4"],
+   "expect_units": {
+    "pf5": {"eliminated": false, "carrier": "s"},
+    "s": {"fired": false}
+   },
+   "expect_illegal_after": [
+    {"action": "at_fire", "units": ["s"], "weapon": "pf5", "hex": "A3"}
+   ]
   }
  ]
 }

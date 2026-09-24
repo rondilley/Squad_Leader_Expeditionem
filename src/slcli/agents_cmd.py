@@ -122,6 +122,9 @@ def run_gate(
 
 def run_pairs(pairs: list[tuple[str, str]], games: int, first_seed: int, workers: int) -> list[dict[str, Any]]:
     """Run the pairs over a pool of worker processes and gather what they report."""
+    from slcli.worker_limit import limit_workers
+
+    workers = limit_workers(workers)
     ctx = mp.get_context("spawn")
     results_queue: Any = ctx.Queue()
     rows: list[dict[str, Any]] = []
@@ -190,6 +193,8 @@ def add_parser(subparsers: Any) -> None:
     p.add_argument("--list", action="store_true", help="print each agent with its named parameters")
     p.add_argument("--games", type=int, default=100, help="games for each agent and scenario")
     p.add_argument("--seed", type=int, default=7000, help="the first seed")
-    p.add_argument("--workers", type=int, default=9, help="how many pairs run at the same time")
+    from slcli.worker_limit import workers_argument
+
+    p.add_argument("--workers", type=workers_argument, default=9, help="how many pairs run at the same time")
     p.add_argument("--runs", default="runs")
     p.set_defaults(func=run)

@@ -20,7 +20,7 @@ import torch
 
 from slagents.learned import ppo
 from slagents.learned.agent import LearnedAgent
-from slagents.learned.encoding import command_triple
+from slagents.learned.encoding import command_index
 from slagents.learned.env import make_env
 from slagents.learned.league import League, Member, load_snapshot
 from slagents.learned.nets import NetConfig, Policy
@@ -53,13 +53,16 @@ def scripted_member(engine, kind: str, seed: int) -> Member:
     return Member(name=f"scripted-{first.name}-v{first.version}", kind="scripted", act=act, spec=kind)
 
 
-def agent_triple(agent, env) -> tuple[int, int, int]:
-    """The command an Agent selects in the environment's state, as the environment's triple."""
+def agent_triple(agent, env) -> tuple[int, int, int, int]:
+    """The command an Agent selects, as the environment's four-part key."""
     chosen = agent.select(env.state_, env.frame)
     legal = env.frame.by_id(chosen)
     if legal is None:
         raise RuntimeError(f"the agent {agent.name} gave an ID that is not in the frame")
-    return command_triple(legal.command, env.hexes)
+    try:
+        return command_index(legal, env.groups)
+    except KeyError as exc:
+        raise RuntimeError(f"the agent {agent.name} gave a command that is not in the action space") from exc
 
 
 def build_league(engine, seed: int) -> League:
@@ -368,7 +371,7 @@ def _play_one(env, learner: LearnedAgent, member: Member, learner_player: int) -
 
 def snapshot_net(path: Path, spaces) -> NetConfig:
     """The shape of a snapshot, checked against the spaces of this scenario."""
-    saved = torch.load(path, map_location="cpu", weights_only=False)
+    saved = torch.load(path, map_location="cpu", weights_only=True)
     if "spaces" not in saved or "net" not in saved:
         raise ValueError(f"the snapshot {path} has no spaces or net record; it is not a training snapshot")
     s = saved["spaces"]
@@ -495,7 +498,9 @@ def add_parser(subparsers: Any) -> None:
     p.add_argument("--entropy", type=float, default=0.01)
     p.add_argument("--discount", type=float, default=1.0, help="the discount of a later reward, 1.0 for none")
     p.add_argument("--device", default="auto", help="auto, cpu, cuda, or cuda:0 (auto takes the GPU when there is one)")
-    p.add_argument("--workers", type=int, default=1, help="worker processes that play the games; 1 plays them in this process")
+    from slcli.worker_limit import workers_argument
+
+    p.add_argument("--workers", type=workers_argument, default=1, help="worker processes that play the games; 1 plays them in this process")
     p.add_argument(
         "--opponent-cap",
         type=float,

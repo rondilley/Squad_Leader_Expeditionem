@@ -189,6 +189,24 @@ def objective_progress(engine: Engine, state: State) -> tuple[int, int]:
     return progress[0], progress[1]
 
 
+def objective_swing(delta_0: int, delta_1: int) -> int:
+    """The objective payment for player 0. Player 1 receives the opposite.
+
+    A condition that only one side has pays its whole change. Scenario 3A gives both
+    sides a hex count of the same factory. A hex that changes hands would otherwise
+    pay once for the gain and once for the loss. The shared part pays one time.
+    A private change, such as a building swing, still pays.
+    """
+    if delta_0 == 0 or delta_1 == 0 or (delta_0 > 0) == (delta_1 > 0):
+        return delta_0 - delta_1
+    shared = min(abs(delta_0), abs(delta_1))
+    extra_0 = abs(delta_0) - shared
+    extra_1 = abs(delta_1) - shared
+    swing = (1 if delta_0 > 0 else -1) * (shared + extra_0)
+    swing -= (1 if delta_1 > 0 else -1) * extra_1
+    return swing
+
+
 def _unit_of(before: State, data: Mapping[str, Any], key: str = "unit"):
     uid = data.get(key)
     if uid is None:
@@ -201,8 +219,12 @@ def _unit_of(before: State, data: Mapping[str, Any], key: str = "unit"):
 
 def _seen_by_enemy(engine: Engine, state: State, player: int, hex_ref) -> bool:
     """Whether an unbroken enemy unit has a clear line of sight to the hex."""
+    from slcore.view import visible_to
+
     for enemy in state.player_units(1 - player):
         if enemy.hex is None or enemy.broken or enemy.eliminated:
+            continue
+        if not visible_to(state, enemy, player):
             continue
         if evaluate_los(engine.board, engine.los, enemy.hex, hex_ref).clear:
             return True
@@ -233,13 +255,16 @@ def term_counts(engine: Engine, before: State, after: State, events: list[Event]
                 credit(owner, "hide")
         elif kind == "fire_result":
             targets = [u for u in (_unit_of(before, {"unit": i}) for i in data.get("units", [])) if u is not None]
-            if targets:
+            firer = data.get("firer")
+            if firer in (0, 1):
+                credit(int(firer), "fire")
+            elif targets and len({u.player for u in targets}) == 1:
                 credit(1 - targets[0].player, "fire")
         elif kind == "broken":
             unit = _unit_of(before, data)
             if unit is not None:
                 credit(1 - unit.player, "hurt")
-        elif kind == "eliminated":
+        elif kind in ("eliminated", "crushed", "passenger_eliminated"):
             unit = _unit_of(before, data)
             if unit is not None:
                 if unit.kind == KIND_SW:
@@ -319,7 +344,7 @@ def step_rewards(
         progress = objective_progress(engine, after)
     elif any(e.kind == "player_turn_end" for e in events):
         progress = objective_progress(engine, after)
-        swing = (progress[0] - progress_before[0]) - (progress[1] - progress_before[1])
+        swing = objective_swing(progress[0] - progress_before[0], progress[1] - progress_before[1])
         counts[0]["objective"] += swing
         counts[1]["objective"] -= swing
     return (pair[0].value(counts[0]), pair[1].value(counts[1])), progress

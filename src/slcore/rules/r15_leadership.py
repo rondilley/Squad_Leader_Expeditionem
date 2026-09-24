@@ -29,11 +29,12 @@ def best_leader(state: State, types: Mapping[str, UnitType], hex_ref: HexRef, pl
     """Rule 15.7: the owner selects one leader. The core selects the strongest rating.
 
     Rule 15.6: the rating of an unbroken leader applies to the morale checks of the
-    other units in the hex. A leader that mans a machine gun gives no benefit (17.4).
+    other units in the hex. Rule 17.4 takes the benefit away from a leader who mans a
+    machine gun. A leader who only points the fire of a squad keeps the benefit.
     """
     best: Unit | None = None
     for u in leaders_in(state, hex_ref, player):
-        if u.id == exclude or u.directed:
+        if u.id == exclude or u.manned_mg:
             continue
         if best is None or types[u.type_key].leadership < types[best.type_key].leadership:
             best = u

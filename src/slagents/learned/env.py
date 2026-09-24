@@ -4,10 +4,10 @@ The environment follows the PettingZoo Agent Environment Cycle API. Two agents t
 and the environment says which one acts. Each observation carries the legal-command mask,
 so an agent cannot select a command that the rules refuse.
 
-The mask has three parts, because the command has three parts (FR-51): which unit, which
-action, and which hex. The unit mask and the action mask are in the observation. The
-target mask comes from `target_mask`, because a mask over each unit, each action, and each
-hex is a hundred times larger than the state, and the policy asks for one row of it.
+The mask has four parts: which unit, which action, which hex, and which option when two
+commands share the first three. The unit mask and the action mask are in the observation.
+The target mask comes from `target_mask`, and the option mask from `option_mask`, because
+a mask over each unit, each action, and each hex is a hundred times larger than the state.
 
 The reward is the shaped reward of `slagents.learned.reward`: the result of the game, from
 the victory conditions of the scenario (FR-14), plus the terms that lead to it (find, fire,
@@ -95,7 +95,7 @@ class SquadLeaderEnv(AECEnv):
         self.agents: list[str] = []
         self.state_: State | None = None
         self.frame: DecisionFrame | None = None
-        self.groups: dict[tuple[int, int, int], Any] = {}
+        self.groups: dict[tuple[int, int, int, int], Any] = {}
         self.commands_applied = 0
         self._observation_space = gym_spaces.Dict(
             {
@@ -107,7 +107,12 @@ class SquadLeaderEnv(AECEnv):
             }
         )
         self._action_space = gym_spaces.MultiDiscrete(
-            [self.spaces_record.units, self.spaces_record.actions, self.spaces_record.targets]
+            [
+                self.spaces_record.units,
+                self.spaces_record.actions,
+                self.spaces_record.targets,
+                self.spaces_record.options,
+            ]
         )
 
     # ------------------------------------------------------------- the API
@@ -161,21 +166,32 @@ class SquadLeaderEnv(AECEnv):
         }
 
     def step(self, action: Any) -> None:
-        """One composed command: the unit slot, the action, and the target slot."""
+        """One composed command: the unit slot, the action, the target slot, and the option.
+
+        A caller that passes three numbers gets option 0, the lowest command id of that
+        triple. Two weapons at one hex need the fourth number.
+        """
         agent = self.agent_selection
         if self.terminations[agent] or self.truncations[agent]:
             self._was_dead_step(action)
             return
-        triple = (int(action[0]), int(action[1]), int(action[2]))
-        legal = self.groups.get(triple)
+        if len(action) >= 4:
+            key = (int(action[0]), int(action[1]), int(action[2]), int(action[3]))
+        else:
+            key = (int(action[0]), int(action[1]), int(action[2]), 0)
+        legal = self.groups.get(key)
         if legal is None:
-            raise ValueError(f"the command {triple} is not legal in this state; read the masks")
+            raise ValueError(f"the command {key} is not legal in this state; read the masks")
         self._apply(legal, self.player_of(agent))
         self._apply_forced()
 
     def target_mask(self, unit: int, action: int) -> np.ndarray:
         """The third head: which hexes this unit and this action allow (FR-50)."""
         return encoding.target_mask_for(self.groups, self.spaces_record, unit, action)
+
+    def option_mask(self, unit: int, action: int, target: int) -> np.ndarray:
+        """The fourth head: which command of this unit, action, and hex is legal."""
+        return encoding.option_mask_for(self.groups, self.spaces_record, unit, action, target)
 
     def close(self) -> None:
         return None

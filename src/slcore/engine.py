@@ -1292,14 +1292,10 @@ class Engine:
             }
             return state.with_units(changed) if changed else state
         if name == "cc_resolve":
-            if state.cc_declarations:
-                state, ev = r20_close_combat.resolve(state, self.types, self.tables.cc)
-                events.extend(ev)
-            else:
-                state, ev = r20_close_combat.broken_in_melee(state)
-                events.extend(ev)
-                state, ev = r20_close_combat.update_melee(state)
-                events.extend(ev)
+            # An empty declaration list still runs rules 20.9 and 20.71. A broken squad
+            # leaves the hex, and a leader with no squad left goes with it.
+            state, ev = r20_close_combat.resolve(state, self.types, self.tables.cc)
+            events.extend(ev)
             return self._check_sudden_death(state, events)
         if name == "end_player_turn":
             return self._end_player_turn(state, events)
@@ -1327,7 +1323,7 @@ class Engine:
     def _end_player_turn(self, state: State, events: list[Event]) -> State:
         changed = {}
         for u in state.units:
-            if u.moved or u.mf_used or u.move_mode or u.track or u.portage_max or u.stay or u.fired or u.directed or u.sewer_move or u.demo_placed or u.made_smoke:
+            if u.moved or u.mf_used or u.move_mode or u.track or u.portage_max or u.stay or u.fired or u.directed or u.manned_mg or u.sewer_move or u.demo_placed or u.made_smoke:
                 changed[u.id] = u.with_(
                     moved=False,
                     mf_used=0,
@@ -1337,6 +1333,7 @@ class Engine:
                     stay=False,
                     fired=False,
                     directed=False,
+                    manned_mg=False,
                     sewer_move=False,
                     demo_placed=False,
                     made_smoke=False,
@@ -1352,7 +1349,8 @@ class Engine:
                     changed[u.id] = base.with_(
                         mp_used=0, pivoted=False, gun_shots=0, mg_fired=False, overran=False, boarded=False
                     )
-        state = state.with_units(changed)
+        state = state.with_units(changed) if changed else state
+        state = state.with_(at_shots=())
         state = victory.update_last_occupant(state, self.board)
         phasing = 1 - state.phasing
         turn = state.turn

@@ -12,7 +12,8 @@ and 15 (`r10_resolution.common_modifier`), the moving-in-the-open modifier of ru
 the halving of rule 25.8 for a concealed unit, the table of rule 10, and the morale check
 of rule 12 with the leadership of rule 15 and the fanatic modifier of rule 26. The two dice
 of rule 10.4 and the two dice of the check are the 36 by 36 outcomes, so each probability
-is an integer count out of 1,296 and the arithmetic is exact. No rule is written here: a
+is an integer count out of 1,296. A leader who breaks stops helping the units the core
+checks after him, and that count is the nearest count out of 1,296. No rule is written here: a
 change to a rule module changes these odds with it.
 
 The smoke die of rule 24.6 is a third roll. It adds to the roll of a group whose line of
@@ -30,7 +31,7 @@ from typing import Any, Iterable, Mapping
 from slcore.game import PHASE_DEFENSIVE_FIRE, PHASE_PREP_FIRE, FireGroup, State
 from slcore.geometry import HexRef
 from slcore.los_eval import evaluate as evaluate_los
-from slcore.rules import r08_fire, r10_resolution, r11_terrain, r15_leadership, r24_smoke, r25_concealment, r26_fanaticism
+from slcore.rules import r08_fire, r10_resolution, r11_terrain, r24_smoke, r25_concealment, r26_fanaticism
 from slcore.rules.r12_morale import BERSERK_ROLL, RUSSIAN, morale_value
 from slcore.tabledata import RESULT_KIA, RESULT_MC, RESULT_NONE
 from slcore.units import KIND_LEADER, KIND_SQUAD, KIND_SW, Unit, UnitType
@@ -143,40 +144,72 @@ def shot(
     value = 0
     if halves <= 0 or not occupants:
         return Shot(group.target, halves, halves // 2, drm, 0, 0, {}, 0)
-    # The check of each unit does not depend on the roll of the fire beyond the result, so
-    # the failing ways of each unit at each result modifier are computed one time.
-    per_unit: list[tuple[Unit, int, int, int]] = []
+    # The core checks the units of one result group in leader-then-id order, and the
+    # groups in order of the adjusted roll. A leader who breaks is not there for the
+    # units that follow (rule 15.6).
+    prepared: list[tuple[Unit, int, int, int]] = []
     for u in occupants:
         own = r25_concealment.halves_for(state, u, halves)
         if u.hidden and own == halves:
             own = halves // 2
-        leader_mod, _ = r15_leadership.modifier_for_check(state, types, u)
+        extra = moved_bonus if (moved_bonus and u.moved) else 0
         fanatic = r26_fanaticism.modifier_for(state, u)
-        per_unit.append((u, own, leader_mod + fanatic, unit_value(types, u)))
+        prepared.append((u, own, extra, fanatic))
     for raw, ways in DICE_WAYS.items():
+        grouped: dict[tuple[int, int], list[tuple[Unit, int, int]]] = {}
+        for u, own, extra, fanatic in prepared:
+            result = ctx.ift.lookup(own // 2, raw + drm + extra)
+            grouped.setdefault((raw + drm + extra, own), []).append((u, fanatic, unit_value(types, u)))
+        order: list[tuple[Unit, str, int, int]] = []
+        for key in sorted(grouped):
+            rows = sorted(grouped[key], key=lambda row: (row[0].kind != KIND_LEADER, row[0].id))
+            adjusted, own_halves = key
+            result = ctx.ift.lookup(own_halves // 2, adjusted)
+            for u, fanatic, worth in rows:
+                order.append((u, result, fanatic, worth))
+        helpers = frozenset(
+            u.id for u, _result, _fanatic, _worth in order if u.kind == KIND_LEADER and not u.broken and not u.manned_mg
+        )
+        dist: dict[frozenset[int], int] = {helpers: 1}
+        denom = 1
         any_effect = False
         any_kia = False
-        for u, own, check_mod, worth in per_unit:
-            extra = moved_bonus if (moved_bonus and u.moved) else 0
-            result = ctx.ift.lookup(own // 2, raw + drm + extra)
+        for u, result, fanatic, worth in order:
             if result == RESULT_NONE:
                 continue
             any_effect = True
             if result == RESULT_KIA:
                 any_kia = True
-                fail = WAYS
-            elif u.berserk:
-                # Rule 18.42: a berserk unit takes no morale check.
+                chance = ways * WAYS
+                breaks[u.id] = breaks.get(u.id, 0) + chance
+                value += chance * worth
+                if u.id in helpers:
+                    collapsed: dict[frozenset[int], int] = {}
+                    for mask, weight in dist.items():
+                        gone = frozenset(lid for lid in mask if lid != u.id)
+                        collapsed[gone] = collapsed.get(gone, 0) + weight
+                    dist = collapsed
                 continue
-            else:
-                modifier = 0 if result == RESULT_MC else int(result)
-                fail = check_fail_ways(morale_value(types, u), modifier + check_mod)
-                if types[u.type_key].nationality == RUSSIAN:
-                    # Rule 18.4: a natural two on the check sends a Russian unit berserk, and
-                    # a berserk unit is not broken. That roll can never fail, so it comes off.
-                    if BERSERK_ROLL + modifier + check_mod > morale_value(types, u):
-                        fail -= DICE_WAYS[BERSERK_ROLL]
-            chance = ways * fail
+            if u.berserk:
+                continue
+            modifier = 0 if result == RESULT_MC else int(result)
+            morale = morale_value(types, u)
+            russian = types[u.type_key].nationality == RUSSIAN
+            next_dist: dict[frozenset[int], int] = {}
+            break_numer = 0
+            for mask, weight in dist.items():
+                check_mod = _helper_rating(state, types, mask, u.id) + fanatic
+                fail = _fail_ways(morale, modifier + check_mod, russian)
+                break_numer += weight * fail
+                if u.id in mask:
+                    gone = frozenset(lid for lid in mask if lid != u.id)
+                    next_dist[gone] = next_dist.get(gone, 0) + weight * fail
+                    next_dist[mask] = next_dist.get(mask, 0) + weight * (WAYS - fail)
+                else:
+                    next_dist[mask] = next_dist.get(mask, 0) + weight * WAYS
+            dist = next_dist
+            denom *= WAYS
+            chance = (WAYS * ways * break_numer + denom // 2) // denom
             if chance:
                 breaks[u.id] = breaks.get(u.id, 0) + chance
                 value += chance * worth
@@ -185,6 +218,26 @@ def shot(
         if any_kia:
             kia += ways * WAYS
     return Shot(group.target, halves, halves // 2, drm, effect, kia, breaks, value)
+
+
+def _helper_rating(state: State, types: Mapping[str, UnitType], mask: frozenset[int], unit_id: int) -> int:
+    """The best leadership still standing in the hex, other than the unit on the check."""
+    best: int | None = None
+    for lid in mask:
+        if lid == unit_id:
+            continue
+        rating = types[state.units[lid].type_key].leadership
+        if best is None or rating < best:
+            best = rating
+    return 0 if best is None else best
+
+
+def _fail_ways(morale: int, modifier: int, russian: bool) -> int:
+    """The 36 rolls that break the unit. A Russian natural two goes berserk and does not break."""
+    fail = check_fail_ways(morale, modifier)
+    if russian and BERSERK_ROLL + modifier > morale:
+        fail -= DICE_WAYS[BERSERK_ROLL]
+    return max(0, fail)
 
 
 def group_meets_smoke(engine: Any, state: State, group: FireGroup) -> bool:
@@ -225,15 +278,20 @@ def enemy_groups(engine: Any, state: State, dst: HexRef, enemies: Iterable[Unit]
             continue
         if not evaluate_los(engine.board, engine.los, enemy.hex, dst).clear:
             continue
-        if enemy.kind == KIND_LEADER:
+        # Rule 15.2: a leader directs the group only when that leader has not fired.
+        if enemy.kind == KIND_LEADER and not enemy.fired and not enemy.directed and not state.in_melee(enemy.hex):
             held = leaders.get(enemy.hex)
             if held is None or types[enemy.type_key].leadership < types[held.type_key].leadership:
                 leaders[enemy.hex] = enemy
-            continue
-        if r08_fire.member_firepower(state, types, enemy, None, dst, False) is not None:
+        # The same tests the core uses before it offers the shot. A unit that fired, or
+        # a unit in melee, is not in the group. An empty phase string keeps the prep-fire
+        # and advancing-fire marks out of this read: those marks belong to one phase.
+        if r08_fire.can_fire_inherent(state, types, enemy, "") and r08_fire.member_firepower(
+            state, types, enemy, None, dst, False
+        ) is not None:
             by_hex.setdefault(enemy.hex, []).append((enemy.id, None))
         for weapon in state.carried_by(enemy.id):
-            if weapon.kind != KIND_SW or weapon.broken or weapon.malfunction:
+            if not r08_fire.can_fire_weapon(state, types, enemy, weapon, ""):
                 continue
             if r08_fire.member_firepower(state, types, enemy, weapon, dst, False) is not None:
                 by_hex.setdefault(enemy.hex, []).append((enemy.id, weapon.id))
@@ -251,12 +309,19 @@ def enemy_groups(engine: Any, state: State, dst: HexRef, enemies: Iterable[Unit]
                     cluster.append(near)
             i += 1
         members: list[tuple[int, int | None]] = []
-        leader: Unit | None = None
+        directing: list[Unit] = []
+        covered = True
         for h in sorted(cluster):
             members.extend(by_hex[h])
+            # The core offers a directing leader only when every hex of the group has one.
             candidate = leaders.get(h)
-            if candidate is not None and (leader is None or types[candidate.type_key].leadership < types[leader.type_key].leadership):
-                leader = candidate
+            if candidate is None:
+                covered = False
+            else:
+                directing.append(candidate)
+        leader = None
+        if covered and directing:
+            leader = min(directing, key=lambda u: types[u.type_key].leadership)
         groups.append((tuple(members), None if leader is None else leader.id))
     return groups
 
@@ -268,9 +333,11 @@ def loss(engine: Any, state: State, unit: Unit, dst: HexRef, moving: bool, group
     chance, because the defender spreads its groups over many targets and one hex draws
     one of them. A group that meets smoke on its line takes the die of rule 24.6."""
     stand_in = unit.with_(hex=dst, moved=moving, returned_from=None)
-    # The odds read the leaders that stand in the target hex for the check, and the
-    # mover brings none with it, so the others of the hex are out of the picture.
-    others = {u.id: u.with_(hex=None) for u in state.infantry_in(dst) if u.player == unit.player and u.id != unit.id}
+    # A unit that moves into the hex brings no friends with it. A unit that stands
+    # there keeps them, and rule 15.6 gives it the leader in the hex.
+    others: dict[int, Unit] = {}
+    if moving:
+        others = {u.id: u.with_(hex=None) for u in state.infantry_in(dst) if u.player == unit.player and u.id != unit.id}
     hypothetical = state.with_units({unit.id: stand_in, **others})
     phase = PHASE_DEFENSIVE_FIRE if moving else PHASE_PREP_FIRE
     chance = 0

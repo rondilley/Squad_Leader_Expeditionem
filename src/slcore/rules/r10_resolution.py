@@ -19,6 +19,7 @@ from slcore.rules import (
     r44_rural,
     r11_terrain,
     r12_morale,
+    r15_leadership,
     r22_flamethrower,
     r24_smoke,
     r25_concealment,
@@ -76,7 +77,7 @@ def common_modifier(ctx: FireContext, state: State, group: FireGroup, phase: str
         total += side
         parts.append({"rule": r11_terrain.RULE_11_53, "value": side, "cause": "hexside"})
     if group.leader is not None:
-        rating = ctx.types[state.units[group.leader].type_key].leadership
+        rating = leadership_modifier(ctx, state, group)
         total += rating
         parts.append({"rule": "15.2", "value": rating, "cause": f"leader {group.leader}"})
     if r22_flamethrower.in_hex(state, ctx.types, group.target):
@@ -89,6 +90,36 @@ def common_modifier(ctx: FireContext, state: State, group: FireGroup, phase: str
         total += armour
         parts.extend(armour_parts)
     return total, parts
+
+
+def leadership_modifier(ctx: FireContext, state: State, group: FireGroup) -> int:
+    """Rule 15.2 and QA-15.2: the leadership modifier of a fire group.
+
+    One hex uses the leader the player named. A chain uses the least effective rating
+    among that leader and the best leader in each other member hex. A 9-2 in one hex
+    does not erase an 8-0 in the next hex.
+    """
+    if group.leader is None:
+        return 0
+    named = state.units[group.leader]
+    named_rating = ctx.types[named.type_key].leadership
+    hexes = r08_fire.member_hexes(state, group)
+    if len(hexes) <= 1:
+        return named_rating
+    ratings = [named_rating]
+    for hex_ref in hexes:
+        if hex_ref == named.hex:
+            continue
+        best: int | None = None
+        for leader in r15_leadership.leaders_in(state, hex_ref, named.player):
+            if leader.fired or leader.directed:
+                continue
+            value = ctx.types[leader.type_key].leadership
+            if best is None or value < best:
+                best = value
+        if best is not None:
+            ratings.append(best)
+    return max(ratings)
 
 
 def smoke_modifier(ctx: FireContext, state: State, group: FireGroup) -> tuple[State, int, list[dict]]:
@@ -177,7 +208,7 @@ def resolve_group(ctx: FireContext, state: State, group: FireGroup, phase: str) 
         )
     ]
     events.extend(smoke_events)
-    state, mark = mark_fired(state, group)
+    state, mark = mark_fired(state, group, ctx.types)
     events.extend(mark)
     state, brk = breakdown(ctx, state, group, raw)
     events.extend(brk)
@@ -196,7 +227,7 @@ def resolve_group(ctx: FireContext, state: State, group: FireGroup, phase: str) 
         open_ground_cancelled=open_cancelled,
     )
     events.extend(hit)
-    state, pen = penetrate(ctx, state, group, halves, raw, phase)
+    state, pen = penetrate(ctx, state, group, halves, raw, phase, smoke_drm)
     events.extend(pen)
     return state, events
 
@@ -210,7 +241,7 @@ def column_label(ift: IftTable, firepower: int) -> int:
     return 0 if i is None else ift.columns[i]
 
 
-def mark_fired(state: State, group: FireGroup) -> tuple[State, list[Event]]:
+def mark_fired(state: State, group: FireGroup, types: Mapping[str, UnitType]) -> tuple[State, list[Event]]:
     changed: dict[int, Unit] = {}
     for uid, wid in group.members:
         unit = state.units[uid]
@@ -218,6 +249,10 @@ def mark_fired(state: State, group: FireGroup) -> tuple[State, list[Event]]:
             changed[uid] = changed.get(uid, unit).with_(fired=True)
         else:
             changed[wid] = state.units[wid].with_(fired=True)
+            # Rule 17.4: a leader who mans the machine gun gives no morale benefit after.
+            if unit.kind == KIND_LEADER and types[state.units[wid].type_key].weapon_class == "mg":
+                leader = changed.get(uid, unit)
+                changed[uid] = leader.with_(manned_mg=True)
     if group.leader is not None:
         leader = changed.get(group.leader, state.units[group.leader])
         changed[group.leader] = leader.with_(directed=True)
@@ -304,6 +339,7 @@ def apply_to_hex(
                     "concealed": own_halves != halves,
                     "result": result,
                     "units": [u.id for u in units],
+                    "firer": firer_player,
                 },
             )
         )
@@ -317,14 +353,15 @@ def apply_to_hex(
         )
         events.extend(shown)
         if result == RESULT_KIA:
+            for u in units:
+                # Rule 13.5: the weapon falls in the hex. The carrier still has that hex.
+                state, drop = r12_morale.drop_weapons(state, u.id)
+                events.extend(drop)
             changed = {}
             for u in units:
                 changed[u.id] = state.units[u.id].with_(eliminated=True, hex=None, carrier=None)
-            state = state.with_units(changed)
-            for u in units:
-                state, drop = r12_morale.drop_weapons(state, u.id)
-                events.extend(drop)
                 events.append(Event(RULE_8_8, "eliminated", {"unit": u.id, "cause": "KIA"}))
+            state = state.with_units(changed)
             if kill_weapons:
                 state, gone = eliminate_weapons_in(state, target, firer_player)
                 events.extend(gone)
@@ -363,38 +400,57 @@ def mark_dm(state: State, unit_id: int) -> State:
     return state.with_unit(unit.with_(dm=True))
 
 
-def penetrate(ctx: FireContext, state: State, group: FireGroup, halves: int, raw: int, phase: str) -> tuple[State, list[Event]]:
+def penetrate(
+    ctx: FireContext,
+    state: State,
+    group: FireGroup,
+    halves: int,
+    raw: int,
+    phase: str,
+    smoke_drm: int = 0,
+    factor_limit: int | None = None,
+) -> tuple[State, list[Event]]:
     """Rules 17.5 and 17.6: machine gun fire continues along the LOS beyond the target hex.
 
     The core applies penetration when every member of the group is in one hex, which is
     the case the rules illustrate. A multi-hex group has no single line to extend.
+
+    Each hex the line enters, empty or not, spends one factor. The target hex spent the
+    first. A wall on the hexside the line is about to cross stops the walk. The smoke die
+    is the die the fire group already rolled (rule 24.7). The walk does not roll another.
     """
     hexes = r08_fire.member_hexes(state, group)
     if len(hexes) != 1:
         return state, []
     firer = next(iter(hexes))
-    factors = 0
-    for _, wid in group.members:
-        if wid is None:
-            continue
-        factors = max(factors, ctx.types[state.units[wid].type_key].penetration)
-    if factors <= 0 or firer == group.target:
+    if factor_limit is None:
+        factors = 0
+        for _, wid in group.members:
+            if wid is None:
+                continue
+            factors = max(factors, ctx.types[state.units[wid].type_key].penetration)
+    else:
+        factors = factor_limit
+    if factors <= 1 or firer == group.target:
         return state, []
     events: list[Event] = []
+    previous = group.target
     used = 1
     for nxt in ctx.los.ray(firer, group.target):
         if used >= factors:
             break
-        if not penetration_continues(ctx, group.target if used == 1 else nxt, nxt):
+        if not penetration_continues(ctx, previous, nxt):
             break
         result = evaluate(ctx.board, ctx.los, firer, nxt)
         if not result.clear:
             break
+        used += 1
+        previous = nxt
         occupants = [u for u in state.infantry_in(nxt) if not u.eliminated]
         if not occupants:
             continue
-        used += 1
-        drm, _ = common_modifier(ctx, state, FireGroup(nxt, group.members, group.leader))
+        drm, _ = common_modifier(ctx, state, FireGroup(nxt, group.members, group.leader), phase)
+        drm += smoke_drm
         events.append(Event(RULE_17_5, "penetration", {"target": geometry.hex_id(*nxt), "factor": used, "of": factors}))
         state, ev = apply_to_hex(ctx, state, nxt, halves, raw, drm, phase, firing_player(state, group), affect_all=True)
         events.extend(ev)
@@ -415,7 +471,7 @@ def enemy_occupied_hexes(state: State, player: int) -> list[HexRef]:
     """The hexes that hold an enemy infantry unit."""
     out: set[HexRef] = set()
     for u in state.units:
-        if u.eliminated or u.hex is None or u.carrier is not None or not u.is_infantry:
+        if u.eliminated or u.hidden or u.hex is None or u.carrier is not None or not u.is_infantry:
             continue
         if u.player != player:
             out.add(u.hex)

@@ -23,7 +23,6 @@ from slagents.learned.env import make_env
 from slagents.learned.league import League, Member, load_snapshot
 from slagents.learned.nets import NetConfig, Policy
 from slcli.play import build_engine
-from slagents.learned.encoding import command_triple
 from slcli.play import make_agent
 from slcli.train import LEARNER, build_league, run_training, scripted_member
 
@@ -230,9 +229,9 @@ def test_the_scripted_member_plays_the_side_of_the_frame():
         sides_seen.add(player)
         chosen = member.act(env, env.observe(agent))
         expected = env.frame.by_id(right[player].select(env.state_, env.frame))
-        assert chosen == command_triple(expected.command, env.hexes), f"the member played a plan of the other side for player {player}"
+        assert env.groups[chosen].id == expected.id, f"the member played a plan of the other side for player {player}"
         other = env.frame.by_id(right[1 - player].select(env.state_, env.frame))
-        if command_triple(other.command, env.hexes) != chosen:
+        if other.id != env.groups[chosen].id:
             wrong_side_choices += 1
         env.step(chosen)
     assert sides_seen == {0, 1}, "the game reached a decision of each side"
@@ -341,13 +340,15 @@ def test_the_anchor_holds_the_policy_and_the_same_policy_has_no_divergence():
             torch.from_numpy(np.stack(rollout.unit_mask).astype(np.float32)),
             torch.from_numpy(np.stack(rollout.action_mask).astype(np.float32).reshape(-1, spaces.units, spaces.actions)),
             torch.from_numpy(np.stack(rollout.target_mask).astype(np.float32)),
+            torch.from_numpy(np.stack(rollout.option_mask).astype(np.float32)),
             torch.tensor(rollout.unit),
             torch.tensor(rollout.action),
+            torch.tensor(rollout.target),
         )
         with torch.no_grad():
             mine = other.head_logits(*parts)
             theirs = anchor.head_logits(*parts)
-            return float(ppo.anchor_divergence(*mine[:3], *theirs[:3]).mean().item())
+            return float(ppo.anchor_divergence(*mine[:4], *theirs[:4]).mean().item())
 
     assert divergence(anchor) == pytest.approx(0.0, abs=1e-6), "a policy has no divergence from its own copy"
     assert divergence(held) < divergence(free), "the anchor kept the policy nearer the start"
@@ -357,13 +358,13 @@ def test_the_anchor_divergence_is_finite_where_the_anchor_underflows():
     """A legal command the anchor holds at a probability below float32 gives a finite term."""
     mine = torch.tensor([[0.0, 0.0, -1e9]])
     theirs = torch.tensor([[0.0, -200.0, -1e9]])
-    kl = ppo.anchor_divergence(mine, mine, mine, theirs, theirs, theirs)
+    kl = ppo.anchor_divergence(mine, mine, mine, mine, theirs, theirs, theirs, theirs)
     assert torch.isfinite(kl).all()
-    # Three heads, each with the same divergence: half of 200 nats less the entropy gain.
+    # Four heads, each with the same divergence: half of 200 nats less the entropy gain.
     # p is a half on each legal entry, q is one and e to the minus 200: the divergence is
-    # half of 200 nats less the log of two, on each of the three heads.
-    assert float(kl[0]) == pytest.approx(3 * (100.0 - math.log(2.0)), rel=1e-3)
-    same = ppo.anchor_divergence(mine, mine, mine, mine, mine, mine)
+    # half of 200 nats less the log of two, on each of the four heads.
+    assert float(kl[0]) == pytest.approx(4 * (100.0 - math.log(2.0)), rel=1e-3)
+    same = ppo.anchor_divergence(mine, mine, mine, mine, mine, mine, mine, mine)
     assert float(same[0]) == pytest.approx(0.0, abs=1e-6)
 
 

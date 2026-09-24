@@ -20,6 +20,7 @@ from slcore.engine import Engine
 from slcore.game import State
 from slcore.rules import r25_concealment
 from slcli.play import build_engine
+from slhost.server import Host
 
 SCENARIO = "s02_tractor_works"
 FAST_GAMES = 2
@@ -32,12 +33,43 @@ FAST_COMMANDS = 300
 GATE_COMMANDS = 600
 
 
-def disclosures(engine: Engine, state: State, viewer: int) -> list[str]:
-    """Everything in the view of one player that names a unit that player must not see."""
+def _payload_ids(payload: dict) -> set[int]:
+    """Unit ids named in the host frame: the view, the fire group, the log, and the legal list."""
+    found: set[int] = set()
+    document = payload["view"]
+    for item in document["units"]:
+        found.add(item["id"])
+    group = document.get("fire_group")
+    if group:
+        for unit_id, weapon_id in group["members"]:
+            found.add(unit_id)
+            if weapon_id is not None:
+                found.add(weapon_id)
+        if group.get("leader") is not None:
+            found.add(group["leader"])
+    for entry in payload["log_tail"]:
+        named: list[int] = []
+        view._named_unit_ids(entry.get("data") or {}, named)
+        found.update(named)
+    for command in payload["legal_commands"]:
+        body = command["payload"]
+        found.update(int(unit_id) for unit_id in body.get("units", []))
+        if body.get("weapon") is not None:
+            found.add(int(body["weapon"]))
+        if body.get("leader") is not None:
+            found.add(int(body["leader"]))
+        for unit_id in body.get("targets") or []:
+            if isinstance(unit_id, int):
+                found.add(unit_id)
+    return found
+
+
+def disclosures(engine: Engine, state: State, viewer: int, payload: dict | None = None) -> list[str]:
+    """Everything in the host frame of one player that names a unit that player must not see."""
     hidden = set(view.hidden_unit_ids(state, viewer))
     if not hidden:
         return []
-    document = view.build(state, engine.types, viewer)
+    document = payload["view"] if payload is not None else view.build(state, engine.types, viewer)
     found: list[str] = []
     for item in document["units"]:
         if item["id"] in hidden:
@@ -48,12 +80,27 @@ def disclosures(engine: Engine, state: State, viewer: int) -> list[str]:
     for charge in document["demo"]:
         if not charge["own"]:
             found.append(f"the view of player {viewer} holds the charge {charge['id']} of the other side")
+    if payload is None:
+        return found
+    # A unit that died in view stays in the log. A unit that is still concealed or
+    # hidden must not be named by the log, the legal list, or the fire group.
+    secret = {u.id for u in state.units if view.secret_from(state, u, viewer)}
+    leaked = sorted(_payload_ids(payload) & secret)
+    if leaked:
+        found.append(f"the frame of player {viewer} names units {leaked}")
     return found
 
 
 def play_and_watch(engine: Engine, seed: int, max_commands: int) -> tuple[list[str], int, int]:
-    """One game. Gives the disclosures, the count of states, and the count with a counter."""
-    state = engine.new_game(seed)
+    """One game. Gives the disclosures, the count of states, and the count with a counter.
+
+    The check reads the frame the host would send to each seat, not only `view.build`.
+    """
+    host = Host(engine, seed=seed, hot_seat=False)
+    host.room.take("c0", "one")
+    host.room.take("c1", "two")
+    seats = {0: "c0", 1: "c1"}
+    state = host.game.state
     agents = (RandomAgent(seed, 0), RandomAgent(seed + 1, 1))
     found: list[str] = []
     states = 0
@@ -66,10 +113,12 @@ def play_and_watch(engine: Engine, seed: int, max_commands: int) -> tuple[list[s
         if state.concealment:
             concealed += 1
             for viewer in (0, 1):
-                found.extend(disclosures(engine, state, viewer))
+                payload = host.outbound_frame(seats[viewer], viewer)
+                found.extend(disclosures(engine, state, viewer, payload))
         chosen = frame.by_id(agents[frame.player].select(state, frame))
         assert chosen is not None, "an agent selects a command of the frame"
-        state, _ = engine.apply(state, chosen.command, frame)
+        host.game.apply(frame.frame_id, chosen.id)
+        state = host.game.state
     return found, states, concealed
 
 
@@ -128,6 +177,25 @@ def test_a_dummy_counter_looks_the_same_as_a_full_stack():
     dummy = next(t for t in tokens if t["hex"] == "E5")
     assert set(full) == set(dummy), "the two tokens carry the same fields"
     assert full["stack"] == dummy["stack"] == 1
+
+
+def test_a_hidden_placement_does_not_reach_the_other_seat():
+    """Rule 42.1: the other seat's log does not carry the hex of a hidden placement."""
+    engine = build_engine(SCENARIO)
+    host = Host(engine, seed=3, hot_seat=False)
+    host.room.take("c0", "one")
+    host.room.take("c1", "two")
+    unit = next(u for u in host.game.state.player_units(0) if u.is_infantry)
+    host.game.state = host.game.state.with_unit(unit.with_(hex=(2, 3), hidden=True))
+    host.game.log.append({"rule_id": "21.2", "kind": "place", "data": {"unit": unit.id, "hex": "C3"}})
+    host.game.log.append({"rule_id": "42.1", "kind": "hidden", "data": {"unit": unit.id, "hex": "C3"}})
+    host.game.log.append({"rule_id": "4", "kind": "phase", "data": {"phase": "rally", "turn": 1, "phasing": 0}})
+    other = host.outbound_frame("c1", 1)
+    blob = str(other["log_tail"])
+    assert "C3" not in blob, "the other seat's log names the hidden hex"
+    assert unit.id not in _payload_ids(other)
+    owner = host.game.log_tail_for(0)
+    assert any(entry["kind"] == "hidden" for entry in owner), "the owner still sees the placement"
 
 
 def test_a_hidden_hex_is_named_but_its_units_are_not():

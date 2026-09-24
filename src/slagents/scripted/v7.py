@@ -73,6 +73,7 @@ from slcore.rules import r05_movement, r08_fire, r10_resolution, r13_rout, r20_c
 from slcore.rules.r11_terrain import is_open_ground
 from slcore.rules.r13_rout import is_cover
 from slcore.units import KIND_LEADER, KIND_SW, Unit
+from slcore.view import visible_to
 from typing import Any
 
 from slagents.scripted import odds
@@ -368,16 +369,19 @@ class ScriptedV7(ScriptedV6):
             self._fire_map = {}
             self._moves_along = {}
 
+    def _seen_enemies(self, state: State) -> list[Unit]:
+        """The enemy units this player can see. A hidden or concealed unit is not one of them."""
+        return [u for u in state.player_units(self.opponent) if visible_to(state, u, self.player)]
+
     def _enemy_groups(self, state: State, dst: HexRef) -> list[odds.EnemyGroup]:
-        """The fire groups the enemy could form against a hex (rule 8.6), from the whole
-        enemy side: a scripted agent reads the state it plays in."""
-        return odds.enemy_groups(self.engine, state, dst, state.player_units(self.opponent))
+        """The fire groups the enemy could form against a hex, from the units this player sees."""
+        return odds.enemy_groups(self.engine, state, dst, self._seen_enemies(state))
 
     def _loss(self, state: State, unit: Unit, dst: HexRef, moving: bool) -> int:
         """The chance, out of `odds.ONE`, that this unit breaks or dies in `dst` under the
         fire of each enemy group that sees the hex (`odds.loss`), held by hex, phase, and
         unit type, because a decision asks the same hex many times."""
-        key = (dst, moving, unit.type_key, unit.broken)
+        key = (dst, moving, unit.type_key, unit.broken, unit.berserk, unit.hidden)
         found = self._loss_map.get(key)
         if found is not None:
             return found
@@ -459,7 +463,7 @@ class ScriptedV7(ScriptedV6):
             return found
         board = self.engine.board
         ctx = self.engine.move_ctx
-        enemy_hexes = {u.hex for u in state.player_units(self.opponent) if u.hex is not None and not u.broken and u.is_infantry}
+        enemy_hexes = {u.hex for u in self._seen_enemies(state) if u.hex is not None and not u.broken and u.is_infantry}
         targets = set(target)
         dist: dict[HexRef, int] = {}
         moves: dict[HexRef, int] = {}
@@ -644,7 +648,7 @@ class ScriptedV7(ScriptedV6):
         """The press of P18: the unbroken squads of this side against the enemy's. A ratio
         of two gives one step of urgency, a ratio of three gives two."""
         ours = sum(1 for u in state.player_units(self.player) if u.kind == "squad" and not u.broken and u.hex is not None)
-        theirs = sum(1 for u in state.player_units(self.opponent) if u.kind == "squad" and not u.broken and u.hex is not None)
+        theirs = sum(1 for u in self._seen_enemies(state) if u.kind == "squad" and not u.broken and u.hex is not None)
         if theirs == 0:
             return 2
         if ours >= 3 * theirs:
@@ -943,7 +947,7 @@ class ScriptedV7(ScriptedV6):
         reference = self._reference_unit(state)
         if reference is None:
             return 0
-        groups = odds.enemy_groups(self.engine, state, hex_ref, state.player_units(self.opponent))
+        groups = self._enemy_groups(state, hex_ref)
         if not groups:
             return 0
         return odds.loss(self.engine, state, reference, hex_ref, moving, groups)
@@ -1149,7 +1153,7 @@ class ScriptedV7(ScriptedV6):
                 continue
             if self._would_overstack(state, dst, lc.command.units):
                 continue
-            enemies = [u for u in state.infantry_in(dst) if u.player != self.player]
+            enemies = [u for u in state.infantry_in(dst) if u.player != self.player and visible_to(state, u, self.player)]
             unbroken = [u for u in enemies if not u.broken]
             ours_kill, theirs_kill = self._assault_odds(state, lc.command.units, enemies)
             favorable = not unbroken or ours_kill * 100 >= theirs_kill * 100 + odds.WAYS * self.v7.close_combat_margin
@@ -1182,7 +1186,7 @@ class ScriptedV7(ScriptedV6):
             u
             for near in self.engine.board.neighbors(dst)
             for u in state.infantry_in(near)
-            if u.player == self.opponent and u.broken
+            if u.player == self.opponent and u.broken and visible_to(state, u, self.player)
         ]
         if not broken:
             return 0

@@ -76,7 +76,7 @@ def connect(path: str | Path = DEFAULT_PATH) -> sqlite3.Connection:
     return conn
 
 
-def upsert(conn: sqlite3.Connection, directory: str | Path) -> str:
+def upsert(conn: sqlite3.Connection, directory: str | Path, commit: bool = True) -> str:
     """Put one run artifact in the index. The same run twice changes nothing."""
     d = Path(directory)
     doc = artifact.read(d)
@@ -129,23 +129,31 @@ def upsert(conn: sqlite3.Connection, directory: str | Path) -> str:
                 "INSERT INTO elo (run_id, agent, rating, games) VALUES (?, ?, ?, ?)",
                 (run_id, str(agent), float(entry["rating"]), int(entry["games"])),
             )
-        conn.commit()
+        if commit:
+            conn.commit()
     except (sqlite3.Error, KeyError, TypeError, ValueError) as exc:
-        conn.rollback()
+        if commit:
+            conn.rollback()
         raise IndexError_(f"cannot index the run at {d}: {exc}") from exc
     return run_id
 
 
 def rebuild(conn: sqlite3.Connection, root: str | Path = "runs") -> int:
+    """Replace the index from the run directory, in one transaction.
+
+    A delete that commits before the new rows are in leaves an empty index when a
+    later artifact fails. The delete and the inserts commit together, or not at all.
+    """
     try:
         conn.execute("DELETE FROM runs")
+        count = 0
+        for directory in artifact.find_runs(root):
+            upsert(conn, directory, commit=False)
+            count += 1
         conn.commit()
-    except sqlite3.Error as exc:
-        raise IndexError_(f"cannot clear the run index: {exc}") from exc
-    count = 0
-    for directory in artifact.find_runs(root):
-        upsert(conn, directory)
-        count += 1
+    except Exception:
+        conn.rollback()
+        raise
     return count
 
 

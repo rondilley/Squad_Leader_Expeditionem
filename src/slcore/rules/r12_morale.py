@@ -60,11 +60,11 @@ def morale_check(state: State, types: Mapping[str, UnitType], unit: Unit, modifi
         events.append(Event(RULE_12_1, "morale_pass", data))
         return state, events
     if unit.broken:
-        state = state.with_unit(state.units[unit.id].with_(eliminated=True, hex=None, carrier=None))
         state, drop_events = drop_weapons(state, unit.id)
+        state = state.with_unit(state.units[unit.id].with_(eliminated=True, hex=None, carrier=None))
         events.append(Event(RULE_13_6, "eliminated", data))
         return state, events + drop_events
-    broken = state.units[unit.id].with_(broken=True, prep_fired=False, fired=False, directed=False)
+    broken = state.units[unit.id].with_(broken=True, prep_fired=False, fired=False, directed=False, manned_mg=False)
     state = state.with_unit(broken)
     state, drop_events = drop_weapons(state, unit.id)
     events.append(Event(RULE_12_3, "broken", data))

@@ -55,7 +55,7 @@ class OddsView:
         self.opponent = 1 - viewer
         self.enemies = [u for u in state.player_units(self.opponent) if u.hex is not None and visible_to(state, u, viewer)]
         self._groups: dict[HexRef, list[odds.EnemyGroup]] = {}
-        self._loss: dict[tuple[HexRef, bool, str, bool], int | None] = {}
+        self._loss: dict[tuple, int | None] = {}
 
     # ------------------------------------------------------------------ the loss
 
@@ -69,7 +69,7 @@ class OddsView:
     def loss(self, unit: Unit, dst: HexRef, moving: bool) -> int | None:
         """The chance out of `odds.ONE` that the unit breaks or dies in `dst` under the
         worst visible enemy group, or None when no visible enemy can fire at the hex."""
-        key = (dst, moving, unit.type_key, unit.broken)
+        key = (dst, moving, unit.type_key, unit.broken, unit.berserk, unit.hidden)
         if key in self._loss:
             return self._loss[key]
         groups = self.groups_at(dst)

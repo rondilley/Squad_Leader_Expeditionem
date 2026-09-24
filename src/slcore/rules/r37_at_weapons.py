@@ -76,15 +76,16 @@ def anti_tank_weapons(state: State, types: Mapping[str, UnitType], unit: Unit) -
 
 
 def shots_left(state: State, types: Mapping[str, UnitType], unit: Unit, weapon_class: str) -> int:
-    """Rules 37.35 and 37.46: what is left of the per turn count of this weapon class."""
+    """Rules 37.35 and 37.46: what is left of the per turn count of this weapon class.
+
+    A panzerfaust leaves the game when it fires, so a count of counters that are still
+    carried stays at zero. The state records each shot.
+    """
+    del types
+    used = sum(1 for firer_id, fired_class in state.at_shots if firer_id == unit.id and fired_class == weapon_class)
     limit = SHOTS_FOR_EACH_TURN.get(weapon_class)
     if limit is None:
-        return 1
-    used = sum(
-        1
-        for w in state.carried_by(unit.id)
-        if types[w.type_key].weapon_class == weapon_class and w.fired
-    )
+        return 0 if used else 1
     return max(0, limit - used)
 
 
@@ -112,10 +113,6 @@ def legal_shots(
             continue
         for weapon in anti_tank_weapons(state, ctx.types, unit):
             weapon_class = ctx.types[weapon.type_key].weapon_class
-            if weapon.fired and weapon_class != CLASS_PANZERFAUST:
-                continue
-            if weapon.fired and weapon_class == CLASS_PANZERFAUST:
-                continue
             if shots_left(state, ctx.types, unit, weapon_class) <= 0:
                 continue
             for vehicle in hostile:
@@ -141,9 +138,13 @@ def apply_shot(
         raise ValueError("no vehicle stands in that hex")
     weapon_class = ctx.types[weapon.type_key].weapon_class
     column = KILL_COLUMN[weapon_class]
-    state = state.with_units(
-        {unit.id: state.units[unit.id].with_(fired=True), weapon.id: state.units[weapon.id].with_(fired=True)}
-    )
+    changed = {weapon.id: state.units[weapon.id].with_(fired=True)}
+    # A counted weapon (panzerfaust, bazooka) may fire again until the per-turn count is
+    # spent. Marking the squad fired here would stop the second shot.
+    if weapon_class not in SHOTS_FOR_EACH_TURN:
+        changed[unit.id] = state.units[unit.id].with_(fired=True)
+    state = state.with_units(changed)
+    state = state.with_(at_shots=state.at_shots + ((unit.id, weapon_class),))
     events: list[Event] = []
     hit = True
     if weapon_class != CLASS_FLAMETHROWER:

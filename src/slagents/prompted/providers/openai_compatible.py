@@ -62,7 +62,9 @@ class OpenAiCompatibleProvider(Provider):
         temperature: float = 0.2,
         json_schema: Mapping[str, Any] | None = None,
     ) -> Answer:
+        # The request fields go on first. A field named messages must not replace the prompt.
         payload: dict[str, Any] = {
+            **self.config.request_fields(),
             "model": self.config.model,
             "messages": [
                 {"role": "system", "content": system},
@@ -71,7 +73,6 @@ class OpenAiCompatibleProvider(Provider):
             "max_tokens": max_tokens,
             "temperature": temperature,
             "stream": False,
-            **self.config.request_fields(),
         }
         if json_schema is not None:
             # FR-62: the legal identities are the enum of the command field, so a model

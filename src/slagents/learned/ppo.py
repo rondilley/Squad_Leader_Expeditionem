@@ -12,9 +12,8 @@ The result of the game goes to the league, and the shaped reward of
 conditions, and the shaped terms pay each decision for what came after it. The discount
 stays at one by default for a game of five to eight turns.
 
-The command has three parts and each part has its own mask. A step of the rollout keeps
-the three masks it used, because the update must read the same distribution that the
-rollout read.
+The command has four parts and each part has its own mask. A step of the rollout keeps
+the masks it used, because the update must read the same distribution that the rollout read.
 
 A rollout ends at a decision of the learner and not after its last command. The opponent
 plays on to the learner's next decision, what accrued on the way is paid to the last
@@ -24,7 +23,7 @@ paid as if the game had ended there with nothing, and the reward of the opponent
 between two rollouts was dropped (the first six runs of the ladder).
 
 An update can hold the policy near an anchor: a frozen copy of the policy it started from,
-as the one `sl-cli imitate` writes. The loss adds the KL divergence of the three heads from
+as the one `sl-cli imitate` writes. The loss adds the KL divergence of the four heads from
 the anchor's, times `anchor_kl`. A start from a copied policy is otherwise undone in the
 first updates, because the clipped objective keeps the policy near the last rollout and
 not near the start.
@@ -45,7 +44,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from slagents.learned.encoding import Spaces, target_mask_for
+from slagents.learned.encoding import Spaces, option_mask_for, target_mask_for
 from slagents.learned.env import SquadLeaderEnv
 from slagents.learned.nets import NetConfig, Policy
 
@@ -118,6 +117,8 @@ class Rollout:
     unit: list[int] = field(default_factory=list)
     action: list[int] = field(default_factory=list)
     target: list[int] = field(default_factory=list)
+    option: list[int] = field(default_factory=list)
+    option_mask: list[np.ndarray] = field(default_factory=list)
     log_prob: list[float] = field(default_factory=list)
     value: list[float] = field(default_factory=list)
     reward: list[float] = field(default_factory=list)
@@ -143,7 +144,7 @@ def choose(
     env: SquadLeaderEnv,
     generator: torch.Generator,
     greedy: bool = False,
-) -> tuple[tuple[int, int, int], float, float, np.ndarray]:
+) -> tuple[tuple[int, int, int, int], float, float, np.ndarray, np.ndarray]:
     """One composed command from the policy, with its log probability and the value."""
     spaces = env.spaces_record
     device = policy_device(policy)
@@ -158,20 +159,25 @@ def choose(
         trunk, unit_embeddings = policy.encode(board, units, scalars)
         u_logits = policy.unit_logits(trunk, unit_embeddings, unit_mask)
         u_dist = torch.distributions.Categorical(logits=u_logits)
-        unit = u_logits.argmax(dim=-1) if greedy else u_dist.sample()
+        unit = u_logits.argmax(dim=-1) if greedy else _sample(u_dist, generator)
         a_mask = action_mask[0, unit.item()].unsqueeze(0)
         a_logits = policy.action_logits(trunk, unit_embeddings, unit, a_mask)
         a_dist = torch.distributions.Categorical(logits=a_logits)
-        action = a_logits.argmax(dim=-1) if greedy else a_dist.sample()
+        action = a_logits.argmax(dim=-1) if greedy else _sample(a_dist, generator)
         target_bits = env.target_mask(int(unit.item()), int(action.item()))
         target_mask = torch.from_numpy(target_bits.astype(np.float32)).unsqueeze(0).to(device)
         t_logits = policy.target_logits(trunk, unit_embeddings, unit, action, target_mask)
         t_dist = torch.distributions.Categorical(logits=t_logits)
-        target = t_logits.argmax(dim=-1) if greedy else t_dist.sample()
-        log_prob = u_dist.log_prob(unit) + a_dist.log_prob(action) + t_dist.log_prob(target)
+        target = t_logits.argmax(dim=-1) if greedy else _sample(t_dist, generator)
+        option_bits = env.option_mask(int(unit.item()), int(action.item()), int(target.item()))
+        option_mask = torch.from_numpy(option_bits.astype(np.float32)).unsqueeze(0).to(device)
+        o_logits = policy.option_logits(trunk, unit_embeddings, unit, action, target, option_mask)
+        o_dist = torch.distributions.Categorical(logits=o_logits)
+        option = o_logits.argmax(dim=-1) if greedy else _sample(o_dist, generator)
+        log_prob = u_dist.log_prob(unit) + a_dist.log_prob(action) + t_dist.log_prob(target) + o_dist.log_prob(option)
         value = policy.value(trunk)
-    triple = (int(unit.item()), int(action.item()), int(target.item()))
-    return triple, float(log_prob.item()), float(value.item()), target_bits
+    quad = (int(unit.item()), int(action.item()), int(target.item()), int(option.item()))
+    return quad, float(log_prob.item()), float(value.item()), target_bits, option_bits
 
 
 def value_of(policy: Policy, observation: dict[str, np.ndarray]) -> float:
@@ -189,7 +195,7 @@ def collect(
     env: SquadLeaderEnv,
     policy: Policy,
     learner: int,
-    opponent: Callable[[SquadLeaderEnv, dict[str, np.ndarray]], tuple[int, int, int]],
+    opponent: Callable[[SquadLeaderEnv, dict[str, np.ndarray]], tuple[int, int, int, int]],
     steps: int,
     generator: torch.Generator,
     on_game_end: Callable[[float], None] | None = None,
@@ -254,21 +260,23 @@ def collect(
             continue
         pay_last()
         observation = env.observe(learner_agent)
-        triple, log_prob, value, target_bits = choose(policy, observation, env, generator)
+        quad, log_prob, value, target_bits, option_bits = choose(policy, observation, env, generator)
         rollout.board.append(observation["board"])
         rollout.units.append(observation["units"])
         rollout.scalars.append(observation["scalars"])
         rollout.unit_mask.append(observation["unit_mask"])
         rollout.action_mask.append(observation["action_mask"])
         rollout.target_mask.append(target_bits)
-        rollout.unit.append(triple[0])
-        rollout.action.append(triple[1])
-        rollout.target.append(triple[2])
+        rollout.option_mask.append(option_bits)
+        rollout.unit.append(quad[0])
+        rollout.action.append(quad[1])
+        rollout.target.append(quad[2])
+        rollout.option.append(quad[3])
         rollout.log_prob.append(log_prob)
         rollout.value.append(value)
         rollout.reward.append(0.0)
         rollout.done.append(0.0)
-        env.step(triple)
+        env.step(quad)
     if advance():
         end_game()
         rollout.last_value = 0.0
@@ -313,16 +321,16 @@ def advantages(rollout: Rollout, config: PpoConfig, last_value: float | None = N
 def choose_batch(
     policy: Policy,
     observations: Sequence[dict[str, np.ndarray]],
-    legal: Sequence[Sequence[tuple[int, int, int]]],
+    legal: Sequence[Sequence[tuple[int, int, int, int]]],
     spaces: Spaces,
     generator: torch.Generator,
     greedy: bool = False,
-) -> tuple[list[tuple[int, int, int]], list[float], list[float], list[np.ndarray]]:
+) -> tuple[list[tuple[int, int, int, int]], list[float], list[float], list[np.ndarray], list[np.ndarray]]:
     """One composed command for each observation, in one forward pass of each head.
 
-    `legal[i]` is the list of legal triples of observation `i`, from which the target mask
-    of the sampled unit and action is built here, because the worker that holds the
-    environment is in another process.
+    `legal[i]` is the list of legal commands of observation `i`, as four-part keys, from
+    which the target mask and the option mask of the sampled parts are built here, because
+    the worker that holds the environment is in another process.
     """
     device = policy_device(policy)
     board = torch.from_numpy(np.stack([o["board"] for o in observations])).to(device)
@@ -350,10 +358,19 @@ def choose_batch(
         t_logits = policy.target_logits(trunk, unit_embeddings, unit, action, target_mask)
         t_dist = torch.distributions.Categorical(logits=t_logits)
         target = t_logits.argmax(dim=-1) if greedy else _sample(t_dist, generator)
-        log_prob = u_dist.log_prob(unit) + a_dist.log_prob(action) + t_dist.log_prob(target)
+        target_list = target.tolist()
+        option_bits = [
+            option_mask_for(dict.fromkeys(legal[i]), spaces, unit_list[i], action_list[i], target_list[i])
+            for i in range(len(observations))
+        ]
+        option_mask = torch.from_numpy(np.stack(option_bits).astype(np.float32)).to(device)
+        o_logits = policy.option_logits(trunk, unit_embeddings, unit, action, target, option_mask)
+        o_dist = torch.distributions.Categorical(logits=o_logits)
+        option = o_logits.argmax(dim=-1) if greedy else _sample(o_dist, generator)
+        log_prob = u_dist.log_prob(unit) + a_dist.log_prob(action) + t_dist.log_prob(target) + o_dist.log_prob(option)
         value = policy.value(trunk)
-    triples = list(zip(unit_list, action_list, target.tolist()))
-    return triples, log_prob.tolist(), value.tolist(), target_bits
+    quads = list(zip(unit_list, action_list, target_list, option.tolist()))
+    return quads, log_prob.tolist(), value.tolist(), target_bits, option_bits
 
 
 # How long the parallel collection waits for more workers before it answers the ready ones.
@@ -462,8 +479,8 @@ def collect_parallel(
         del ready[: len(batch)]
         observations = [w.pending.observation for w in batch]
         legal = [w.pending.legal for w in batch]
-        triples, log_probs, values, target_bits = choose_batch(policy, observations, legal, pool.spaces, generator)
-        for w, triple, log_prob, value, bits in zip(batch, triples, log_probs, values, target_bits):
+        quads, log_probs, values, target_bits, option_bits = choose_batch(policy, observations, legal, pool.spaces, generator)
+        for w, quad, log_prob, value, bits, options in zip(batch, quads, log_probs, values, target_bits, option_bits):
             observation = w.pending.observation
             rollout.board.append(observation["board"])
             rollout.units.append(observation["units"])
@@ -471,9 +488,11 @@ def collect_parallel(
             rollout.unit_mask.append(observation["unit_mask"])
             rollout.action_mask.append(observation["action_mask"])
             rollout.target_mask.append(bits)
-            rollout.unit.append(triple[0])
-            rollout.action.append(triple[1])
-            rollout.target.append(triple[2])
+            rollout.option_mask.append(options)
+            rollout.unit.append(quad[0])
+            rollout.action.append(quad[1])
+            rollout.target.append(quad[2])
+            rollout.option.append(quad[3])
             rollout.log_prob.append(log_prob)
             rollout.value.append(value)
             rollout.reward.append(0.0)
@@ -515,9 +534,11 @@ def update(
         np.stack(rollout.action_mask).astype(np.float32).reshape(-1, spaces.units, spaces.actions)
     ).to(device)
     target_mask = torch.from_numpy(np.stack(rollout.target_mask).astype(np.float32)).to(device)
+    option_mask = torch.from_numpy(np.stack(rollout.option_mask).astype(np.float32)).to(device)
     unit = torch.tensor(rollout.unit, dtype=torch.long, device=device)
     action = torch.tensor(rollout.action, dtype=torch.long, device=device)
     target = torch.tensor(rollout.target, dtype=torch.long, device=device)
+    option = torch.tensor(rollout.option, dtype=torch.long, device=device)
     old_log_prob = torch.tensor(rollout.log_prob, dtype=torch.float32, device=device)
     advantage = torch.from_numpy(adv).to(device)
     if advantage.numel() > 1 and float(advantage.std()) > 1e-8:
@@ -536,11 +557,15 @@ def update(
                 unit_mask[batch],
                 action_mask[batch],
                 target_mask[batch],
+                option_mask[batch],
                 unit[batch],
                 action[batch],
+                target[batch],
             )
-            u_logits, a_logits, t_logits, value = policy.head_logits(*parts)
-            log_prob, entropy = log_prob_and_entropy(u_logits, a_logits, t_logits, unit[batch], action[batch], target[batch])
+            u_logits, a_logits, t_logits, o_logits, value = policy.head_logits(*parts)
+            log_prob, entropy = log_prob_and_entropy(
+                u_logits, a_logits, t_logits, o_logits, unit[batch], action[batch], target[batch], option[batch]
+            )
             ratio = torch.exp(log_prob - old_log_prob[batch])
             clipped = torch.clamp(ratio, 1.0 - config.clip, 1.0 + config.clip)
             policy_loss = -torch.min(ratio * advantage[batch], clipped * advantage[batch]).mean()
@@ -550,8 +575,10 @@ def update(
             kl_mean = torch.zeros((), device=device)
             if anchor is not None and config.anchor_kl > 0.0:
                 with torch.no_grad():
-                    anchor_u, anchor_a, anchor_t, _ = anchor.head_logits(*parts)
-                kl_mean = anchor_divergence(u_logits, a_logits, t_logits, anchor_u, anchor_a, anchor_t).mean()
+                    anchor_u, anchor_a, anchor_t, anchor_o, _ = anchor.head_logits(*parts)
+                kl_mean = anchor_divergence(
+                    u_logits, a_logits, t_logits, o_logits, anchor_u, anchor_a, anchor_t, anchor_o
+                ).mean()
                 loss = loss + config.anchor_kl * kl_mean
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
@@ -578,16 +605,19 @@ def log_prob_and_entropy(
     u_logits: torch.Tensor,
     a_logits: torch.Tensor,
     t_logits: torch.Tensor,
+    o_logits: torch.Tensor,
     unit: torch.Tensor,
     action: torch.Tensor,
     target: torch.Tensor,
+    option: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """The log probability of the composed command and the entropy of the three heads."""
+    """The log probability of the composed command and the entropy of the four heads."""
     u_dist = torch.distributions.Categorical(logits=u_logits)
     a_dist = torch.distributions.Categorical(logits=a_logits)
     t_dist = torch.distributions.Categorical(logits=t_logits)
-    log_prob = u_dist.log_prob(unit) + a_dist.log_prob(action) + t_dist.log_prob(target)
-    entropy = u_dist.entropy() + a_dist.entropy() + t_dist.entropy()
+    o_dist = torch.distributions.Categorical(logits=o_logits)
+    log_prob = u_dist.log_prob(unit) + a_dist.log_prob(action) + t_dist.log_prob(target) + o_dist.log_prob(option)
+    entropy = u_dist.entropy() + a_dist.entropy() + t_dist.entropy() + o_dist.entropy()
     return log_prob, entropy
 
 
@@ -595,11 +625,13 @@ def anchor_divergence(
     u_logits: torch.Tensor,
     a_logits: torch.Tensor,
     t_logits: torch.Tensor,
+    o_logits: torch.Tensor,
     anchor_u: torch.Tensor,
     anchor_a: torch.Tensor,
     anchor_t: torch.Tensor,
+    anchor_o: torch.Tensor,
 ) -> torch.Tensor:
-    """The KL divergence of the three heads from the anchor's, for each row of the batch.
+    """The KL divergence of the four heads from the anchor's, for each row of the batch.
 
     The two policies read the same masks, so an impossible command has probability zero
     on the two sides and adds nothing. The sum runs on the log-softmax of the two, and not
@@ -608,7 +640,7 @@ def anchor_divergence(
     gradient of that entry (the first pooled run, 2026-09-16).
     """
     total = torch.zeros(u_logits.shape[0], device=u_logits.device)
-    for mine, theirs in ((u_logits, anchor_u), (a_logits, anchor_a), (t_logits, anchor_t)):
+    for mine, theirs in ((u_logits, anchor_u), (a_logits, anchor_a), (t_logits, anchor_t), (o_logits, anchor_o)):
         log_p = torch.log_softmax(mine, dim=-1)
         log_q = torch.log_softmax(theirs, dim=-1)
         p = log_p.exp()
@@ -616,18 +648,18 @@ def anchor_divergence(
     return total
 
 
-def random_opponent(env: SquadLeaderEnv, observation: dict[str, np.ndarray]) -> tuple[int, int, int]:
+def random_opponent(env: SquadLeaderEnv, observation: dict[str, np.ndarray]) -> tuple[int, int, int, int]:
     """The opponent of the first rung of the ladder: a uniform legal command."""
-    triples = list(env.groups)
-    index = int(torch.randint(len(triples), (1,)).item())
-    return triples[index]
+    quads = list(env.groups)
+    index = int(torch.randint(len(quads), (1,)).item())
+    return quads[index]
 
 
-def policy_opponent(policy: Policy, generator: torch.Generator) -> Callable[[SquadLeaderEnv, dict[str, np.ndarray]], tuple[int, int, int]]:
+def policy_opponent(policy: Policy, generator: torch.Generator) -> Callable[[SquadLeaderEnv, dict[str, np.ndarray]], tuple[int, int, int, int]]:
     """A snapshot of a policy as the opponent (FR-52)."""
 
-    def act(env: SquadLeaderEnv, observation: dict[str, np.ndarray]) -> tuple[int, int, int]:
-        triple, _, _, _ = choose(policy, observation, env, generator)
-        return triple
+    def act(env: SquadLeaderEnv, observation: dict[str, np.ndarray]) -> tuple[int, int, int, int]:
+        quad, _, _, _, _ = choose(policy, observation, env, generator)
+        return quad
 
     return act

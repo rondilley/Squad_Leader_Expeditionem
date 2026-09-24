@@ -216,11 +216,54 @@ def test_a_halftrack_is_the_easiest_vehicle_to_kill():
     assert min(KILL_MODIFIERS.values()) == KILL_MODIFIERS["halftrack"]
 
 
-def test_the_vehicle_modifier_moves_the_kill_number():
+def test_the_vehicle_modifier_goes_on_the_attacker_dice():
+    """Rule 33.41: a negative modifier helps the attacker. The base number does not move.
+
+    A halftrack is minus 5, so a raw roll above the base number can still kill it.
+    An SU-152 is plus 2, so a raw roll at the base number does not kill it.
+    """
+    from conformance.harness import build_case
+    from slcore.rules.r33_afv_combat import roll_kill
+
     base = ARMOR.kill_number("afv_front", "ap75_76")
-    assert ARMOR.kill_number("afv_front", "ap75_76", "halftrack") == base - 5
-    assert ARMOR.kill_number("afv_front", "ap75_76", "su152") == base + 2
-    assert ARMOR.kill_number("afv_front", "ap75_76", "t34") == base
+    assert ARMOR.kill_number("afv_front", "ap75_76", "halftrack") == base
+    assert ARMOR.kill_number("afv_front", "ap75_76", "su152") == base
+
+    def rolled(vehicle: str, dice: list[int]):
+        case = build_case({
+            "phase": "prep_fire",
+            "sub_step": "fire_window",
+            "phasing": "german",
+            "active": "german",
+            "dice": dice,
+            "units": [
+                {"ref": "gun", "side": "german", "type": "MkIVF2", "hex": "A1", "facing": 0},
+                {"ref": "v", "side": "german" if vehicle == "SdKfz251" else "russian", "type": vehicle, "hex": "B1", "facing": 0},
+            ],
+        })
+        state, result = roll_kill(case.engine.armor_ctx, case.state, case.unit("gun").hex, case.unit("v"), "ap75_76")
+        return result
+
+    halftrack = rolled("SdKfz251", [5, 6])
+    assert halftrack.raw == 11
+    assert halftrack.modifier == -5
+    assert halftrack.adjusted == 6
+    assert halftrack.needed == ARMOR.kill_number(halftrack.face, "ap75_76")
+    assert halftrack.raw > halftrack.needed
+    assert halftrack.killed
+
+    survives = rolled("SU152", [6, 6])
+    assert survives.raw == 12
+    assert survives.modifier == 2
+    assert survives.adjusted == 14
+    assert survives.needed == ARMOR.kill_number(survives.face, "ap75_76")
+    assert not survives.killed
+
+    dies = rolled("SU152", [1, 3])
+    assert dies.raw == 4
+    assert dies.adjusted == 6
+    assert dies.raw < dies.needed
+    assert dies.killed
 
 
 def test_a_vehicle_that_no_row_names_takes_no_modifier():

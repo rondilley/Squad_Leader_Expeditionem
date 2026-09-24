@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from slagents.learned.encoding import command_triple
+from slagents.learned.encoding import command_index
 from slagents.learned.env import make_env
 from slagents.learned.reward import (
     NATION_WEIGHTS,
@@ -89,9 +89,13 @@ def test_each_event_pays_the_side_the_doctrine_says(engine):
                 assert single[owner] == w.survive, "the unit that survives is paid"
                 seen.add(e.kind)
             if e.kind == "fire_result" and data.get("units"):
-                target = before.units[int(data["units"][0])].player
                 single = event_rewards(engine, before, after, [e], w)
-                assert single[1 - target] == w.fire and single[target] == -w.fire, "the side shot at pays"
+                if "firer" in data:
+                    firer = int(data["firer"])
+                    assert single[firer] == w.fire and single[1 - firer] == -w.fire, "the side that fired is paid"
+                else:
+                    target = before.units[int(data["units"][0])].player
+                    assert single[1 - target] == w.fire and single[target] == -w.fire, "the side shot at pays"
                 seen.add(e.kind)
         counts = term_counts(engine, before, after, events)
         for term in set(counts[0]) | set(counts[1]):
@@ -122,6 +126,41 @@ def test_a_move_into_cover_pays_and_a_move_into_the_open_in_sight_costs(engine):
             if single[mover] in (w.sneak, w.cover + w.sneak):
                 paid_sneak += 1
     assert paid_cover > 0 and paid_exposed > 0 and paid_sneak > 0, (paid_cover, paid_exposed, paid_sneak)
+
+
+def test_a_shared_hex_pays_once_and_a_crush_and_a_passenger_pay_a_kill():
+    """Scenario 3A counts one factory hex for both sides. A transfer pays one time.
+
+    A crushed squad and a passenger who dies with the vehicle pay the kill term.
+    A fire result credits the firer named on the event, not the first unit in a mixed list.
+    """
+    from slagents.learned.reward import objective_swing, term_counts
+    from slcore.events import Event
+    from slcore.units import KIND_SQUAD
+
+    assert objective_swing(1, 0) == 1
+    assert objective_swing(0, 1) == -1
+    assert objective_swing(1, -1) == 1
+    assert objective_swing(-1, 1) == -1
+    assert objective_swing(2, -1) == 2
+
+    engine = build_engine("s01_guards_counterattack")
+    state = engine.new_game(1)
+    squad = next(u for u in state.units if u.kind == KIND_SQUAD and u.player == 1)
+    leader = next(u for u in state.units if u.kind == "leader" and u.player == 0)
+    crushed = term_counts(engine, state, state, [Event("35.8", "crushed", {"unit": squad.id, "vehicle": 0})])
+    assert crushed[0]["kill"] == 1 and crushed[1]["kill"] == -1
+    passenger = term_counts(
+        engine, state, state, [Event("31.8", "passenger_eliminated", {"unit": squad.id, "vehicle": 0})]
+    )
+    assert passenger[0]["kill"] == 1
+    mixed = term_counts(
+        engine,
+        state,
+        state,
+        [Event("10.5", "fire_result", {"units": [leader.id, squad.id], "firer": 0, "result": "M"})],
+    )
+    assert mixed[0]["fire"] == 1 and mixed[1]["fire"] == -1
 
 
 def test_the_objective_term_reads_the_core_evaluator(engine):
@@ -242,19 +281,15 @@ def test_a_repeated_state_is_a_defeat_of_the_side_that_repeated_it(engine):
             break
         frame = env.frame
         lc = frame.by_id(agents[state.active].select(state, frame))
-        # The composed action space keys a command by its first unit, its action, and its
-        # hex, so a close combat attack of three units shares a triple with the attack of
-        # its first unit alone. The step takes the triple, and the environment applies
-        # the command the triple names, which is the same game for this test.
-        env.step(command_triple(lc.command, env.hexes))
+        env.step(command_index(lc, env.groups))
     else:
         raise AssertionError("no Movement Phase with a drop in 4000 commands")
     before_total = env._cumulative_rewards[env.agent_of(0)]
     weapon = next(g for g in env.groups.values() if g.command.action == "drop")
-    env.step(command_triple(weapon.command, env.hexes))
+    env.step(command_index(weapon, env.groups))
     assert not env.repeated
     pickup = next(g for g in env.groups.values() if g.command.action == "pickup" and g.command.weapon == weapon.command.weapon)
-    env.step(command_triple(pickup.command, env.hexes))
+    env.step(command_index(pickup, env.groups))
     assert env.repeated, "the pickup gave the state the drop started from"
     assert all(env.truncations.values()), "the game stopped"
     assert env.results[env.agent_of(0)] == 0.0 and env.results[env.agent_of(1)] == 0.0, "no side won by the card"

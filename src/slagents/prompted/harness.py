@@ -54,7 +54,7 @@ from slcore.engine import Engine
 from slcore.frame import DecisionFrame, LegalCommand
 from slcore.game import State
 from slcore.los_eval import evaluate as evaluate_los
-from slcore.view import build as build_view
+from slcore.view import build as build_view, visible_to
 
 ASYNCHRONOUS_SECONDS = 5.0
 DEFAULT_RETRIES = 2
@@ -151,9 +151,7 @@ def nearest_enemies(engine: Engine, state: State, unit, viewer: int) -> list[str
     for other in state.units:
         if other.eliminated or other.player == viewer or other.hex is None or other.carrier is not None:
             continue
-        from slcore.view import concealed_from
-
-        if concealed_from(state, other, viewer):
+        if not visible_to(state, other, viewer):
             continue
         distance = geometry.distance(unit.hex, other.hex)
         clear = evaluate_los(engine.board, engine.los, unit.hex, other.hex).clear

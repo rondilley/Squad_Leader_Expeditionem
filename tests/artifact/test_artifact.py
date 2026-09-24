@@ -81,6 +81,25 @@ def test_the_index_round_trips_and_an_upsert_is_idempotent(tmp_path: Path):
         conn.close()
 
 
+def test_a_failed_rebuild_keeps_the_rows_it_already_had(tmp_path: Path):
+    """The delete and the new rows commit together. A bad artifact does not empty the index."""
+    kept = sample("kept").write(tmp_path)
+    broken = sample("broken")
+    broken.started = datetime(2026, 9, 7, 12, 5, 0, tzinfo=timezone.utc)
+    broken_dir = broken.write(tmp_path)
+    (broken_dir / artifact.STATS).write_text("{not json", encoding="utf-8")
+    conn = connect(tmp_path / "runs.sqlite")
+    try:
+        upsert(conn, kept)
+        assert len(list_runs(conn)) == 1
+        with pytest.raises(artifact.ArtifactError):
+            rebuild(conn, tmp_path)
+        rows = list_runs(conn)
+        assert len(rows) == 1 and rows[0]["id"] == kept.name
+    finally:
+        conn.close()
+
+
 def test_a_rebuild_reads_every_run(tmp_path: Path):
     for i in range(3):
         art = sample(f"run-{i}")

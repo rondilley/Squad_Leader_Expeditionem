@@ -114,6 +114,9 @@ def _play_all(jobs: list[tuple[str, int, str, str]], workers: int, progress: boo
     """The results of the jobs, in the order of the jobs."""
     started = time.perf_counter()
     outcomes: list[dict[str, Any]] = []
+    from slcli.worker_limit import limit_workers
+
+    workers = limit_workers(workers)
     if workers <= 1 or len(jobs) < 2:
         for job in jobs:
             outcomes.append(_play_job(job))
@@ -415,6 +418,8 @@ def add_parser(subparsers: Any) -> None:
     )
     p.add_argument("--no-balance", action="store_true", help="keep each agent on one side")
     p.add_argument("--runs", default="runs", help="the run directory")
-    p.add_argument("--workers", type=int, default=1, help="processes that play the games; the results do not change")
+    from slcli.worker_limit import workers_argument
+
+    p.add_argument("--workers", type=workers_argument, default=1, help="processes that play the games; the results do not change")
     p.add_argument("--progress", action="store_true", help="print one line on the error stream for each game that ends")
     p.set_defaults(func=run)
