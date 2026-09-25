@@ -58,8 +58,12 @@ def to_response_schema(schema: Mapping[str, Any]) -> dict[str, Any]:
 class GeminiProvider(Provider):
     """One turn over the Generative Language API."""
 
+    def key_name(self) -> str:
+        """The key file this adapter loads: the row's name, or `gemini` (L6)."""
+        return self.config.key or "gemini"
+
     def headers(self) -> dict[str, str]:
-        name = self.config.key or "gemini"
+        name = self.key_name()
         try:
             return {KEY_HEADER: keys.load(name)}
         except keys.KeyMissing as exc:
@@ -67,7 +71,7 @@ class GeminiProvider(Provider):
 
     def health(self) -> bool:
         """The model list. It needs the key, it spends no tokens, and it names the models."""
-        if not keys.available(self.config.key or "gemini"):
+        if not keys.available(self.key_name()):
             return False
         try:
             document = self.get_with_key(self.config.health or MODELS_PATH)

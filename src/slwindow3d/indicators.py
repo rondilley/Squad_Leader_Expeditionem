@@ -37,7 +37,6 @@ from panda3d.core import (
     TransparencyAttrib,
 )
 
-from slcore.geometry import VERTEX_OFFSETS
 from slwindow import theme
 from slwindow.overlay import (
     RESULT_BROKEN,
@@ -49,7 +48,7 @@ from slwindow.overlay import (
     Overlay,
     Tracker,
 )
-from slwindow3d.mesh import HEIGHT_PER_LEVEL, ROOT_THREE, hex_world
+from slwindow3d.mesh import HEIGHT_PER_LEVEL, WORLD_CORNERS, hex_world
 
 # The heights above the top of a hex, in world units. A shade lies on the ground under the
 # counters. A mark floats over the counters, and the depth test is off for the whole
@@ -153,6 +152,11 @@ class Indicators:
         self.options = not self.options
         self._key = None
         return self.options
+
+    def forget_questions(self) -> None:
+        """A new session of the client (a reconnect) has no answer on the way for a line of
+        sight question of the session before, so each one can go out again."""
+        self._asked = set()
 
     def clear(self) -> None:
         """Remove every overlay node. The next update rebuilds from the snapshot."""
@@ -258,8 +262,8 @@ class Indicators:
         cwriter = GeomVertexWriter(vdata, "color")
         vertex.addData3(cx, cy, z)
         cwriter.addData4(*colour)
-        for ox, oy in VERTEX_OFFSETS:
-            vertex.addData3(cx + ox * inset, cy + oy * ROOT_THREE * inset, z)
+        for ox, oy in WORLD_CORNERS:
+            vertex.addData3(cx + ox * inset, cy + oy * inset, z)
             cwriter.addData4(*colour)
         tris = GeomTriangles(Geom.UHStatic)
         for i in range(6):
@@ -343,7 +347,7 @@ class Indicators:
     def _outline(self, top, colour) -> None:
         cx, cy, cz = top
         z = cz + MARK_LIFT
-        corners = [(cx + ox * SHADE_INSET, cy + oy * ROOT_THREE * SHADE_INSET, z) for ox, oy in VERTEX_OFFSETS]
+        corners = [(cx + ox * SHADE_INSET, cy + oy * SHADE_INSET, z) for ox, oy in WORLD_CORNERS]
         node = self.mark_root.attachNewNode("focus")
         for a, b in zip(corners, corners[1:] + corners[:1]):
             self._ribbon(node, a, b, colour, FOCUS_WIDTH)

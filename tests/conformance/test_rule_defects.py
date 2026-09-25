@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from slcore import geometry
 from slcore.game import FireGroup, State
-from slcore.rules import r10_resolution, r34_afv_vs_infantry
+from slcore.rules import r10_resolution, r11_terrain, r34_afv_vs_infantry
 
 from conformance.harness import build_case, build_engine
 
@@ -213,3 +213,30 @@ def test_penetration_uses_the_hex_before_the_step():
     assert r10_resolution.penetration_continues(ctx, ray[0], ray[1]) is False
     group = FireGroup(target, ((0, 1),), None)
     assert group.target == target
+
+
+def test_a_flamethrower_in_defensive_fire_takes_no_open_ground_modifier():
+    """Rule 22.2: no modifier of any kind, so no minus two of rule 16.5 against a mover.
+
+    The Russian squad moved in the open next to the German engineer. The flamethrower
+    fires in the Defensive Fire Phase with dice 3 and 3, so the adjusted roll stays 6.
+    """
+    built, events = _fire({
+        "phase": "defensive_fire",
+        "sub_step": "fire_window",
+        "actor": "defender",
+        "phasing": "russian",
+        "active": "german",
+        "dice": [3, 3],
+        "units": [
+            {"ref": "e", "side": "german", "type": "8-3-8", "hex": "C2"},
+            {"ref": "ft", "side": "german", "type": "FT", "carrier": "e"},
+            {"ref": "t", "side": "russian", "type": "4-4-7", "hex": "D2", "moved": True},
+        ],
+        "apply": [{"action": "ft_fire", "units": ["e"], "weapon": "ft", "hex": "D2"}],
+    })
+    target = geometry.parse_hex_id("D2")
+    assert r11_terrain.moving_in_open_modifier(built.engine.board, target) != 0
+    hit = [e for e in events if e.kind == "fire_result" and built.unit("t").id in e.data["units"]]
+    assert hit
+    assert hit[0].data["adjusted"] == 6

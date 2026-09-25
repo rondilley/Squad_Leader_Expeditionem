@@ -32,7 +32,7 @@ def engine():
     return build_engine("s01_guards_counterattack")
 
 
-def _events_of_a_game(engine, seed: int = 20260912, kinds=("broken", "eliminated", "unconcealed", "concealed", "morale_pass", "fire_result", "move", "advance")):
+def _events_of_a_game(engine, seed: int = 20260912, kinds=("broken", "eliminated", "unconcealed", "concealed", "morale_pass", "rallied", "fire_result", "move", "advance")):
     """Each (before, after, events) of a v6 against v1 game whose events hold one of the kinds."""
     state = engine.new_game(seed)
     agents = (make_agent("v6", engine, seed, 0), make_agent("v1", engine, seed, 1))
@@ -84,9 +84,13 @@ def test_each_event_pays_the_side_the_doctrine_says(engine):
                 assert single[owner] == w.hide, "the side that hides is paid"
                 seen.add(e.kind)
             if e.kind == "morale_pass":
+                single = event_rewards(engine, before, after, [e], w)
+                assert single == (0.0, 0.0), "a passed morale check pays nothing, so a suppressive shot costs the firer nothing (L2)"
+                seen.add(e.kind)
+            if e.kind == "rallied":
                 owner = before.units[int(data["unit"])].player
                 single = event_rewards(engine, before, after, [e], w)
-                assert single[owner] == w.survive, "the unit that survives is paid"
+                assert single[owner] == w.survive, "the unit that rallies is paid"
                 seen.add(e.kind)
             if e.kind == "fire_result" and data.get("units"):
                 single = event_rewards(engine, before, after, [e], w)
@@ -104,28 +108,42 @@ def test_each_event_pays_the_side_the_doctrine_says(engine):
     assert {"broken", "fire_result", "morale_pass"} <= seen, f"the game showed the events: {sorted(seen)}"
 
 
-def test_a_move_into_cover_pays_and_a_move_into_the_open_in_sight_costs(engine):
-    w = RewardWeights()
-    paid_cover = paid_exposed = paid_sneak = 0
-    for before, after, events in _events_of_a_game(engine, kinds=("move", "advance")):
-        for e in events:
-            if e.kind not in ("move", "advance"):
-                continue
-            mover = before.units[int(e.data["unit"])].player
-            single = event_rewards(engine, before, after, [e], w)
-            from slcore import geometry
-            from slcore.rules.r13_rout import is_cover
+def test_a_unit_pays_the_position_terms_once_from_the_hex_where_its_movement_ends(engine):
+    """L1: a move event pays no position term. The end of the Movement Phase pays one time
+    for each unit that moved, from its last hex: cover, or exposure in the open in sight."""
+    from slcore.game import PHASE_MOVEMENT
+    from slcore.rules.r13_rout import is_cover
+    from slagents.learned.reward import _seen_by_enemy
 
-            dst = geometry.parse_hex_id(e.data["to"])
-            if is_cover(engine.board, dst):
-                assert single[mover] >= w.cover
-                paid_cover += 1
-            elif single[mover] < 0:
-                assert single[mover] == -w.exposed, "open ground in an enemy's sight costs the exposure"
-                paid_exposed += 1
-            if single[mover] in (w.sneak, w.cover + w.sneak):
-                paid_sneak += 1
-    assert paid_cover > 0 and paid_exposed > 0 and paid_sneak > 0, (paid_cover, paid_exposed, paid_sneak)
+    w = RewardWeights()
+    paid_cover = paid_exposed = paid_sneak = ends = 0
+    for before, after, events in _events_of_a_game(engine, kinds=("move", "stack_move", "advance", "phase")):
+        steps = [e for e in events if e.kind in ("move", "stack_move")]
+        if steps:
+            counts = term_counts(engine, before, after, steps)
+            for term in ("cover", "sneak", "exposed"):
+                assert counts[0][term] == counts[1][term] == 0, "a step of a move pays no position term"
+        if not (before.phase == PHASE_MOVEMENT and any(e.kind == "phase" for e in events)):
+            continue
+        ends += 1
+        side = before.phasing
+        movers = [
+            after.units[u.id]
+            for u in before.units
+            if u.player == side and u.track and u.is_infantry and not after.units[u.id].eliminated and after.units[u.id].hex is not None
+        ]
+        counts = term_counts(engine, before, after, events)
+        cover = sum(1 for u in movers if is_cover(engine.board, u.hex))
+        seen = [u for u in movers if _seen_by_enemy(engine, after, side, u.hex)]
+        exposed = sum(1 for u in seen if not is_cover(engine.board, u.hex))
+        assert counts[side]["cover"] == cover and counts[1 - side]["cover"] == -cover
+        assert counts[side]["exposed"] == -exposed
+        assert counts[side]["sneak"] == len(movers) - len(seen)
+        assert counts[side]["cover"] + counts[side]["sneak"] <= 2 * len(movers), "one payment for each unit"
+        paid_cover += cover
+        paid_exposed += exposed
+        paid_sneak += len(movers) - len(seen)
+    assert ends > 0 and paid_cover > 0 and paid_sneak > 0, (ends, paid_cover, paid_exposed, paid_sneak)
 
 
 def test_a_shared_hex_pays_once_and_a_crush_and_a_passenger_pay_a_kill():
@@ -190,14 +208,20 @@ def test_the_environment_pays_the_shaped_reward_and_keeps_the_result(engine):
     """A whole game with random commands: the totals are the shaped sums, and results is the card's answer."""
     import numpy as np
 
-    env = make_env(engine, seed=13)
-    rng = np.random.default_rng(0)
-    for _ in range(6000):
-        agent = env.agent_selection
-        if env.terminations[agent] or env.truncations[agent]:
+    # A random game can end in a repeat of a position (L5), which is a truncation and not
+    # the end of the game. The test reads the first seed from 13 whose game ends; the board
+    # of generator version 8 and the core rules of 2026-09-23 moved seed 13 to a repeat.
+    for seed in range(13, 60):
+        env = make_env(engine, seed=seed)
+        rng = np.random.default_rng(0)
+        for _ in range(6000):
+            agent = env.agent_selection
+            if env.terminations[agent] or env.truncations[agent]:
+                break
+            triples = sorted(env.groups)
+            env.step(triples[int(rng.integers(len(triples)))])
+        if env.state_.game_over and env.state_.result != "draw":
             break
-        triples = sorted(env.groups)
-        env.step(triples[int(rng.integers(len(triples)))])
     assert env.state_.game_over
     results = [env.results[a] for a in env.possible_agents]
     assert sorted(results) == [-1.0, 1.0], "the result is the win and the loss"
@@ -292,6 +316,10 @@ def test_a_repeated_state_is_a_defeat_of_the_side_that_repeated_it(engine):
     env.step(command_index(pickup, env.groups))
     assert env.repeated, "the pickup gave the state the drop started from"
     assert all(env.truncations.values()), "the game stopped"
-    assert env.results[env.agent_of(0)] == 0.0 and env.results[env.agent_of(1)] == 0.0, "no side won by the card"
+    assert env.repeated_by == 0
+    # L5: the result says what the reward says. The side that made the cycle lost; the
+    # other side won nothing by the card.
+    assert env.results[env.agent_of(0)] == -1.0, "the league and the win rate count a loss for the side that repeated"
+    assert env.results[env.agent_of(1)] == 0.0, "no side won by the card"
     assert env._cumulative_rewards[env.agent_of(0)] <= before_total + env.weights[0].loss + 1.0, "the side that made the cycle paid the loss"
     assert env._cumulative_rewards[env.agent_of(1)] > env._cumulative_rewards[env.agent_of(0)], "and the other side did not"

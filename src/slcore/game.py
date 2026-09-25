@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields
 from typing import Any, Mapping
 
 from slcore.geometry import HexRef
 from slcore.rng import RngState
-from slcore.units import Unit
+from slcore.units import KIND_VEHICLE, Unit, copy_with
 
 
 @dataclass(frozen=True)
@@ -217,21 +217,28 @@ class State:
         return self.units[unit_id]
 
     def with_(self, **changes: Any) -> "State":
-        return replace(self, **changes)
+        return copy_with(self, STATE_FIELDS, changes)
 
     def with_unit(self, unit: Unit) -> "State":
         units = list(self.units)
         units[unit.id] = unit
-        return replace(self, units=tuple(units))
+        return copy_with(self, STATE_FIELDS, {"units": tuple(units)})
 
     def with_units(self, changed: Mapping[int, Unit]) -> "State":
         units = list(self.units)
         for uid, u in changed.items():
             units[uid] = u
-        return replace(self, units=tuple(units))
+        return copy_with(self, STATE_FIELDS, {"units": tuple(units)})
 
-    def _index(self) -> tuple[dict[HexRef, tuple[Unit, ...]], dict[int, tuple[Unit, ...]]]:
+    def _index(
+        self,
+    ) -> tuple[
+        dict[HexRef, tuple[Unit, ...]], dict[int, tuple[Unit, ...]], frozenset[HexRef], dict[int, frozenset[HexRef]]
+    ]:
         """The units of this state by hex and by carrier, built one time for each state.
+
+        The third part is the hexes with a vehicle that is not a wreck, for rule 29.2. The
+        fourth is the hexes of the concealment counters of each player, for rule 25.2.
 
         `units_in` and `carried_by` are the two hottest reads of the core: the movement
         window asks for the load of a hex for each destination it offers. A walk of the
@@ -240,30 +247,51 @@ class State:
         object. The memo is not a field, so it is not in the state document, the equality,
         or a copy made with `with_`, in the same way the state hash is not.
         """
-        found = getattr(self, INDEX_ATTRIBUTE, None)
-        if found is None:
+        try:
+            # The name is INDEX_ATTRIBUTE. A read of the attribute is the fast path.
+            return self._unit_index
+        except AttributeError:
             by_hex: dict[HexRef, list[Unit]] = {}
             by_carrier: dict[int, list[Unit]] = {}
+            vehicles: set[HexRef] = set()
             for u in self.units:
                 if u.eliminated:
                     continue
                 if u.carrier is None:
                     if u.hex is not None:
                         by_hex.setdefault(u.hex, []).append(u)
+                        if u.kind == KIND_VEHICLE and not u.wreck:
+                            vehicles.add(u.hex)
                 else:
                     by_carrier.setdefault(u.carrier, []).append(u)
+            counters: dict[int, set[HexRef]] = {}
+            for c in self.concealment:
+                counters.setdefault(c.player, set()).add(c.hex)
             found = (
                 {k: tuple(v) for k, v in by_hex.items()},
                 {k: tuple(v) for k, v in by_carrier.items()},
+                frozenset(vehicles),
+                {k: frozenset(v) for k, v in counters.items()},
             )
             object.__setattr__(self, INDEX_ATTRIBUTE, found)
-        return found
+            return found
 
     def units_in(self, hex_ref: HexRef) -> tuple[Unit, ...]:
-        return self._index()[0].get(hex_ref, ())
+        # A read of the attribute is the fast path. The name is INDEX_ATTRIBUTE.
+        try:
+            return self._unit_index[0].get(hex_ref, ())
+        except AttributeError:
+            return self._index()[0].get(hex_ref, ())
 
     def carried_by(self, unit_id: int) -> tuple[Unit, ...]:
-        return self._index()[1].get(unit_id, ())
+        try:
+            return self._unit_index[1].get(unit_id, ())
+        except AttributeError:
+            return self._index()[1].get(unit_id, ())
+
+    def vehicle_hexes(self) -> frozenset[HexRef]:
+        """The hexes that hold a vehicle that is not a wreck (rules 29.2 and 40.2)."""
+        return self._index()[2]
 
     def player_units(self, player: int) -> tuple[Unit, ...]:
         return tuple(u for u in self.units if u.player == player and not u.eliminated)
@@ -282,11 +310,32 @@ class State:
             return ()
         return tuple(c for c in self.concealment if c.hex == hex_ref)
 
-    def concealed(self, unit: Unit) -> bool:
-        """Rule 25.2: a unit below a concealment counter of its own side."""
-        if unit.hex is None or unit.carrier is not None:
+    def counter_in(self, hex_ref: HexRef | None, player: int) -> bool:
+        """Rule 25.2: a concealment counter of this player is in this hex."""
+        if hex_ref is None or not self.concealment:
             return False
-        return any(c.hex == unit.hex and c.player == unit.player for c in self.concealment)
+        hexes = self._index()[3].get(player)
+        return hexes is not None and hex_ref in hexes
+
+    def concealed(self, unit: Unit) -> bool:
+        """Rule 25.2: a unit below a concealment counter of its own side.
+
+        Rule 25.3 puts a counter on a squad or a leader, so only infantry on foot is
+        concealed (PR-33). A vehicle, or a unit that rides on one, stays in full view.
+        """
+        if unit.hex is None or unit.carrier is not None or not unit.is_infantry or unit.riding:
+            return False
+        return self.counter_in(unit.hex, unit.player)
+
+    def enemy_counter_in(self, hex_ref: HexRef | None, player: int) -> bool:
+        """Rule 25.2 and PR-31: a concealment counter of the other side is in this hex.
+
+        The legality tests read the counter and never the units below it, so a dummy of
+        rule 25.7 and a real stack give the same legal list.
+        """
+        if hex_ref is None or not self.concealment:
+            return False
+        return any(hex_ref in hexes for owner, hexes in self._index()[3].items() if owner != player)
 
     def demo_in(self, hex_ref: HexRef | None) -> tuple[DemoCharge, ...]:
         if hex_ref is None:
@@ -298,6 +347,16 @@ class State:
         return unit.player == self.fanatic_player and unit.hex is not None and unit.hex in self.fanatic_hexes
 
     def to_dict(self) -> dict[str, Any]:
+        return self.document([u.to_dict() for u in self.units])
+
+    def document(self, units: Any) -> dict[str, Any]:
+        """The state document with `units` as the value of its unit list.
+
+        `to_dict` gives the list of unit records. The state hash gives a mark in its
+        place and puts there the JSON text of each unit, which it keeps on the unit
+        (`slcore.hashing`). So a unit that did not change is not written again for each
+        new state (NFR-01).
+        """
         return {
             "scenario_id": self.scenario_id,
             "board_name": self.board_name,
@@ -309,7 +368,7 @@ class State:
             "phase": self.phase,
             "sub_step": self.sub_step,
             "active": self.active,
-            "units": [u.to_dict() for u in self.units],
+            "units": units,
             "rng": list(self.rng),
             "seq": self.seq,
             "setup_index": self.setup_index,
@@ -372,3 +431,6 @@ class State:
             fanatic_hexes=tuple((int(h[0]), int(h[1])) for h in d.get("fanatic_hexes", [])),
             at_shots=tuple((int(pair[0]), str(pair[1])) for pair in d.get("at_shots", [])),
         )
+
+
+STATE_FIELDS = frozenset(f.name for f in fields(State))

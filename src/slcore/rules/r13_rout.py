@@ -5,14 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
-from slcore import geometry
+from slcore import actions, geometry
 from slcore.commands import Command
 from slcore.events import Event
 from slcore.game import State
 from slcore.geometry import HexRef
 from slcore.los_cache import LosTable
 from slcore.los_eval import evaluate
-from slcore.paths import route, shortest_paths
+from slcore.paths import nearest_goals, route, shortest_paths
 from slcore.rules import r06_stacking, r11_terrain
 from slcore.rules.r05_movement import MoveContext, entry_cost_halves
 from slcore.state import Board
@@ -27,6 +27,7 @@ RULE_13_43 = "13.43"
 RULE_13_44 = "13.44"
 RULE_13_46 = "13.46"
 RULE_13_47 = "13.47"
+RULE_42_5 = "42.5"
 
 COVER_KINDS = ("woods", "wooden_building", "stone_building")
 
@@ -46,13 +47,26 @@ def broken_units(state: State, player: int) -> list[Unit]:
     return [u for u in state.player_units(player) if u.broken and u.hex is not None and u.carrier is None]
 
 
+def known(state: State, other: Unit) -> bool:
+    """QA-13.41 and PR-31: an enemy unit is a known enemy position for rule 13.
+
+    A hidden unit (rule 42.1) and a unit below a concealment counter are not, so the
+    rout of a broken unit does not change with what is below a counter.
+    """
+    return not other.hidden and not state.concealed(other)
+
+
 def adjacent_enemy(state: State, unit: Unit) -> bool:
     if unit.hex is None:
         return False
-    board_neighbors = geometry.neighbors(*unit.hex)
-    for n in board_neighbors:
+    return _enemy_next_to(state, unit.hex, unit.player)
+
+
+def _enemy_next_to(state: State, hex_ref: HexRef, player: int) -> bool:
+    for n in geometry.neighbors(*hex_ref):
         for other in state.infantry_in(n):
-            if other.player != unit.player and not other.broken and not other.hidden:
+            # Rule 13.2: an enemy unit next to it, even a broken one.
+            if other.player != player and known(state, other):
                 return True
     return False
 
@@ -63,7 +77,9 @@ def known_enemies(ctx: RoutContext, state: State, unit: Unit) -> list[Unit]:
         return []
     out = []
     for other in state.units:
-        if other.player == unit.player or other.broken or other.eliminated or other.hidden or other.hex is None or not other.is_infantry:
+        if other.player == unit.player or other.broken or other.eliminated or other.hex is None or not other.is_infantry:
+            continue
+        if not known(state, other):
             continue
         if evaluate(ctx.move.board, ctx.los, other.hex, unit.hex).clear:
             out.append(other)
@@ -82,20 +98,40 @@ def in_range_and_los(ctx: RoutContext, types: Mapping[str, UnitType], enemy: Uni
 def rout_step_allowed(ctx: RoutContext, types: Mapping[str, UnitType], state: State, unit: Unit, enemies: list[Unit]) -> callable:
     board = ctx.move.board
     start = unit.hex
+    distance = geometry.distance
+    # The distance from the start to each known enemy does not change during the search,
+    # and each test of a hex that does not name the hex it comes from is the same for each
+    # entry into that hex. So the two are calculated one time (NFR-01).
+    near = [(enemy.hex, distance(start, enemy.hex)) for enemy in enemies if enemy.hex is not None]
+    closed: dict[HexRef, bool] = {}
+    exposed: dict[HexRef, bool] = {}
+
+    def is_closed(nxt: HexRef) -> bool:
+        # Rule 5.6 and PR-31: no entry into a hex with an enemy the player sees or an enemy
+        # concealment counter. A hidden unit does not close the hex here, and the rout
+        # stops before it when it is reached (PR-32).
+        if state.enemy_counter_in(nxt, unit.player):
+            return True
+        for u in state.infantry_in(nxt):
+            if u.player != unit.player and not u.hidden:
+                return True
+        for enemy_hex, from_start in near:
+            if distance(nxt, enemy_hex) < from_start:
+                return True
+        return False
 
     def allowed(prev: HexRef, nxt: HexRef) -> bool:
-        for u in state.infantry_in(nxt):
-            if u.player != unit.player:
-                return False
-        for enemy in enemies:
-            if enemy.hex is None:
-                continue
-            if geometry.distance(nxt, enemy.hex) < geometry.distance(start, enemy.hex):
-                return False
+        found = closed.get(nxt)
+        if found is None:
+            found = closed[nxt] = is_closed(nxt)
+        if found:
+            return False
         if r11_terrain.is_open_ground(board, nxt) and not behind_cover_hexside(board, prev, nxt):
-            for enemy in enemies:
-                if in_range_and_los(ctx, types, enemy, nxt):
-                    return False
+            seen = exposed.get(nxt)
+            if seen is None:
+                seen = exposed[nxt] = any(in_range_and_los(ctx, types, enemy, nxt) for enemy in enemies)
+            if seen:
+                return False
         return True
 
     return allowed
@@ -129,27 +165,51 @@ def must_rout(ctx: RoutContext, state: State, unit: Unit) -> bool:
 
 def rout_options(ctx: RoutContext, types: Mapping[str, UnitType], state: State, unit: Unit) -> list[HexRef]:
     """Rule 13.43: the nearest cover hexes by movement factors along a legal route."""
+    return list(_rout_search(ctx, types, state, unit)[0])
+
+
+# The rout searches of one state, by unit ID. It is not a field of the record, so it is
+# not in the state document, the equality, or a copy made with `with_`.
+ROUT_MEMO_ATTRIBUTE = "_rout_memo"
+
+
+def _rout_search(
+    ctx: RoutContext, types: Mapping[str, UnitType], state: State, unit: Unit
+) -> tuple[tuple[HexRef, ...], dict[HexRef, HexRef]]:
+    """The rout destinations of rule 13.43 and the predecessors of the routes to them.
+
+    The legal list, the test of rule 13.47, and `apply_rout` each ask for the same unit
+    in the same state, so the answer is kept on the state (NFR-01). It is kept only for a
+    unit that is the unit of the state with that ID, because an agent can ask about a
+    unit it changed.
+    """
     if unit.hex is None:
-        return []
+        return (), {}
+    memo = state.__dict__.get(ROUT_MEMO_ATTRIBUTE)
+    keep = state.units[unit.id] is unit
+    if keep and memo is not None:
+        found = memo.get(unit.id)
+        if found is not None and found[0] is ctx and found[1] is types:
+            return found[2], found[3]
     enemies = known_enemies(ctx, state, unit)
     allowed = rout_step_allowed(ctx, types, state, unit, enemies)
-    dist, _ = shortest_paths(ctx.move, unit.hex, allowed)
     board = ctx.move.board
-    best: int | None = None
-    out: list[HexRef] = []
-    for ref, cost in sorted(dist.items()):
-        if ref == unit.hex or not is_cover(board, ref):
-            continue
-        if r06_stacking.rule_6_1_overstacked(state, types, ref, unit.player, extra_ids=(unit.id,)):
-            continue
-        if adjacent_enemy(state, unit.with_(hex=ref)):
-            continue
-        if best is None or cost < best:
-            best = cost
-            out = [ref]
-        elif cost == best:
-            out.append(ref)
-    return out
+
+    def is_destination(ref: HexRef) -> bool:
+        return (
+            is_cover(board, ref)
+            and not r06_stacking.rule_6_1_overstacked(state, types, ref, unit.player, extra_ids=(unit.id,))
+            and not _enemy_next_to(state, ref, unit.player)
+        )
+
+    _, goals, pred = nearest_goals(ctx.move, unit.hex, allowed, is_destination)
+    options = tuple(goals)
+    if keep:
+        if memo is None:
+            memo = {}
+            state.__dict__[ROUT_MEMO_ATTRIBUTE] = memo
+        memo[unit.id] = (ctx, types, options, pred)
+    return options, pred
 
 
 def legal_rout_commands(ctx: RoutContext, types: Mapping[str, UnitType], state: State, player: int) -> list[Command]:
@@ -191,18 +251,27 @@ def apply_rout(ctx: RoutContext, types: Mapping[str, UnitType], state: State, co
     dest = command.hex
     if dest is None or unit.hex is None:
         raise ValueError("rout needs a destination")
-    enemies = known_enemies(ctx, state, unit)
-    allowed = rout_step_allowed(ctx, types, state, unit, enemies)
-    dist, pred = shortest_paths(ctx.move, unit.hex, allowed)
+    options, pred = _rout_search(ctx, types, state, unit)
+    if dest not in options:
+        # A hex that is not a rout destination: the full search says whether a route goes
+        # there at all, as it did before the search stopped at the nearest cover.
+        enemies = known_enemies(ctx, state, unit)
+        allowed = rout_step_allowed(ctx, types, state, unit, enemies)
+        _, pred = shortest_paths(ctx.move, unit.hex, allowed)
     if dest not in pred:
         raise ValueError("the rout destination is not reachable by a legal route")
     path = route(pred, unit.hex, dest)
     allowance = rout_allowance(state, types, unit)
     spent = 0
     here = unit.hex
+    blocked: HexRef | None = None
     for step in path:
         cost, _ = entry_cost_halves(ctx.move, here, step)
         if cost is None or spent + cost > allowance:
+            break
+        if any(u.hidden and u.player != unit.player for u in state.units_in(step)):
+            # PR-32: the rout meets a hidden unit and stops in the hex before it.
+            blocked = step
             break
         spent += cost
         here = step
@@ -218,6 +287,10 @@ def apply_rout(ctx: RoutContext, types: Mapping[str, UnitType], state: State, co
             {"unit": unit.id, "from": geometry.hex_id(*unit.hex), "to": geometry.hex_id(*here), "goal": geometry.hex_id(*dest), "reached": reached, "halves": spent},
         )
     ]
+    if blocked is not None:
+        events.append(
+            Event(RULE_42_5, "stopped", {"unit": unit.id, "hex": geometry.hex_id(*here), "tried": geometry.hex_id(*blocked)})
+        )
     return state, events
 
 
@@ -237,3 +310,17 @@ def eliminate_overstacked_broken(ctx: RoutContext, types: Mapping[str, UnitType]
                 state = state.with_unit(victim.with_(eliminated=True, hex=None, carrier=None))
                 events.append(Event(RULE_13_44, "eliminated", {"unit": victim.id, "cause": "over the stacking limit after the rout"}))
     return state, events
+
+
+# ------------------------------------------------------------------ the command handlers (M3)
+# A rout is a move for rules 25.4 and 42.2. A stay is not.
+
+
+@actions.action("rout", unconceals=actions.CAUSE_MOVED)
+def _on_rout(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    return apply_rout(engine.rout_ctx, engine.types, state, command)
+
+
+@actions.action("stay")
+def _on_stay(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    return apply_stay(state, command)

@@ -11,15 +11,20 @@ counter. Infantry may then fire at the vehicle from any hex in any fire phase.
 
 from __future__ import annotations
 
-from slcore import geometry
+from typing import Mapping
+
+from slcore import actions, geometry
+from slcore.commands import Command
 from slcore.events import Event
 from slcore.game import FireGroup, State
 from slcore.geometry import HexRef
 from slcore.rng import roll_2d6
-from slcore.rules import r10_resolution, r28_vehicles, r32_afv_cover, r33_afv_combat
+from slcore.rules import r10_resolution, r28_vehicles, r31_transport, r32_afv_cover, r33_afv_combat
 from slcore.rules.r10_resolution import FireContext
-from slcore.rules.r33_afv_combat import AMMO_HE, ArmorContext
-from slcore.units import Unit
+from slcore.rules.r33_afv_combat import AMMO_AP, AMMO_HE, AMMO_HEAT, ArmorContext
+from slcore.state import Board
+from slcore.tabledata import RESULT_KIA, IftTable
+from slcore.units import Unit, UnitType
 
 RULE_34_1 = "34.1"
 RULE_34_2 = "34.2"
@@ -42,6 +47,8 @@ CANISTER_PENETRATION = 3
 CANISTER_SPENT_ROLL = 7
 AMMO_CANISTER = "canister"
 MG_MALFUNCTION_ROLL = 12
+# Rule 34.8: fire at an exposed crew takes plus two for the wall of the hull.
+CREW_EXPOSED_MODIFIER = 2
 
 
 def firepower_halves(ctx: ArmorContext, firer: Unit, target: HexRef) -> int:
@@ -82,8 +89,12 @@ def fire_main(
     phase: str,
     ammunition: str = AMMO_HE,
 ) -> tuple[State, list[Event]]:
-    """Rule 34.2: the main armament against the infantry of one hex."""
-    concealed = bool(state.concealment_in(target))
+    """Rule 34.2: the main armament against the infantry of one hex.
+
+    Case H of rule 33.31 reads a counter of the target side only. A counter of the
+    firer's own side in the hex does not conceal the enemy in it.
+    """
+    concealed = state.enemy_counter_in(target, firer.player)
     canister = ammunition == AMMO_CANISTER
     row = r28_vehicles.infantry_to_hit_row(ctx.board, target)
     cases = r33_afv_combat.hit_cases(
@@ -250,6 +261,78 @@ def expose_crew(ctx: ArmorContext, state: State, firer: Unit, target: HexRef) ->
     ]
 
 
+def exposed_vehicle_in(state: State, hex_ref: HexRef, firer_player: int) -> Unit | None:
+    """Rule 34.8: a vehicle of the other side in this hex with its crew exposed.
+
+    A hidden vehicle is on its owner's record and not on the board (rule 42.1), so it is
+    never this target.
+    """
+    for unit in state.units_in(hex_ref):
+        if unit.is_vehicle and unit.player != firer_player and unit.crew_exposed and not unit.wreck and not unit.hidden:
+            return unit
+    return None
+
+
+def exposed_targets(state: State, player: int) -> list[HexRef]:
+    """Rule 34.8 and PR-44: the hexes of the enemy vehicles whose crew is exposed."""
+    return sorted(
+        {
+            u.hex
+            for u in r28_vehicles.vehicles(state, 1 - player)
+            if u.hex is not None and u.crew_exposed and not u.wreck and not u.hidden
+        }
+    )
+
+
+def fire_at_exposed_crew(
+    types: Mapping[str, UnitType],
+    ift: IftTable,
+    state: State,
+    target: HexRef,
+    firer_player: int,
+    halves: int,
+    raw: int,
+    group_modifier: int,
+    parts: list[dict],
+) -> tuple[State, list[Event]]:
+    """Rule 34.8 with PR-44: the roll of an infantry fire group read against an exposed crew.
+
+    The group attacks the infantry of the hex as usual. The same roll then goes on the
+    Infantry Fire Table against the crew, with plus two for the vehicle, the leadership and
+    smoke of the group, and no terrain and no minus two for movement. A morale check
+    result is ignored. A KIA sends the crew through the morale check of rule 39.2, and a
+    failure abandons the vehicle.
+    """
+    vehicle = exposed_vehicle_in(state, target, firer_player)
+    if vehicle is None:
+        return state, []
+    firepower = halves // 2
+    adjusted = raw + CREW_EXPOSED_MODIFIER + group_modifier
+    result = ift.lookup(firepower, adjusted)
+    modifiers = [{"rule": RULE_34_8, "value": CREW_EXPOSED_MODIFIER, "cause": "the hull around the exposed crew"}]
+    modifiers.extend(parts)
+    events = [
+        Event(
+            RULE_34_8,
+            "crew_fire",
+            {
+                "vehicle": vehicle.id,
+                "target": geometry.hex_id(*target),
+                "firepower": firepower,
+                "roll": raw,
+                "modifiers": modifiers,
+                "adjusted": adjusted,
+                "result": result,
+            },
+        )
+    ]
+    if result != RESULT_KIA:
+        return state, events
+    state, ev = r33_afv_combat.crew_check(types, state, vehicle.id, "a KIA on the exposed crew", RULE_34_8)
+    events.extend(ev)
+    return state, events
+
+
 def spend_canister(state: State, firer: Unit, raw: int) -> tuple[State, list[Event]]:
     """Rule 34.92: a to-hit roll of seven or more leaves the gun with no canister."""
     if raw < CANISTER_SPENT_ROLL:
@@ -265,7 +348,12 @@ def canister_available(ctx: ArmorContext, firer: Unit) -> bool:
 
 
 def clear_exposure(state: State, player: int) -> tuple[State, list[Event]]:
-    """Rule 34.8: the counter comes off at the end of the next enemy fire phase."""
+    """Rule 34.8: the counter comes off at the end of the next enemy fire phase.
+
+    The engine calls this at the end of each fire phase for the side that did not fire in
+    it (PR-44). A counter that the side put on in its own earlier fire phase has then seen
+    one fire phase of the enemy, and it is that phase that ends.
+    """
     changed = {}
     events: list[Event] = []
     for vehicle in r28_vehicles.vehicles(state, player):
@@ -273,3 +361,81 @@ def clear_exposure(state: State, player: int) -> tuple[State, list[Event]]:
             changed[vehicle.id] = vehicle.with_(crew_exposed=False)
             events.append(Event(RULE_34_8, "crew_inside", {"unit": vehicle.id}))
     return (state.with_units(changed) if changed else state), events
+
+
+# ------------------------------------------------------------------ the command handlers (M3)
+# The main gun fires at a vehicle by rule 33.3 or at infantry by this rule. This module
+# imports rule 33, so the handler of the two shots is here.
+
+
+@actions.action("afv_fire", unconceals=actions.CAUSE_FIRED)
+def _on_afv_fire(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    """Rule 33.3 at a vehicle, or rule 34.2 at infantry."""
+    extra = dict(command.extra)
+    vehicle = state.units[command.units[0]]
+    target = command.hex
+    if target is None:
+        raise ValueError("a vehicle shot needs a target hex")
+    state, events = r31_transport.force_dismount(
+        engine.board, state, vehicle.id, r31_transport.RULE_31_7, "the vehicle fired", charge=True
+    )
+    if str(extra.get("aim")) == "vehicle":
+        state, ev = _gun_at_vehicle(engine.armor_ctx, engine.board, state, vehicle, target, str(extra.get("ammo", AMMO_AP)))
+    else:
+        state, ev = fire_main(
+            engine.armor_ctx, engine.fire_ctx, state, vehicle, target, state.phase, str(extra.get("ammo", AMMO_HE))
+        )
+    events.extend(ev)
+    return state, events
+
+
+def _gun_at_vehicle(
+    ctx: ArmorContext, board: Board, state: State, firer: Unit, target: HexRef, ammunition: str
+) -> tuple[State, list[Event]]:
+    enemy = r28_vehicles.vehicle_in(state, target)
+    if enemy is None:
+        raise ValueError("no vehicle stands in that hex")
+    hull_down = r33_afv_combat.hull_down(ctx, state, firer.hex, enemy) if firer.hex else False
+    row = r28_vehicles.to_hit_row(board, state, enemy, hull_down)
+    # Case H of rule 33.31 is a target below a concealment counter. A vehicle is never
+    # below one (PR-33), whatever counter the infantry of its hex holds.
+    cases = r33_afv_combat.hit_cases(ctx, state, firer, target, state.phase, enemy.moved, False)
+    state, result = r33_afv_combat.roll_to_hit(ctx, state, firer, target, row, cases)
+    events = [r33_afv_combat.to_hit_event(firer, target, result)]
+    state, marked = r33_afv_combat.mark_gun_fired(state, firer, result)
+    events.extend(marked)
+    if ammunition == AMMO_HEAT:
+        # Rule 63.32 and PR-45: a roll of 6 or more spends the HEAT, and that shot is high
+        # explosive.
+        state, still_heat, spent = r33_afv_combat.spend_heat(state, firer, result.raw)
+        events.extend(spent)
+        if not still_heat:
+            ammunition = AMMO_HE
+    if not result.hit:
+        return state, events
+    column = r33_afv_combat.kill_column_for(ctx, firer, ammunition)
+    state, kill = r33_afv_combat.roll_kill(ctx, state, firer.hex, enemy, column)
+    events.append(r33_afv_combat.kill_event(firer.id, enemy, kill))
+    if kill.killed:
+        state, ev = r33_afv_combat.destroy(ctx, state, enemy.id, "a main gun hit")
+        events.extend(ev)
+    elif enemy.immobilized:
+        # Rule 39.3: a hit that does not destroy a vehicle already immobilized sends its
+        # crew through the morale check of rule 39.2 again.
+        state, ev = r33_afv_combat.crew_abandons(ctx, state, enemy.id, "rule 39.3")
+        events.extend(ev)
+    return state, events
+
+
+@actions.action("afv_mg", unconceals=actions.CAUSE_FIRED)
+def _on_afv_mg(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    vehicle = state.units[command.units[0]]
+    target = command.hex
+    if target is None:
+        raise ValueError("a machine gun shot needs a target hex")
+    state, events = r31_transport.force_dismount(
+        engine.board, state, vehicle.id, r31_transport.RULE_31_7, "the vehicle fired", charge=True
+    )
+    state, ev = fire_mg(engine.armor_ctx, engine.fire_ctx, state, vehicle, target, state.phase)
+    events.extend(ev)
+    return state, events

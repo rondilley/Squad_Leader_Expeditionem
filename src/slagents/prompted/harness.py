@@ -26,7 +26,7 @@ The cycle guard. A model that may drop a weapon and pick it up again does so for
 one game of the gauntlet of 2026-09-19 had 15,837 decisions against 120 to 274 for the
 others. So the harness keeps the positions of the game it has seen in the phase, and it
 offers the model no command that returns the game to one of them. A position is the
-state document without its sequence number. The harness finds the position a command
+view document of the acting player, with the step (S13). The harness finds the position a command
 gives with the core's own `apply` on the state, which changes nothing, and the list the
 model reads is the legal list less those commands. When each command returns, the guard
 stands down and the full list goes out.
@@ -46,11 +46,12 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Sequence
 
+from slagents.base import decide
 from slagents.prompted import schema
 from slagents.prompted.oddsview import OddsView, objective_lines
 from slagents.prompted.providers import Answer, Provider, ProviderError, ProviderUnavailable
 from slcore import geometry
-from slcore.engine import Engine
+from slcore.engine import Engine, IllegalCommand
 from slcore.frame import DecisionFrame, LegalCommand
 from slcore.game import State
 from slcore.los_eval import evaluate as evaluate_los
@@ -119,14 +120,20 @@ class Counters:
         }
 
 
-def position_key(state: State) -> str:
-    """The position of the game: the state document without its sequence number.
+def position_key(state: State, types: Any, viewer: int) -> str:
+    """The position of the game as the acting player sees it: that player's view, and the step.
 
     The state hash of the core (FR-13) counts each command, so a drop and a pickup give a
     new hash and the same position. The guard compares positions.
+
+    The key is the view document of the player (`slcore.view.build`), with the sub-step,
+    and not the full state (S13). A key of the full state lets the list the model reads
+    depend on what the player cannot see: two commands that give the same view and a
+    different hidden unit would be one repeat and one new position, and the held count in
+    the prompt would tell the model which one moved a hidden unit (SR-09).
     """
-    document = state.to_dict()
-    document.pop("seq", None)
+    document = build_view(state, types, viewer)
+    document["sub_step"] = state.sub_step
     return hashlib.sha256(json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")).hexdigest()
 
 
@@ -233,17 +240,39 @@ def text_state(
             lines.append(f"  {plan}")
     lines.append("")
     lines.append("Legal commands, each with its odds. Answer with one of these identities:")
-    for legal in offered[:MAX_COMMANDS_IN_PROMPT]:
+    shown = shown_commands(offered)
+    for legal in shown:
         note = view.command_note(legal)
         lines.append(f"  {legal.id} {command_text(engine, legal.payload)}{' -> ' + note if note else ''}")
-    if len(offered) > MAX_COMMANDS_IN_PROMPT:
-        lines.append(f"  ... and {len(offered) - MAX_COMMANDS_IN_PROMPT} more of the same kinds")
+    if len(offered) > len(shown):
+        lines.append(f"  ... and {len(offered) - len(shown)} more of the same kinds")
     held = len(frame.commands) - len(offered)
     if held > 0:
         lines.append(f"  ({held} command{'s' if held != 1 else ''} that would return the game to a position of this phase are not offered.)")
     lines.append("")
     lines.append(schema.describe([lc.id for lc in offered]))
     return "\n".join(lines)
+
+
+# The commands that end a phase or the set up. The model always sees them (L6).
+ENDING_ACTIONS = ("end_phase", "end_setup")
+
+
+def shown_commands(offered: Sequence[LegalCommand]) -> list[LegalCommand]:
+    """The commands the prompt lists: the first ones up to the limit, and each ending command.
+
+    The core puts `end_phase` last in a frame. A Movement Phase of a large force has more
+    than `MAX_COMMANDS_IN_PROMPT` commands, and the cut then took the one command that
+    ends the phase out of the list the model reads, so the model could not end the phase
+    (the review of 2026-09-23, L6). The ending commands now take their places at the end
+    of the list, and the cut takes that many fewer of the others.
+    """
+    ending = [lc for lc in offered if lc.command.action in ENDING_ACTIONS]
+    if len(offered) <= MAX_COMMANDS_IN_PROMPT:
+        return list(offered)
+    room = max(0, MAX_COMMANDS_IN_PROMPT - len(ending))
+    others = [lc for lc in offered if lc.command.action not in ENDING_ACTIONS][:room]
+    return others + ending
 
 
 def command_text(engine: Engine, payload: dict[str, Any]) -> str:
@@ -305,14 +334,22 @@ class PromptedAgent:
         if window != self._window:
             self._window = window
             self._seen = set()
-        self._seen.add(position_key(state))
+        self._seen.add(position_key(state, self.engine.types, self.player))
         if len(frame.commands) <= 1:
             return list(frame.commands), []
         kept: list[LegalCommand] = []
         held: list[str] = []
+        # The state is the player state (S3), so its own legal list is built one time here
+        # and each lookahead reads it. A command of the true list that the player state
+        # does not offer has no lookahead, and it stays in the list.
+        own = self.engine.legal_commands(state)
         for lc in frame.commands:
-            after, _ = self.engine.apply(state, lc.command, frame)
-            if position_key(after) in self._seen:
+            try:
+                after, _ = self.engine.apply(state, lc.command, own)
+            except IllegalCommand:
+                kept.append(lc)
+                continue
+            if position_key(after, self.engine.types, self.player) in self._seen:
                 held.append(lc.id)
             else:
                 kept.append(lc)
@@ -367,7 +404,7 @@ class PromptedAgent:
             return decision.command_id
         self.counters.seconds.append(time.perf_counter() - started)
         self.counters.fallbacks += 1
-        fallback = self.default_agent.select(state, frame)
+        fallback = decide(self.default_agent, state, frame)
         if fallback in held:
             # The default agent stands under the guard too: its own choice of a return
             # would be the cycle again. The first offered command of its kind, else the first.

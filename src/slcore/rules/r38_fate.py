@@ -12,7 +12,9 @@ dischargers for its own hex.
 
 from __future__ import annotations
 
-from slcore import geometry
+from typing import Callable
+
+from slcore import actions, geometry
 from slcore.commands import Command
 from slcore.events import Event
 from slcore.game import PHASE_PREP_FIRE, State
@@ -135,19 +137,40 @@ def may_fire_smoke(ctx: ArmorContext, state: State, vehicle: Unit, phase: str) -
     return r33_afv_combat.may_fire_main(ctx, state, vehicle, phase) and not vehicle.mg_fired
 
 
-def smoke_targets(ctx: ArmorContext, state: State, vehicle: Unit) -> list[HexRef]:
-    """Rule 41.3: any hex that is neither the vehicle's own nor next to it."""
+def smoke_targets(
+    ctx: ArmorContext, state: State, vehicle: Unit, sees: Callable[[HexRef, HexRef], bool]
+) -> list[HexRef]:
+    """Rule 41.3 with PR-48: a hex the gun could fire at that is not the vehicle's own or next to it.
+
+    The vehicle sees the hex, the to-hit table gives a number at that range, and a
+    self-propelled gun has the hex in its covered arc (rule 33.1).
+    """
     if vehicle.hex is None:
         return []
+    kind = ctx.types[vehicle.type_key]
     near = set(ctx.board.neighbors(vehicle.hex)) | {vehicle.hex}
-    return [h.ref for h in ctx.board if h.ref not in near and not state.smoke_in(h.ref)]
+    out: list[HexRef] = []
+    for h in ctx.board:
+        ref = h.ref
+        if ref in near or state.smoke_in(ref):
+            continue
+        if not kind.is_turreted and not r28_vehicles.in_covered_arc(vehicle.hex, vehicle.facing, ref):
+            continue
+        if ctx.armor.to_hit(SMOKE_ROW, geometry.distance(vehicle.hex, ref), kind.nationality) is None:
+            continue
+        if not sees(vehicle.hex, ref):
+            continue
+        out.append(ref)
+    return out
 
 
-def legal_smoke(ctx: ArmorContext, state: State, player: int, phase: str) -> list[Command]:
+def legal_smoke(
+    ctx: ArmorContext, state: State, player: int, phase: str, sees: Callable[[HexRef, HexRef], bool]
+) -> list[Command]:
     out: list[Command] = []
     for vehicle in r28_vehicles.vehicles(state, player):
         if may_fire_smoke(ctx, state, vehicle, phase):
-            for hex_ref in smoke_targets(ctx, state, vehicle):
+            for hex_ref in smoke_targets(ctx, state, vehicle, sees):
                 out.append(Command("afv_smoke", units=(vehicle.id,), hex=hex_ref))
         if may_discharge(ctx, state, vehicle, phase):
             out.append(Command("afv_dischargers", units=(vehicle.id,)))
@@ -176,6 +199,9 @@ def may_discharge(ctx: ArmorContext, state: State, vehicle: Unit, phase: str) ->
     """Rule 41.4: one set of smoke dischargers on a German tank or self-propelled gun."""
     if vehicle.hex is None or vehicle.wreck or vehicle.dischargers_used:
         return False
+    # PR-48: the counter comes from the smoke allowance of the side (rule 24.1).
+    if state.smoke_left[vehicle.player] <= 0:
+        return False
     kind = ctx.types[vehicle.type_key]
     if kind.nationality != GERMAN or not kind.is_afv:
         return False
@@ -194,3 +220,26 @@ def apply_dischargers(state: State, command: Command) -> tuple[State, list[Event
     return state, [
         Event(RULE_41_4, "smoke_dischargers", {"unit": vehicle.id, "hex": geometry.hex_id(*vehicle.hex)})
     ] + placed
+
+
+# ------------------------------------------------------------------ the command handlers (M3)
+
+
+@actions.action("afv_repair")
+def _on_afv_repair(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    return apply_repair(state, command)
+
+
+@actions.action("push_wreck", unconceals=actions.CAUSE_MOVED)
+def _on_push_wreck(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    return apply_wreck_push(state, command)
+
+
+@actions.action("afv_smoke", unconceals=actions.CAUSE_SMOKE)
+def _on_afv_smoke(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    return apply_smoke(engine.armor_ctx, state, command)
+
+
+@actions.action("afv_dischargers", unconceals=actions.CAUSE_SMOKE)
+def _on_afv_dischargers(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    return apply_dischargers(state, command)

@@ -34,7 +34,12 @@ from slcore.geometry import HexRef
 from slcore.rng import RngState, choice_index, seed_state
 from slcore.state import Board, Building, Hex, TerrainType
 
-GENERATOR_VERSION = 7
+GENERATOR_VERSION = 8
+# Version 8 adds the road hexsides of PR-50 and changes no terrain. So it seeds the random
+# state as version 7 does, and each seed that a scenario names builds the same hexes. A
+# record of version 7 builds its board again with no road hexsides, as it did before.
+SEED_VERSION = {8: 7}
+ROAD_SIDES_VERSION = 8
 TYPE_CITY = "city"
 TYPE_HILLS = "hills"
 TYPE_VILLAGE = "village"
@@ -279,6 +284,8 @@ class Structure:
     buildings: dict[HexRef, Building] = field(default_factory=dict)
     elevation: dict[HexRef, int] = field(default_factory=dict)
     sides: dict[HexRef, list[str | None]] = field(default_factory=dict)
+    # The pairs of hexes that a way of `connect_roads` joins (PR-50).
+    road_links: list[tuple[HexRef, HexRef]] = field(default_factory=list)
 
     def level(self, ref: HexRef) -> int:
         return self.elevation.get(ref, 0)
@@ -336,7 +343,7 @@ def structure_pass(
     style = params.styles()
     structure = Structure()
     road_grid(kinds, roads, params.cols, params.rows, style["roads"])
-    connect_roads(kinds, roads, params.cols, params.rows)
+    structure.road_links = connect_roads(kinds, roads, params.cols, params.rows)
     rng = hill_pass(rng, structure, params, style)
     rng, buildings = place_buildings(rng, kinds, roads, params, style, structure, fixed or set())
     structure.buildings = buildings
@@ -629,7 +636,9 @@ def road_groups(roads: set[HexRef]) -> list[set[HexRef]]:
     return out
 
 
-def connect_roads(kinds: dict[HexRef, str], roads: set[HexRef], cols: int, rows: int) -> None:
+def connect_roads(
+    kinds: dict[HexRef, str], roads: set[HexRef], cols: int, rows: int
+) -> list[tuple[HexRef, HexRef]]:
     """Join each part of the road network to the largest part.
 
     FR-24 puts a road entry on each edge that a neighbour board can join. A board that
@@ -639,6 +648,9 @@ def connect_roads(kinds: dict[HexRef, str], roads: set[HexRef], cols: int, rows:
     The way goes through open ground only. It does not cross a woods hex, and it does not
     touch a seam hex that FR-24 fixed to another kind, because two boards that meet must
     agree on each seam hex.
+
+    The answer is each pair of adjacent hexes that a new way joins, for the road hexsides
+    of PR-50.
     """
     seam = {ref: edges.seam_kind(ref, cols, rows) for ref in edges.seam_hexes(cols, rows)}
 
@@ -651,20 +663,36 @@ def connect_roads(kinds: dict[HexRef, str], roads: set[HexRef], cols: int, rows:
 
     groups = road_groups(roads)
     if len(groups) <= 1:
-        return
+        return []
+    links: list[tuple[HexRef, HexRef]] = []
     main = set(groups[0])
     for group in groups[1:]:
-        path = shortest_link(group, main, passable)
-        if path is None:
+        walk = shortest_walk(group, main, passable)
+        if walk is None:
             continue
+        path = walk[1:]
         roads.update(path)
         main |= group | set(path)
+        links.extend(zip(walk, walk[1:]))
+    return links
 
 
 def shortest_link(
     start: set[HexRef], goal: set[HexRef], passable: "Callable[[HexRef], bool]"
 ) -> list[HexRef] | None:
     """The shortest way of open hexes from one group to another, or None when there is none."""
+    walk = shortest_walk(start, goal, passable)
+    return None if walk is None else walk[1:]
+
+
+def shortest_walk(
+    start: set[HexRef], goal: set[HexRef], passable: "Callable[[HexRef], bool]"
+) -> list[HexRef] | None:
+    """The way of `shortest_link` with the hex of `start` it leaves from as its first hex.
+
+    The road of PR-50 goes through each hexside between two hexes of the walk, and the
+    first of those hexsides is on the hex of the start group.
+    """
     frontier: deque[HexRef] = deque(sorted(start))
     came: dict[HexRef, HexRef | None] = {ref: None for ref in start}
     while frontier:
@@ -672,8 +700,10 @@ def shortest_link(
         if here in goal and here not in start:
             path = []
             step: HexRef | None = here
-            while step is not None and step not in start:
+            while step is not None:
                 path.append(step)
+                if step in start:
+                    break
                 step = came[step]
             return list(reversed(path))
         for near in sorted(geometry.neighbors(*here)):
@@ -682,6 +712,83 @@ def shortest_link(
             came[near] = here
             frontier.append(near)
     return None
+
+
+def road_sides(
+    roads: set[HexRef],
+    cols: int,
+    rows: int,
+    columns: int,
+    links: Sequence[tuple[HexRef, HexRef]] = (),
+) -> dict[HexRef, tuple[int, ...]]:
+    """PR-50: the directions of the hexsides that the road of each road hex crosses.
+
+    The road goes through a hexside where the network joins the two hexes of it:
+
+    - two hexes that follow each other in a north to south road column
+    - two columns that follow each other on the east to west road
+    - two hexes that follow each other on a way of `connect_roads` (`links`)
+
+    Two road hexes that touch and that none of these joins have no road hexside between
+    them. The two hexes on each side of a crossroads touch each other, and a vehicle that
+    goes from one to the other goes across the corner and not along the road.
+
+    A road hex that the three joins leave apart from the rest of its group, such as the
+    second of the two road entries of FR-24 on the west edge, joins the first road hex
+    next to it in direction order that is not in its own part yet. So each group of road
+    hexes that touch is one road.
+
+    A road entry on the north or the south edge also names the hexside on the edge. The
+    board that joins there (FR-29) has its road entry on the other side of that hexside,
+    and the road goes on across it. An entry on the west or the east edge names none,
+    because the join puts two half hexes into one hex there, and that hex takes the road
+    hexsides of the two.
+    """
+    # Each join as (the lower hex, the higher hex) with the direction from the first.
+    pairs: dict[tuple[HexRef, HexRef], int] = {}
+
+    def join(a: HexRef, b: HexRef) -> None:
+        low, high = min(a, b), max(a, b)
+        direction = geometry.direction_to(low, high)
+        if a in roads and b in roads and direction is not None:
+            pairs[(low, high)] = direction
+
+    middle = middle_row(rows)
+    for col in edges.road_column_indexes(cols)[:columns]:
+        for row in range(rows):
+            join((col, row), (col, row + 1))
+    for col in range(cols - 1):
+        join((col, middle), (col + 1, middle))
+    for a, b in links:
+        join(a, b)
+    # The parts that the joins make, and one join more between two parts that touch.
+    part: dict[HexRef, HexRef] = {ref: ref for ref in roads}
+
+    def root(ref: HexRef) -> HexRef:
+        while part[ref] != ref:
+            part[ref] = part[part[ref]]
+            ref = part[ref]
+        return ref
+
+    for a, b in sorted(pairs):
+        part[root(a)] = root(b)
+    for ref in sorted(roads):
+        for near in geometry.neighbors(*ref):
+            if near in roads and root(near) != root(ref):
+                join(ref, near)
+                part[root(ref)] = root(near)
+    out: dict[HexRef, set[int]] = {ref: set() for ref in roads}
+    for (a, b), d in pairs.items():
+        out[a].add(d)
+        out[b].add((d + 3) % 6)
+    on_board = set(all_refs(cols, rows))
+    for ref in edges.road_edge_hexes(cols, rows):
+        if ref not in roads:
+            continue
+        for d in (0, 3):
+            if geometry.neighbor(*ref, d) not in on_board and ref[0] not in (0, cols - 1):
+                out[ref].add(d)
+    return {ref: tuple(sorted(ds)) for ref, ds in out.items()}
 
 
 def junctions(roads: set[HexRef], cols: int, columns: int, rows: int = edges.ROWS) -> list[HexRef]:
@@ -1059,7 +1166,7 @@ def generate(params: GeneratorParameters, terrain: Mapping[str, TerrainType]) ->
         raise NotImplementedError(
             f"board type {params.board_type!r} is not one of the four types {BOARD_TYPES}"
         )
-    rng = seed_state(params.seed ^ (params.version << 20))
+    rng = seed_state(params.seed ^ (SEED_VERSION.get(params.version, params.version) << 20))
     kinds, roads, seam = edge_pass(params.cols, params.rows)
     rng, structure = structure_pass(rng, kinds, roads, params, seam)
     buildings = structure.buildings
@@ -1071,6 +1178,10 @@ def generate(params: GeneratorParameters, terrain: Mapping[str, TerrainType]) ->
     # Rule 27 is a city rule, and the printed sewer entrances are on the city board, so a
     # country board has none. A scenario that asks for a sewer move on one gets no move.
     sewers = sewer_pass(building_shapes(buildings)) if params.board_type == TYPE_CITY else set()
+    sides: dict[HexRef, tuple[int, ...]] = {}
+    if params.version >= ROAD_SIDES_VERSION:
+        style = params.styles()
+        sides = road_sides(roads, params.cols, params.rows, style["roads"], structure.road_links)
     hexes = [
         Hex(
             col=ref[0],
@@ -1082,6 +1193,7 @@ def generate(params: GeneratorParameters, terrain: Mapping[str, TerrainType]) ->
             hexsides=structure.hexsides(ref),
             sewer=ref in sewers,
             polygons=shapes[ref],
+            road_sides=sides.get(ref, ()),
         )
         for ref in all_refs(params.cols, params.rows)
     ]

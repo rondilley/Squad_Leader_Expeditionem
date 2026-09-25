@@ -138,7 +138,7 @@ def run_imitation(
     path = imitate.save(policy, out, net, record)
     log(f"snapshot {path}")
     league = build_league(engine, seed)
-    evaluation = evaluate(env, policy, league, 0, eval_games, workers, scenario) if eval_games else []
+    evaluation = evaluate(env, policy, league, 0, eval_games, workers, scenario, first_seed=seed) if eval_games else []
     art = artifact.RunArtifact(
         kind="imitate",
         slug=f"imitate-{scenario}",

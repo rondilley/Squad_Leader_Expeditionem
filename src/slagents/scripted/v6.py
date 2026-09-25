@@ -117,6 +117,7 @@ from slcore.rules.victory import (
     KIND_SOLE_OCCUPANT,
 )
 from slcore.units import KIND_LEADER, KIND_SW, Unit
+from slcore.view import visible_to
 
 from slagents.scripted.v5 import Parameters as V5Parameters
 from slagents.scripted.v5 import ScriptedV5
@@ -276,7 +277,11 @@ class ScriptedV6(ScriptedV5):
         inside it needs nothing more.
         """
         out: list[tuple[str, tuple[HexRef, ...]]] = []
-        enemies = [u.hex for u in state.player_units(self.opponent) if u.hex is not None and u.is_infantry and not u.broken]
+        enemies = [
+            u.hex
+            for u in state.player_units(self.opponent)
+            if u.hex is not None and u.is_infantry and not u.broken and visible_to(state, u, self.player)
+        ]
         for place_id, hexes in self.own_places:
             if any(u.hex in hexes and not u.broken for u in units):
                 continue
@@ -354,8 +359,7 @@ class ScriptedV6(ScriptedV5):
 
         wanted = self.targets_wanted if self.targets_wanted > 0 else len(open_places)
         targets = self._target_order(state, free, open_places)[: max(1, min(wanted, len(open_places)))]
-        share = (len(free) + len(targets) - 1) // len(targets)
-        room = {place_id: share for place_id, _ in targets}
+        room = self._target_rooms(targets, len(free))
 
         def nearest(u: Unit) -> tuple[int, int]:
             return (min(geometry.distance(u.hex, h) for _, hexes in targets for h in hexes), u.id)
@@ -372,6 +376,11 @@ class ScriptedV6(ScriptedV5):
             room[place_id] -= 1
             assignment[u.id] = hexes
         self.assignment = assignment
+
+    def _target_rooms(self, targets: list[tuple[str, tuple[HexRef, ...]]], free: int) -> dict[str, int]:
+        """The units each target takes: an equal share for each target."""
+        share = (free + len(targets) - 1) // len(targets)
+        return {place_id: share for place_id, _ in targets}
 
     def _target_order(
         self, state: State, free: list[Unit], open_places: list[tuple[str, tuple[HexRef, ...]]]
@@ -410,7 +419,13 @@ class ScriptedV6(ScriptedV5):
 
     def _enemy_picture(self, state: State) -> tuple:
         """What the route depends on: the turn, the phase, and each unbroken enemy position."""
-        enemies = tuple(sorted((u.hex, u.type_key) for u in state.player_units(self.opponent) if u.hex is not None and not u.broken))
+        enemies = tuple(
+            sorted(
+                (u.hex, u.type_key)
+                for u in state.player_units(self.opponent)
+                if u.hex is not None and not u.broken and visible_to(state, u, self.player)
+            )
+        )
         return (state.turn, state.phase, state.active, enemies)
 
     def _refresh_routes(self, state: State) -> None:
@@ -666,7 +681,7 @@ class ScriptedV6(ScriptedV5):
                 continue
             if self._would_overstack(state, dst, lc.command.units):
                 continue
-            enemies = [u for u in state.infantry_in(dst) if u.player != self.player]
+            enemies = [u for u in state.infantry_in(dst) if u.player != self.player and visible_to(state, u, self.player)]
             unbroken = [u for u in enemies if not u.broken]
             favorable = self._assault_is_favorable(len(lc.command.units), unbroken)
             if unbroken and not favorable:

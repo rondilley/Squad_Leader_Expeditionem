@@ -87,8 +87,15 @@ def load_layout(name: str, terrain: Mapping[str, TerrainType]) -> tuple[Board, d
         raise ReferenceUnavailable(f"the reference layout {name!r} is not a board record")
     payload = dict(data)
     payload["name"] = f"{NAME_PREFIX}{name}"
+    # The data loader holds the closed key set of a board. It imports this package, so the
+    # import is here and not at the top.
+    from sldata.loaders import BOARD_KEYS, DataKeyError, check_keys
+
     try:
+        check_keys(payload, BOARD_KEYS, f"the reference layout {name!r}")
         board = Board.from_dict(payload, terrain)
+    except DataKeyError as exc:
+        raise ReferenceUnavailable(f"the reference layout {name!r} has a key this build does not read: {exc}") from exc
     except (KeyError, TypeError, ValueError) as exc:
         raise ReferenceUnavailable(f"the reference layout {name!r} is not a board this build reads: {exc}") from exc
     return board, {"board_source": SOURCE_REFERENCE, "layout": name}

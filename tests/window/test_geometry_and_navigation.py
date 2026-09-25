@@ -143,11 +143,11 @@ def test_the_page_keys_move_the_command_cursor_and_the_arrows_do_not():
     window = a_window()
     snapshot = GameView(legal=[{"id": "a", "payload": {}}, {"id": "b", "payload": {}}])
     window.key(press(pygame.K_PAGEDOWN), snapshot)
-    assert window.state.selected_command == 1
+    assert window.chooser.position == 1
     window.key(press(pygame.K_PAGEUP), snapshot)
-    assert window.state.selected_command == 0
+    assert window.chooser.position == 0
     window.key(press(pygame.K_DOWN), snapshot)
-    assert window.state.selected_command == 0, "the arrow keys move the board and not the list"
+    assert window.chooser.position == 0, "the arrow keys move the board and not the list"
     pygame.quit()
 
 

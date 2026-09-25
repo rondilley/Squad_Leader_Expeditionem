@@ -58,6 +58,9 @@ LICENCE_MARKERS = ("GPL-3", "GNU General Public License")
 SOURCE_MARKERS = ("Corresponding Source", "source code", "source:")
 BRAND_WORDS = ("Squad Leader", "Avalon Hill")
 NON_AFFILIATION = "not affiliated"
+# The owner named the public title on 2026-09-18. It is the one title that may hold a brand
+# word, and the page must still carry the non-affiliation notice (SR-08).
+PUBLIC_TITLE = "Squad Leader Expeditionem"
 
 
 @dataclass(frozen=True)
@@ -271,7 +274,7 @@ def check_page(root: Path, page: Path | None) -> list[Finding]:
     if not any(marker in text for marker in SOURCE_MARKERS):
         found.append(Finding("TC-28", where, 0, "the page has no link to the source"))
     title = re.search(r"<title>(.*?)</title>", text, re.S)
-    if title:
+    if title and title.group(1).strip() != PUBLIC_TITLE:
         for word in BRAND_WORDS:
             if word.lower() in title.group(1).lower():
                 found.append(Finding("SR-08", where, 0, f"the title of the page uses {word!r} as the name"))

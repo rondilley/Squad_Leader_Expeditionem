@@ -24,8 +24,12 @@ DEFAULT_VERSION = "2023-06-01"
 class AnthropicProvider(Provider):
     """Messages over the Anthropic HTTP API."""
 
+    def key_name(self) -> str:
+        """The key file this adapter loads: the row's name, or `claude` (L6)."""
+        return self.config.key or "claude"
+
     def headers(self) -> dict[str, str]:
-        name = self.config.key or "claude"
+        name = self.key_name()
         try:
             return {
                 "x-api-key": keys.load(name),
@@ -36,7 +40,7 @@ class AnthropicProvider(Provider):
 
     def health(self) -> bool:
         """A key on the machine. A call that spends tokens is not a health check."""
-        return keys.available(self.config.key or "claude")
+        return keys.available(self.key_name())
 
     def complete(
         self,

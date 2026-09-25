@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Mapping
 
-from slcore import geometry
+from slcore import actions, geometry
 from slcore.commands import Command
 from slcore.events import Event
 from slcore.game import State
@@ -244,3 +244,16 @@ def leader_of(state: State, vehicle_id: int) -> Unit | None:
         if rider.kind == KIND_LEADER:
             return rider
     return None
+
+
+# ------------------------------------------------------------------ the command handlers (M3)
+
+
+@actions.action("board", unconceals=actions.CAUSE_MOVED)
+def _on_board(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    return apply_board(state, command)
+
+
+@actions.action("debark", unconceals=actions.CAUSE_MOVED)
+def _on_debark(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    return apply_debark(engine.move_ctx, state, command)

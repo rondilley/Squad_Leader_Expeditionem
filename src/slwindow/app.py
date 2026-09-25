@@ -17,16 +17,31 @@ Play:
 
 - a click on a hex: put the top unit of the hex in focus, and a second click takes the
   next unit of the stack. The overlay shades where that unit can move, what it can fire
-  at, and the track it moved on. With no click the focus is the unit that acted last, so
-  a game of two computer opponents shows the options of the unit that plays.
+  at, and the track it moved on, and the command list narrows to the commands of that
+  unit. With no click the focus is the unit that acted last, so a game of two computer
+  opponents shows the options of the unit that plays.
+- a click on a shaded hex of the unit in focus: the list narrows to the commands of the
+  unit that name that hex, and when one is left the window plays it (slice 8)
 - the pointer over a hex: the line of sight from the focus unit to that hex, as shaded
   hexes. The host answers the question (FR-34), and the window has no LOS geometry.
 - a click on a vehicle: shade the wedge of its covered arc (rule 29.4)
-- Tab and Shift and Tab, or the two page keys: move down and up the command list
+- Tab and Shift and Tab: move down and up the command list by one row, and the two page
+  keys by one page. The wheel over the list scrolls it. The list scrolls, so each legal
+  command has a row (H7).
 - Enter, or a click on a row of the list: play that command
-- typing: narrow the list, and Escape clears what was typed, then the focus
-- s: write a picture of the window to the watch directory
-- q or the close button: leave
+- typing: narrow the list. Escape clears what was typed, then the board choice, then the
+  focus.
+- Ctrl and z: ask the host to take back the last command (undo)
+- Ctrl and a: ask the host to set up the side of this person ("set up for me")
+- Ctrl and s: write a picture of the window to the watch directory
+- Ctrl and f, or the Home key: fit the whole board in the window
+- Ctrl and q, or the close button: leave
+
+The keys follow one policy (H7, `slwindow.choice`). For a person who holds a seat a plain
+letter or digit always goes to the filter, so a shortcut never takes a letter of the
+filter. With Ctrl a letter is always its shortcut. A watcher types no filter, so for a
+watcher the plain letters s, f, and q are shortcuts too. The plus and the minus keys zoom
+while the filter is empty, and they go to the filter after a letter.
 """
 
 from __future__ import annotations
@@ -40,6 +55,7 @@ from typing import Any
 import pygame
 
 from slwindow import counters, marks, panel, render, theme
+from slwindow.choice import Chooser, is_watcher
 from slwindow.client import HostClient
 from slwindow.layout import Camera, fit, hex_at
 from slwindow.overlay import Tracker, next_focus, position_of
@@ -60,8 +76,6 @@ DEFAULT_WATCH = Path("background") / "watch"
 class WindowState:
     camera: Camera = field(default_factory=Camera)
     selected_hex: str | None = None
-    selected_command: int = 0
-    filter_text: str = ""
     fitted: bool = False
     arc_for: int | None = None
     # The unit a person put in focus with a click, or None for the unit that acted last.
@@ -87,10 +101,12 @@ class Window:
         pygame.display.set_caption(caption)
         self.surface = pygame.display.set_mode(size, pygame.RESIZABLE)
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.SysFont("dejavusans,arial,helvetica", 15)
-        self.small = pygame.font.SysFont("dejavusansmono,consolas,couriernew", 12)
+        self.font = counters.system_font("dejavusans,arial,helvetica", 15)
+        self.small = counters.system_font("dejavusansmono,consolas,couriernew", 12)
         self.client = client
         self.state = WindowState()
+        # The command list: the filter, the board choice, the cursor, and the scroll.
+        self.chooser = Chooser()
         self.rows: list[tuple[pygame.Rect, int]] = []
         self.running = True
         self.tracker = Tracker()
@@ -98,6 +114,7 @@ class Window:
         # The pairs the window asked the host about, so each question goes out one time.
         self.asked_los: set[tuple[str, str]] = set()
         self._board_seen: dict[str, Any] | None = None
+        self._session_seen = 0
 
     # ---------------------------------------------------------------------- the loop
 
@@ -111,6 +128,7 @@ class Window:
 
     def step(self) -> None:
         snapshot = self.client.snapshot()
+        self.chooser.sync(snapshot.frame_id, snapshot.legal)
         for event in pygame.event.get():
             self.handle(event, snapshot)
         self.draw(snapshot)
@@ -129,6 +147,10 @@ class Window:
             return
         if event.type == pygame.MOUSEWHEEL:
             anchor = pygame.mouse.get_pos()
+            if anchor[0] >= self.board_rect().width:
+                # The wheel over the panel scrolls the command list.
+                self.chooser.scroll_by(-3 if event.y > 0 else 3, snapshot.legal, snapshot.view)
+                return
             factor = ZOOM_IN if event.y > 0 else ZOOM_OUT
             self.state.camera = self.state.camera.zoomed(factor, anchor)
             return
@@ -157,14 +179,25 @@ class Window:
     def click(self, position: tuple[int, int], snapshot: Any) -> None:
         for row, index in self.rows:
             if row.collidepoint(position):
-                self.state.selected_command = index
+                self.chooser.point_at(index, snapshot.legal, snapshot.view)
                 self.send(index, snapshot)
                 return
         if snapshot.board is None or position[0] >= self.board_rect().width:
             return
         self.state.selected_hex = hex_at(snapshot.board, position[0], position[1], self.state.camera)
         self.state.arc_for = self.vehicle_in(snapshot, self.state.selected_hex)
-        self.state.pinned = self.next_in_focus(snapshot, self.state.selected_hex)
+        self.board_choice(snapshot, self.state.selected_hex)
+
+    def board_choice(self, snapshot: Any, hex_id: str | None) -> None:
+        """A click on the board: pin a unit, or choose a shaded hex of the pinned unit.
+
+        The rules are `Chooser.board_click`, the same in the 3D window. A hex is a choice
+        only because a legal entry of the host names it (AR-06).
+        """
+        picked = self.chooser.board_click(snapshot.view, snapshot.legal, hex_id, self.state.pinned, next_focus)
+        self.state.pinned = picked.pinned
+        if picked.send is not None:
+            self.send(picked.send, snapshot)
 
     def hex_under(self, position: tuple[int, int], snapshot: Any) -> str | None:
         if snapshot.board is None or position[0] >= self.board_rect().width:
@@ -187,32 +220,47 @@ class Window:
 
     def key(self, event: pygame.event.Event, snapshot: Any) -> None:
         key = event.key
-        if key == pygame.K_q and not self.state.filter_text:
-            self.running = False
-            return
-        if key == pygame.K_ESCAPE and not self.state.filter_text:
-            self.state.pinned = None
-            self.state.selected_hex = None
-            self.state.arc_for = None
-            return
+        control = bool(event.mod & pygame.KMOD_CTRL)
+        text = event.unicode if isinstance(getattr(event, "unicode", None), str) else ""
+        typing = not is_watcher(snapshot) and not control
+        legal, view = snapshot.legal, snapshot.view
+        if control or not typing:
+            if key == pygame.K_q:
+                self.running = False
+                return
+            if key == pygame.K_s:
+                self.save_picture(snapshot)
+                return
+            if key == pygame.K_f:
+                self.fit_board(snapshot)
+                return
+            if key == pygame.K_z and control:
+                self.client.send_undo()
+                return
+            if key == pygame.K_a and control:
+                self.client.send_auto_setup()
+                return
         if key == pygame.K_ESCAPE:
-            self.state.filter_text = ""
+            cleared = self.chooser.escape()
+            if cleared == "unit" or not cleared:
+                self.state.pinned = None
+            if not cleared:
+                self.state.selected_hex = None
+                self.state.arc_for = None
             return
         if key == pygame.K_BACKSPACE:
-            self.state.filter_text = self.state.filter_text[:-1]
+            self.chooser.backspace()
             return
-        if key in (pygame.K_f, pygame.K_HOME):
+        if key == pygame.K_HOME:
             self.fit_board(snapshot)
             return
-        if key == pygame.K_s:
-            self.save_picture(snapshot)
-            return
-        if key in (pygame.K_PLUS, pygame.K_EQUALS, pygame.K_KP_PLUS):
-            self.state.camera = self.state.camera.zoomed(ZOOM_IN, self.board_centre())
-            return
-        if key in (pygame.K_MINUS, pygame.K_KP_MINUS):
-            self.state.camera = self.state.camera.zoomed(ZOOM_OUT, self.board_centre())
-            return
+        if not self.chooser.filter_text or not typing:
+            if key in (pygame.K_PLUS, pygame.K_EQUALS, pygame.K_KP_PLUS):
+                self.state.camera = self.state.camera.zoomed(ZOOM_IN, self.board_centre())
+                return
+            if key in (pygame.K_MINUS, pygame.K_KP_MINUS):
+                self.state.camera = self.state.camera.zoomed(ZOOM_OUT, self.board_centre())
+                return
         if key == pygame.K_LEFT:
             self.state.camera = self.state.camera.panned(PAN_STEP, 0)
             return
@@ -225,21 +273,27 @@ class Window:
         if key == pygame.K_DOWN:
             self.state.camera = self.state.camera.panned(0, -PAN_STEP)
             return
-        if key == pygame.K_PAGEUP or (key == pygame.K_TAB and event.mod & pygame.KMOD_SHIFT):
-            self.state.selected_command = max(0, self.state.selected_command - 1)
+        if key == pygame.K_TAB:
+            self.chooser.move(-1 if event.mod & pygame.KMOD_SHIFT else 1, legal, view)
             return
-        if key in (pygame.K_PAGEDOWN, pygame.K_TAB):
-            last = max(0, len(snapshot.legal) - 1)
-            self.state.selected_command = min(last, self.state.selected_command + 1)
+        if key == pygame.K_PAGEUP:
+            self.chooser.page(-1, legal, view)
+            return
+        if key == pygame.K_PAGEDOWN:
+            self.chooser.page(1, legal, view)
             return
         if key in (pygame.K_RETURN, pygame.K_KP_ENTER):
-            self.send(self.state.selected_command, snapshot)
+            index = self.chooser.selected(legal, view)
+            if index is not None:
+                self.send(index, snapshot)
             return
-        if event.unicode and event.unicode.isprintable() and key != pygame.K_TAB:
-            self.state.filter_text += event.unicode
+        if typing and text and text.isprintable():
+            self.chooser.type(text)
 
     def send(self, index: int, snapshot: Any) -> None:
-        if not snapshot.legal or index >= len(snapshot.legal) or not snapshot.frame_id:
+        """Send the command at this index of the legal list, with the frame token as it
+        came from the host. An index the list does not hold sends nothing (AR-06)."""
+        if not snapshot.legal or index < 0 or index >= len(snapshot.legal) or not snapshot.frame_id:
             return
         command = snapshot.legal[index]
         self.client.send_intent(snapshot.frame_id, str(command["id"]))
@@ -287,7 +341,14 @@ class Window:
         width, height = self.surface.get_size()
         side = pygame.Rect(width - panel.WIDTH, 0, panel.WIDTH, height)
         self.rows = panel.draw_panel(
-            self.surface, side, snapshot, self.font, self.small, self.state.selected_command, self.state.filter_text
+            self.surface,
+            side,
+            snapshot,
+            self.font,
+            self.small,
+            self.chooser.selected(snapshot.legal, snapshot.view),
+            self.chooser.filter_text,
+            self.chooser,
         )
 
     def update_overlay(self, snapshot: Any):
@@ -299,6 +360,10 @@ class Window:
         if snapshot.board is not self._board_seen:
             self._board_seen = snapshot.board
             self.tracker.reset()
+            self.asked_los = set()
+        if snapshot.session != self._session_seen:
+            # A new session (a reconnect) has no answer on the way for an old question.
+            self._session_seen = snapshot.session
             self.asked_los = set()
         overlay = self.tracker.update(
             snapshot, time.monotonic(), self.state.pinned, self.state.pointer_hex, snapshot.los
@@ -315,6 +380,8 @@ class Window:
             f"address {self.client.url}",
             snapshot.notice or ("connected" if snapshot.connected else "connecting"),
         ]
+        if self.client.error is not None:
+            lines.append("the window does not try again. Close it with Ctrl and q")
         y = 60
         for text in lines:
             label = self.font.render(text, True, theme.INK)

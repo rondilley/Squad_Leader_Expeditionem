@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Mapping
 
-from slcore import geometry
+from slcore import actions, geometry
 from slcore.commands import Command
 from slcore.events import Event
 from slcore.game import State
@@ -48,10 +48,19 @@ def repairable(state: State, weapon: Unit) -> bool:
     return any(u.player == weapon.player and not u.broken for u in state.infantry_in(holder_hex))
 
 
-def legal_rally_commands(state: State, player: int) -> list[Command]:
+def captured(state: State, types: Mapping[str, UnitType], weapon: Unit) -> bool:
+    """PR-38: the weapon belongs to an army that is not an army of the side that holds it."""
+    armies = {types[u.type_key].nationality for u in state.player_units(weapon.player) if u.kind != KIND_SW}
+    return types[weapon.type_key].nationality not in armies
+
+
+def legal_rally_commands(state: State, player: int, types: Mapping[str, UnitType] | None = None) -> list[Command]:
     out: list[Command] = []
     for w in state.player_units(player):
         if repairable(state, w):
+            if types is not None and captured(state, types, w):
+                # Rule 18.2: neither side may repair a captured broken weapon.
+                continue
             out.append(Command("repair", weapon=w.id))
     for u in state.player_units(player):
         if can_rally(state, u):
@@ -115,3 +124,17 @@ def apply_rally(state: State, types: Mapping[str, UnitType], command: Command) -
         state = state.with_unit(state.units[unit.id].with_(broken=False, stay=False, dm=False))
         return state, [Event(RULE_14_2, "rallied", data)]
     return state, [Event(RULE_14_7, "rally_failed", data)]
+
+
+# ------------------------------------------------------------------ the command handlers (M3)
+
+
+@actions.action("rally")
+def _on_rally(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    return apply_rally(state, engine.types, command)
+
+
+@actions.action("repair")
+def _on_repair(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    """Rule 18.2: the repair of a support weapon."""
+    return apply_repair(state, engine.types, command)

@@ -63,7 +63,13 @@ def morale_check(state: State, types: Mapping[str, UnitType], unit: Unit, modifi
         state, drop_events = drop_weapons(state, unit.id)
         state = state.with_unit(state.units[unit.id].with_(eliminated=True, hex=None, carrier=None))
         events.append(Event(RULE_13_6, "eliminated", data))
-        return state, events + drop_events
+        events.extend(drop_events)
+        if unit.kind == KIND_LEADER:
+            # Rule 12.22: a leader, whether previously broken or not, that fails its check
+            # gives the other units of the hex a second check.
+            state, cascade = leader_break_cascade(state, types, unit)
+            events.extend(cascade)
+        return state, events
     broken = state.units[unit.id].with_(broken=True, prep_fired=False, fired=False, directed=False, manned_mg=False)
     state = state.with_unit(broken)
     state, drop_events = drop_weapons(state, unit.id)

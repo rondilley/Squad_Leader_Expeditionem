@@ -39,6 +39,7 @@ from slcore.geometry import HexRef
 from slcore.los_eval import evaluate as evaluate_los
 from slcore.rules import r08_fire, r11_terrain, r34_afv_vs_infantry
 from slcore.units import Unit
+from slcore.view import visible_to
 
 from slagents.scripted.v4 import Parameters as V4Parameters
 from slagents.scripted.v4 import ScriptedV4
@@ -165,13 +166,13 @@ class ScriptedV5(ScriptedV4):
         """
         halves = self._member_value(state, lc, target)
         modifier = r11_terrain.target_hex_modifier(self.engine.board, target)
-        occupants = sum(1 for u in state.infantry_in(target) if u.player != self.player and not u.broken)
+        occupants = sum(1 for u in state.infantry_in(target) if u.player != self.player and visible_to(state, u, self.player) and not u.broken)
         suppression = self._suppression_value(state, target) * self.v5.suppression_priority
         value = halves * self.params.fire_priority - modifier * 2 + suppression
         return (value, occupants, -modifier)
 
     def _suppression_value(self, state: State, target: HexRef) -> int:
-        shooters = [u for u in state.infantry_in(target) if u.player != self.player and not u.broken]
+        shooters = [u for u in state.infantry_in(target) if u.player != self.player and visible_to(state, u, self.player) and not u.broken]
         if not shooters:
             return 0
         threatened = 0

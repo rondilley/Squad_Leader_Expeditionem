@@ -35,7 +35,9 @@ from slcore.geometry import HexRef
 from slcore.los_eval import evaluate as evaluate_los
 from slcore.rules import r08_fire
 from slcore.rules.r13_rout import is_cover
+from slcore.view import visible_to
 
+from slagents.scripted.engineer import Engineer
 from slagents.scripted.v1 import Parameters as V1Parameters
 from slagents.scripted.v1 import ScriptedV1
 
@@ -86,7 +88,7 @@ def with_parameters(**changes: object) -> Parameters:
     return replace(Parameters(), **changes)
 
 
-class ScriptedV4(ScriptedV1):
+class ScriptedV4(Engineer, ScriptedV1):
     name = "scripted"
     version = "4"
 
@@ -102,6 +104,21 @@ class ScriptedV4(ScriptedV1):
             advance_into_close_combat=self.v4.advance_into_close_combat,
         ))
         self.opponent = 1 - player
+
+    # ------------------------------------------------------ rules 22, 23, and 27
+
+    def select(self, state: State, frame: DecisionFrame) -> str:
+        """The engineer tools of `slagents.scripted.engineer` around the policy of v1."""
+        if not self.engineer_on or not frame.commands:
+            return super().select(state, frame)
+        by_action: dict[str, list[LegalCommand]] = {}
+        for lc in frame.commands:
+            by_action.setdefault(lc.command.action, []).append(lc)
+        first = self._engineer_first(state, frame, by_action)
+        if first is not None:
+            return first
+        own = self._engineer_frame(state, frame, by_action)
+        return self._engineer_last(state, frame, by_action, super().select(state, own))
 
     # ---------------------------------------------------------- the threat map
 
@@ -176,7 +193,7 @@ class ScriptedV4(ScriptedV1):
             dst = lc.command.hex
             if unit.hex is None or dst is None:
                 continue
-            enemies = [u for u in state.infantry_in(dst) if u.player != self.player]
+            enemies = [u for u in state.infantry_in(dst) if u.player != self.player and visible_to(state, u, self.player)]
             unbroken = [u for u in enemies if not u.broken]
             favorable = self._assault_is_favorable(len(lc.command.units), unbroken)
             if unbroken and not favorable:

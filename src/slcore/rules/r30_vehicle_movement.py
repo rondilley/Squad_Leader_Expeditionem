@@ -16,13 +16,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
-from slcore import geometry
+from slcore import actions, geometry
 from slcore.commands import Command
 from slcore.events import Event
 from slcore.game import State
 from slcore.geometry import HexRef
 from slcore.rng import roll_die
-from slcore.rules import r28_vehicles
+from slcore.rules import r28_vehicles, r31_transport, r35_overrun, r42_hidden
 from slcore.state import Board, HexsideRule, TerrainType
 from slcore.tabledata import VehicleMovement
 from slcore.units import CLASS_JEEP, CLASS_TRUCK, MOVE_MODE_SOLO, Unit, UnitType
@@ -65,12 +65,30 @@ def breakdown_number(types: Mapping[str, UnitType], unit: Unit) -> int:
 
 
 def along_road(board: Board, src: HexRef, dst: HexRef) -> bool:
-    """Rule 30 chart: the move goes along a road, through the hexside the road crosses."""
-    return board.hex(src).road and board.hex(dst).road
+    """Rule 30 chart and PR-50: the move goes through a hexside that the road crosses.
+
+    Two road hexes that touch do not always share a road. The hexside must carry it.
+    """
+    direction = geometry.direction_to(src, dst)
+    if direction is None:
+        return False
+    return board.road_crosses(src, direction)
+
+
+def seen_vehicle_in(state: State, hex_ref: HexRef, player: int) -> Unit | None:
+    """The working vehicle of a hex as this player knows it.
+
+    A hidden vehicle of the other side is on its owner's record and not on the board
+    (rule 42.1), so it changes no legal list and no cost of this player (PR-49).
+    """
+    for u in state.units_in(hex_ref):
+        if u.is_vehicle and not u.wreck and (u.player == player or not u.hidden):
+            return u
+    return None
 
 
 def enemy_vehicle_in(state: State, player: int, hex_ref: HexRef) -> Unit | None:
-    found = r28_vehicles.vehicle_in(state, hex_ref)
+    found = seen_vehicle_in(state, hex_ref, player)
     return found if found is not None and found.player != player else None
 
 
@@ -128,7 +146,9 @@ def entry_cost_halves(
     if to_hex.elevation > from_hex.elevation:
         total += chart.extra_cost("higher_terrain", truck) or 0
 
-    occupants = len([u for u in state.units_in(dst) if u.is_vehicle])
+    occupants = len(
+        [u for u in state.units_in(dst) if u.is_vehicle and (u.player == vehicle.player or not u.hidden)]
+    )
     if occupants:
         total += (chart.extra_cost("each_vehicle_or_wreck", truck) or 0) * occupants
         rules.append(RULE_40_3)
@@ -155,17 +175,15 @@ def entry_cost_halves(
     return total, tuple(rules), breakdown
 
 
-def can_leave(ctx: VehicleContext, state: State, vehicle: Unit, dst: HexRef, remaining: int) -> bool:
+def can_leave(ctx: VehicleContext, state: State, vehicle: Unit, dst: HexRef, remaining: int, facing: int) -> bool:
     """Rule 30.8: a vehicle may not stop in a hex that holds another vehicle.
 
     A move into such a hex is legal only when the vehicle can pay its way out again. The
-    facing it will have on arrival is the one the exit costs are read with, because rule
-    29.4 charges a move out of the covered arc and PR-21 fixes the arrival facing.
+    facing the move names (PR-21) is the one the exit costs are read with, because rule
+    29.4 charges a move out of the covered arc.
     """
     if vehicle.hex is None:
         return False
-    direction = geometry.direction_to(vehicle.hex, dst)
-    facing = arrival_facing(direction) if direction is not None else vehicle.facing
     standing = vehicle.with_(hex=dst, facing=facing)
     for onward in ctx.board.neighbors(dst):
         if onward == vehicle.hex:
@@ -228,20 +246,14 @@ def moves_for(ctx: VehicleContext, state: State, vehicle: Unit) -> list[Command]
         if cost > remaining and vehicle.mp_used > 0:
             continue
         left = max(0, remaining - cost)
-        if r28_vehicles.vehicle_in(state, dst) is not None and not can_leave(ctx, state, vehicle, dst, left):
-            continue
-        out.append(Command("vehicle_move", units=(vehicle.id,), hex=dst))
+        crowded = seen_vehicle_in(state, dst, vehicle.player) is not None
+        # Rule 30.5 and PR-21: the vehicle takes any facing in the hex it enters, and the
+        # move command names it.
+        for facing in range(6):
+            if crowded and not can_leave(ctx, state, vehicle, dst, left, facing):
+                continue
+            out.append(Command("vehicle_move", units=(vehicle.id,), hex=dst, extra=(("facing", facing),)))
     return out
-
-
-def arrival_facing(direction: int) -> int:
-    """PR-21: the spine a vehicle takes when it moves one hex in this direction.
-
-    The front of a vehicle covers two hexsides, so a direction of travel has two facings
-    that put it in the covered arc. The move takes the first of them and the free pivot
-    command of rule 30.5 reaches the other, so no two commands do the same thing.
-    """
-    return (direction - 1) % 6
 
 
 def pivots_for(ctx: VehicleContext, state: State, vehicle: Unit) -> list[Command]:
@@ -280,7 +292,7 @@ def apply_move(ctx: VehicleContext, state: State, command: Command) -> tuple[Sta
     direction = geometry.direction_to(vehicle.hex, dst)
     if direction is None:
         raise ValueError("a vehicle moves one hex at a time")
-    facing = arrival_facing(direction)
+    facing = command_facing(command)
     src = vehicle.hex
     moved = vehicle.with_(
         hex=dst,
@@ -341,3 +353,72 @@ def apply_pivot(ctx: VehicleContext, state: State, command: Command) -> tuple[St
     return state.with_unit(turned), [
         Event(RULE_30_5, "vehicle_pivot", {"unit": vehicle.id, "facing": facing, "was": vehicle.facing})
     ]
+
+
+# ------------------------------------------------------------------ the command handlers (M3)
+
+
+@actions.action("vehicle_move", unconceals=actions.CAUSE_MOVED)
+def _on_vehicle_move(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    """Rule 30 with the overrun of rule 35 and the reveal of rule 42.6."""
+    vehicle_id = command.units[0]
+    target = command.hex
+    mover = state.units[vehicle_id]
+    src = mover.hex
+    if target is None or src is None:
+        raise ValueError("a vehicle move needs a vehicle on the board and a destination")
+    overrun = r35_overrun.may_overrun(state, mover, target)
+    hidden_here = r42_hidden.enemy_hidden_in(state, target, mover.player)
+    hidden_vehicle = any(
+        u.is_vehicle and not u.wreck for u in r42_hidden.hidden_in(state, target) if u.player != mover.player
+    )
+    events: list[Event] = []
+    attacks = overrun or (hidden_here and not mover.overran)
+    if attacks and not hidden_vehicle and r35_overrun.carries_passengers(state, vehicle_id):
+        # Rule 35.5: the passengers do not ride into the overrun hex. They get off in the
+        # hex the vehicle leaves, before it enters.
+        state, off = r31_transport.force_dismount(
+            engine.board, state, vehicle_id, r35_overrun.RULE_35_5, "an overrun", charge=False
+        )
+        events.extend(off)
+    state, moved = apply_move(engine.vehicle_ctx, state, command)
+    events.extend(moved)
+    if hidden_here:
+        # Rule 42.6: the moving player is told, the hidden unit is overrun, and it loses
+        # its hidden status at once.
+        state, shown = r42_hidden.reveal_in(state, target, None, r35_overrun.RULE_42_6, r42_hidden.RULE_42_2)
+        events.extend(shown)
+        if hidden_vehicle:
+            # PR-49: an AFV does not overrun an AFV (rule 35.1) and does not stop in a hex
+            # with another vehicle (rule 30.8). The vehicle goes back to the hex it came
+            # from, with the cost of the entry spent.
+            state, back = _back_from_hidden_vehicle(state, vehicle_id, src, target)
+            events.extend(back)
+            return state, events
+        overrun = not state.units[vehicle_id].overran
+    if overrun:
+        state, ev = r35_overrun.resolve(engine.armor_ctx, engine.fire_ctx, state, vehicle_id, target)
+        events.extend(ev)
+    return state, events
+
+
+def _back_from_hidden_vehicle(state: State, vehicle_id: int, src: HexRef, tried: HexRef) -> tuple[State, list[Event]]:
+    """PR-49: the vehicle that met a hidden AFV stands again in the hex it left."""
+    vehicle = state.units[vehicle_id]
+    changed = {vehicle_id: vehicle.with_(hex=src, track=vehicle.track[:-1])}
+    for rider in r28_vehicles.passengers_of(state, vehicle_id):
+        changed[rider.id] = rider.with_(hex=src, track=rider.track[:-1])
+        for weapon in state.carried_by(rider.id):
+            changed[weapon.id] = weapon.with_(hex=src)
+    return state.with_units(changed), [
+        Event(
+            r35_overrun.RULE_42_6,
+            "stopped",
+            {"unit": vehicle_id, "hex": geometry.hex_id(*src), "tried": geometry.hex_id(*tried)},
+        )
+    ]
+
+
+@actions.action("vehicle_pivot", unconceals=actions.CAUSE_MOVED)
+def _on_vehicle_pivot(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    return apply_pivot(engine.vehicle_ctx, state, command)

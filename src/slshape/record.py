@@ -20,7 +20,8 @@ from typing import Any, Sequence
 
 import numpy as np
 
-from slcli.play import build_engine, make_agent
+from slagents.base import decide
+from slagents.registry import build_engine, make_agent
 from slcore.game import PHASE_ADVANCE, PHASE_MOVEMENT
 from slshape import features, picture
 
@@ -137,7 +138,7 @@ def positions_of_game(scenario: str, seed: int, first: str, second: str) -> dict
     try:
         while not state.game_over and steps < MAX_COMMANDS:
             frame = engine.legal_commands(state)
-            chosen = frame.by_id(agents[frame.player].select(state, frame))
+            chosen = frame.by_id(decide(agents[frame.player], state, frame))
             before = state
             state, _ = engine.apply(state, chosen.command, frame)
             steps += 1
@@ -200,7 +201,7 @@ def record_corpus(
     if workers <= 1 or len(jobs) < 2:
         results = [_job(job) for job in jobs]
     else:
-        from slcli.worker_limit import limit_workers
+        from slagents.registry import limit_workers
 
         workers = limit_workers(workers)
         with Pool(processes=min(workers, len(jobs))) as pool:

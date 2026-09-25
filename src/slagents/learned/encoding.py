@@ -31,8 +31,6 @@ is the same reason the command ID is a hash of the payload and not a position (T
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass
 from typing import Mapping, Sequence
 
@@ -42,6 +40,7 @@ from slcore import geometry
 from slcore.commands import Command
 from slcore.frame import DecisionFrame, LegalCommand
 from slcore.game import PLAYER_TURN_PHASES, PHASE_SETUP, State
+from slcore.hashing import position_key as core_position_key
 from slcore.geometry import HexRef
 from slcore.state import Board
 from slcore.units import KIND_CREW, KIND_LEADER, KIND_SQUAD, KIND_SW, KIND_VEHICLE, UnitType
@@ -90,6 +89,9 @@ ACTIONS: tuple[str, ...] = (
     "push_wreck",
     "afv_smoke",
     "afv_dischargers",
+    # Rule 35.8: the push out of an overrun, after the Defensive Fire Phase. It is last, so
+    # each index before it keeps its meaning.
+    "push_out",
 )
 ACTION_INDEX = {name: i for i, name in enumerate(ACTIONS)}
 
@@ -264,16 +266,62 @@ def objectives_for(engine) -> Objectives:
     return Objectives(tuple(sorted(buildings.items())), tuple(sorted(set(hexes))))
 
 
+# The static reads of a board, made once for each board. A board does not change after
+# it is built, and the key holds the board itself, so a new board with the id of an old
+# one that was freed does not read the old entry. The profile of the review of 2026-09-23
+# gave `buildings_on` and the terrain planes about four tenths of an observation.
+_BUILDINGS: dict[int, tuple[Board, Mapping[str, tuple[HexRef, ...]]]] = {}
+_TERRAIN: dict[tuple[int, Spaces], tuple[Board, np.ndarray]] = {}
+_CACHE_LIMIT = 16
+
+
+def _buildings_of(board: Board) -> Mapping[str, tuple[HexRef, ...]]:
+    """`victory.buildings_on` of the board, from the memo."""
+    from slcore.rules.victory import buildings_on
+
+    entry = _BUILDINGS.get(id(board))
+    if entry is None or entry[0] is not board:
+        if len(_BUILDINGS) >= _CACHE_LIMIT:
+            _BUILDINGS.clear()
+        entry = (board, buildings_on(board))
+        _BUILDINGS[id(board)] = entry
+    return entry[1]
+
+
+def _terrain_planes(board: Board, spaces: Spaces) -> np.ndarray:
+    """The planes of the terrain features, with each other plane zero, as a new array."""
+    key = (id(board), spaces)
+    entry = _TERRAIN.get(key)
+    if entry is None or entry[0] is not board:
+        if len(_TERRAIN) >= _CACHE_LIMIT:
+            _TERRAIN.clear()
+        planes = np.zeros(spaces.board_shape, dtype=np.float32)
+        kinds = {name: i for i, name in enumerate(TERRAIN_KINDS)}
+        base = len(TERRAIN_KINDS)
+        for h in board:
+            col, row = h.ref
+            index = kinds.get(h.terrain)
+            if index is not None:
+                planes[index, col, row] = 1.0
+            planes[base + 0, col, row] = 1.0 if h.road else 0.0
+            planes[base + 1, col, row] = 1.0 if h.building is not None else 0.0
+            planes[base + 2, col, row] = 1.0 if h.sewer else 0.0
+            planes[base + 3, col, row] = float(h.elevation) / 3.0
+        planes.setflags(write=False)
+        entry = (board, planes)
+        _TERRAIN[key] = entry
+    return entry[1].copy()
+
+
 def _seen_control(state: State, board: Board, building_id: str, player: int, viewer: int) -> bool:
     """Whether this viewer sees `player` holding the building.
 
     A hidden or concealed enemy does not change the plane. The victory rule still
     counts that unit. This read is only the observation.
     """
-    from slcore.rules.victory import buildings_on
     from slcore.view import visible_to
 
-    hexes = buildings_on(board).get(building_id, ())
+    hexes = _buildings_of(board).get(building_id, ())
     for h in hexes:
         for unit in state.infantry_in(h):
             if unit.player == player:
@@ -323,18 +371,7 @@ def board_tensor(
     """
     from slcore.view import visible_to
 
-    planes = np.zeros(spaces.board_shape, dtype=np.float32)
-    kinds = {name: i for i, name in enumerate(TERRAIN_KINDS)}
-    for h in board:
-        col, row = h.ref
-        index = kinds.get(h.terrain)
-        if index is not None:
-            planes[index, col, row] = 1.0
-        base = len(TERRAIN_KINDS)
-        planes[base + 0, col, row] = 1.0 if h.road else 0.0
-        planes[base + 1, col, row] = 1.0 if h.building is not None else 0.0
-        planes[base + 2, col, row] = 1.0 if h.sewer else 0.0
-        planes[base + 3, col, row] = float(h.elevation) / 3.0
+    planes = _terrain_planes(board, spaces)
     base = len(TERRAIN_KINDS) + 4
     for unit in state.units:
         if unit.eliminated or unit.hex is None or unit.carrier is not None:
@@ -468,8 +505,8 @@ def position_key(state: State) -> str:
     pickup and a drop give the position before them with a count two higher. This key is
     that position. The environment reads it to stop a cycle, and the learned agent reads it
     to keep out of one.
+
+    The core makes the key from the JSON text it keeps for each unit, which is the text
+    of `json.dumps` of the state document without `seq` (NFR-01).
     """
-    record = state.to_dict()
-    record.pop("seq", None)
-    text = json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-    return hashlib.sha256(text.encode("ascii")).hexdigest()
+    return core_position_key(state)

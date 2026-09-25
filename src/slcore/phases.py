@@ -36,6 +36,7 @@ ACTOR_NONE = ""
 CONDITION_SMOKE = "smoke_ready"
 CONDITION_DEMO = "demo_ready"
 CONDITION_SEWER = "sewer_lost"
+CONDITION_PUSH = "push_out"
 
 
 @dataclass(frozen=True)
@@ -74,6 +75,8 @@ PHASE_STEPS: dict[str, tuple[SubStep, ...]] = {
         SubStep("return_units", AUTO, ACTOR_NONE, "16.3"),
         SubStep("arm_demo", AUTO, ACTOR_NONE, "23.3"),
         SubStep("end_fire_phase", AUTO, ACTOR_NONE, "8.5"),
+        # Rule 35.8 and PR-51: the infantry below an enemy vehicle steps to one side.
+        SubStep("push_out", WINDOW, ACTOR_DEFENDER, "35.8", CONDITION_PUSH),
         SubStep("clear_tracks", AUTO, ACTOR_NONE, "16.3"),
         SubStep("concealment_adjacency", AUTO, ACTOR_NONE, "25.4"),
     ),

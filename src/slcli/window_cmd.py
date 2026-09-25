@@ -2,7 +2,9 @@
 
 With no address the command starts a host inside the same process and connects the window
 to it over the loopback address. With `--connect` the window joins a host that is already
-running, which is the LAN game of rule set FR-33.
+running, which is the LAN game of rule set FR-33. With no computer opponent the game is hot
+seat: the window plays the two sides. `--agent v7` gives one side to a computer opponent,
+and `--agents v4,v1` gives it both. `--lan` gives one seat to each connection.
 
 The window needs the `desktop` extra:
 
@@ -42,52 +44,73 @@ def load_window():
     return Window
 
 
+def connect_or_start(args: Any, title: str = "Squad Leader Expeditionem"):
+    """The host a window talks to: the one at `--connect`, or one this process starts.
+
+    The two windows (`sl-cli window` and `sl-cli window3d`) take the same options and use
+    this one function, so a game plays the same in each. Return the embedded host (or
+    None), the address, the room code, and the caption of the window.
+    """
+    if args.connect:
+        url = str(args.connect)
+        room_code = str(args.room_code or "")
+        return None, url, room_code, f"{title} - {url}"
+    engine = build_engine(args.scenario, args.board)
+    agents = {}
+    if args.agents:
+        names = [name.strip() for name in args.agents.split(",")]
+        if len(names) != 2:
+            raise ValueError(f"--agents takes two names, and {args.agents!r} has {len(names)}")
+        for seat, name in enumerate(names):
+            agents[seat] = make_agent(name, engine, args.seed, seat)
+    elif args.agent:
+        seat = engine.scenario.side_index(args.agent_side) if args.agent_side else 1
+        agents[seat] = make_agent(args.agent, engine, args.seed, seat)
+    delay = args.agent_delay
+    if delay is None:
+        delay = WATCHABLE_DELAY if args.agents else 0.0
+    host = Host(
+        engine,
+        seed=args.seed,
+        hot_seat=not args.lan,
+        room_code=args.room_code,
+        agents=agents,
+        agent_delay=delay,
+        traces=args.traces,
+    )
+    from slwindow.embedded import start
+
+    embedded = start(host)
+    print(f"scenario {engine.scenario.id} on board {engine.board.name}")
+    for seat, agent in agents.items():
+        print(f"player {seat} ({engine.scenario.players()[seat]}) is the computer opponent {agent.name} v{agent.version}")
+    if len(agents) == 2:
+        print(f"the two computer opponents play by themselves, {delay} s between commands")
+    elif not agents:
+        mode = "LAN: one seat for each connection" if args.lan else "hot seat: this window plays the two sides"
+        print(mode)
+    if args.lan:
+        print(f"the room code is {embedded.room_code}")
+    print(f"the window talks to a host inside this process at {embedded.url}")
+    return embedded, embedded.url, embedded.room_code, f"{title} - {engine.scenario.title}"
+
+
+def finish(embedded: Any, args: Any) -> None:
+    """Write the traces of the game and stop the host this process started."""
+    if embedded is None:
+        return
+    if args.traces:
+        path = embedded.host.game.write_traces(Path(args.traces))
+        if path is not None:
+            print(f"{len(embedded.host.game.traces.records)} trace records in {path}")
+    embedded.stop()
+
+
 def run(args: Any) -> int:
     Window = load_window()
     from slwindow.client import HostClient
 
-    embedded = None
-    if args.connect:
-        url = str(args.connect)
-        room_code = str(args.room_code or "")
-        caption = f"Squad Leader Expeditionem - {url}"
-    else:
-        engine = build_engine(args.scenario, args.board)
-        agents = {}
-        if args.agents:
-            names = [name.strip() for name in args.agents.split(",")]
-            if len(names) != 2:
-                raise ValueError(f"--agents takes two names, and {args.agents!r} has {len(names)}")
-            for seat, name in enumerate(names):
-                agents[seat] = make_agent(name, engine, args.seed, seat)
-        elif args.agent:
-            seat = engine.scenario.side_index(args.agent_side) if args.agent_side else 1
-            agents[seat] = make_agent(args.agent, engine, args.seed, seat)
-        delay = args.agent_delay
-        if delay is None:
-            delay = WATCHABLE_DELAY if args.agents else 0.0
-        host = Host(
-            engine,
-            seed=args.seed,
-            hot_seat=not args.lan,
-            room_code=args.room_code,
-            agents=agents,
-            agent_delay=delay,
-            traces=args.traces,
-        )
-        from slwindow.embedded import start
-
-        embedded = start(host)
-        url = embedded.url
-        room_code = embedded.room_code
-        caption = f"Squad Leader Expeditionem - {engine.scenario.title}"
-        print(f"scenario {engine.scenario.id} on board {engine.board.name}")
-        for seat, agent in agents.items():
-            print(f"player {seat} ({engine.scenario.players()[seat]}) is the computer opponent {agent.name} v{agent.version}")
-        if len(agents) == 2:
-            print(f"the two computer opponents play by themselves, {delay} s between commands")
-        print(f"the window talks to a host inside this process at {url}")
-
+    embedded, url, room_code, caption = connect_or_start(args)
     client = HostClient(url, room_code)
     client.start()
     window = Window(client, size=(args.width, args.height), caption=caption)
@@ -95,22 +118,15 @@ def run(args: Any) -> int:
         window.run()
     finally:
         client.stop()
-        if embedded is not None:
-            if args.traces:
-                path = embedded.host.game.write_traces(Path(args.traces))
-                if path is not None:
-                    print(f"{len(embedded.host.game.traces.records)} trace records in {path}")
-            embedded.stop()
+        finish(embedded, args)
     return 0
 
 
-def add_parser(subparsers: Any) -> None:
-    p = subparsers.add_parser("window", help="play or watch the game in a window of its own, with no browser")
+def add_play_options(p: Any) -> None:
+    """The options of a game, the same for the two windows."""
     p.add_argument("--scenario", default="s01_guards_counterattack")
     p.add_argument("--board", default=None)
     p.add_argument("--seed", type=int, default=1)
-    p.add_argument("--width", type=int, default=1400)
-    p.add_argument("--height", type=int, default=860)
     p.add_argument("--connect", default=None, help="the address of a host that already runs, as ws://host:port/")
     p.add_argument("--room-code", default=None, help="the room code of that host, or a code for the host this starts")
     p.add_argument("--lan", action="store_true", help="one seat for each connection instead of hot seat")
@@ -124,4 +140,11 @@ def add_parser(subparsers: Any) -> None:
         help=f"seconds between two commands of a game that plays itself. The default is {WATCHABLE_DELAY} with --agents",
     )
     p.add_argument("--traces", default=None, help="directory for the trace records of the game (FR-60)")
+
+
+def add_parser(subparsers: Any) -> None:
+    p = subparsers.add_parser("window", help="play or watch the game in a window of its own, with no browser")
+    add_play_options(p)
+    p.add_argument("--width", type=int, default=1400)
+    p.add_argument("--height", type=int, default=860)
     p.set_defaults(func=run)

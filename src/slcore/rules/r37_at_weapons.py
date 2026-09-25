@@ -13,15 +13,17 @@ Leadership modifies the to-hit roll of the two rockets and never the kill roll (
 
 from __future__ import annotations
 
-from typing import Mapping
+from typing import Callable, Mapping
 
-from slcore import geometry
+from slcore import actions, geometry
 from slcore.commands import Command
 from slcore.events import Event
 from slcore.game import PHASE_ADVANCING_FIRE, State
 from slcore.geometry import HexRef
+from slcore.phases import fire_rule
 from slcore.rng import roll_2d6
-from slcore.rules import r15_leadership, r28_vehicles, r33_afv_combat
+from slcore.rules import r10_resolution, r15_leadership, r22_flamethrower, r28_vehicles, r33_afv_combat
+from slcore.rules.r10_resolution import FireContext
 from slcore.rules.r33_afv_combat import ArmorContext
 from slcore.tabledata import HandheldToHit
 from slcore.units import Unit, UnitType
@@ -94,38 +96,73 @@ def in_range(ctx: ArmorContext, weapon: Unit, firer: HexRef, target: HexRef) -> 
     return 1 <= geometry.distance(firer, target) <= reach
 
 
+def may_shoot(state: State, types: Mapping[str, UnitType], unit: Unit, weapon: Unit, phase: str) -> bool:
+    """Rules 37.35, 37.46, and 22.4 with PR-43: this unit may fire this weapon now.
+
+    The unit's own fire in a group does not stop the shot, in either sequence (PR-43).
+    The limits are those of the phase: no shot in the Prep Fire Phase after a move, and
+    none in the Advancing Fire Phase with a Prep Fire counter. A weapon fires one time in
+    a player turn.
+    """
+    if not unit.is_infantry or unit.hex is None or unit.broken or unit.riding or unit.carrier is not None:
+        return False
+    if state.in_melee(unit.hex):
+        return False
+    weapon_class = types[weapon.type_key].weapon_class
+    rule = fire_rule(phase)
+    if weapon_class == CLASS_FLAMETHROWER:
+        # PR-47: the operator, the melee hex, and the phase limits of rule 22.
+        return r22_flamethrower.can_fire(state, types, unit, weapon, rule)
+    if weapon.fired:
+        return False
+    if rule == "prep" and (unit.prep_fired or unit.moved or unit.berserk):
+        return False
+    if rule == "advancing" and unit.prep_fired:
+        return False
+    return shots_left(state, types, unit, weapon_class) > 0
+
+
 def legal_shots(
-    ctx: ArmorContext, state: State, player: int, phase: str
+    ctx: ArmorContext, state: State, player: int, phase: str, sees: Callable[[HexRef, HexRef], bool]
 ) -> list[Command]:
-    """One command for each anti-tank weapon that can reach an enemy vehicle."""
+    """One command for each anti-tank weapon that can reach an enemy vehicle it sees.
+
+    `sees` is the line of sight of this phase, with the vehicles of rule 32.3 in the way.
+    A hidden vehicle is in no legal list of the other side (PR-49).
+    """
     out: list[Command] = []
     hostile = [
         v
         for v in r28_vehicles.vehicles(state, 1 - player)
-        if v.hex is not None and not v.wreck
+        if v.hex is not None and not v.wreck and not v.hidden
     ]
     if not hostile:
         return out
     for unit in state.player_units(player):
-        if not unit.is_infantry or unit.hex is None or unit.broken or unit.riding:
-            continue
-        if unit.carrier is not None or unit.fired or unit.prep_fired:
+        if not unit.is_infantry or unit.hex is None:
             continue
         for weapon in anti_tank_weapons(state, ctx.types, unit):
-            weapon_class = ctx.types[weapon.type_key].weapon_class
-            if shots_left(state, ctx.types, unit, weapon_class) <= 0:
+            if not may_shoot(state, ctx.types, unit, weapon, phase):
                 continue
             for vehicle in hostile:
                 if vehicle.hex is None or not in_range(ctx, weapon, unit.hex, vehicle.hex):
+                    continue
+                # Rule 8.1: fire needs a line of sight to the target.
+                if not sees(unit.hex, vehicle.hex):
                     continue
                 out.append(Command("at_fire", units=(unit.id,), weapon=weapon.id, hex=vehicle.hex))
     return out
 
 
 def apply_shot(
-    ctx: ArmorContext, state: State, command: Command, phase: str
+    ctx: ArmorContext, fire_ctx: FireContext, state: State, command: Command, phase: str
 ) -> tuple[State, list[Event]]:
-    """Rules 37.2, 37.3, and 37.4: one anti-tank shot at one vehicle."""
+    """Rules 37.2, 37.3, and 37.4: one anti-tank shot at one vehicle.
+
+    A flamethrower makes one dice roll (PR-47). It is the kill roll, it is read again on
+    the twenty column of the Infantry Fire Table against the infantry of the hex with no
+    modifier (rules 37.2 and 22.2), and a 9 or more empties the fuel after that (rule 22.6).
+    """
     unit = state.units[command.units[0]]
     if command.weapon is None:
         raise ValueError("an anti-tank shot needs a weapon")
@@ -162,8 +199,45 @@ def apply_shot(
         return state, events
     state, kill = r33_afv_combat.roll_kill(ctx, state, unit.hex, vehicle, column)
     events.append(r33_afv_combat.kill_event(unit.id, vehicle, kill))
+    state, ev = kill_result(ctx, state, vehicle, kill, f"rule 37 {weapon_class}")
+    events.extend(ev)
+    if weapon_class == CLASS_FLAMETHROWER:
+        if state.infantry_in(hex_ref):
+            # Rule 37.2 with rule 22.2: the same roll on the twenty column, with no
+            # modifier of any kind. Rule 32.5 names the flamethrower as the attack that
+            # reaches the infantry below the vehicle too, and rule 22.9 takes the support
+            # weapons of the hex on a KIA.
+            halves = flamethrower_infantry_halves()
+            events.append(
+                Event(
+                    RULE_37_2,
+                    "flamethrower_infantry",
+                    {
+                        "unit": unit.id,
+                        "target": geometry.hex_id(*hex_ref),
+                        "firepower": halves // 2,
+                        "roll": kill.raw,
+                        "modifiers": [],
+                        "adjusted": kill.raw,
+                    },
+                )
+            )
+            state, hit_events = r10_resolution.apply_to_hex(
+                fire_ctx, state, hex_ref, halves, kill.raw, 0, phase, unit.player, kill_weapons=True
+            )
+            events.extend(hit_events)
+        state, fuel = r22_flamethrower.out_of_fuel(state, weapon.id, kill.raw)
+        events.extend(fuel)
+    return state, events
+
+
+def kill_result(
+    ctx: ArmorContext, state: State, vehicle: Unit, kill: r33_afv_combat.Kill, cause: str
+) -> tuple[State, list[Event]]:
+    """Rules 40.1 and 39.3: what a kill roll of an anti-tank weapon does to the vehicle."""
+    events: list[Event] = []
     if kill.killed:
-        state, ev = r33_afv_combat.destroy(ctx, state, vehicle.id, f"rule 37 {weapon_class}")
+        state, ev = r33_afv_combat.destroy(ctx, state, vehicle.id, cause)
         events.extend(ev)
     elif vehicle.immobilized:
         # Rule 39.3: a hit on a vehicle that is already immobilized sends its crew through
@@ -228,3 +302,12 @@ def flamethrower_infantry_halves() -> int:
 def inside_a_vehicle(state: State, unit: Unit) -> bool:
     """Rule 37.37 and rule 37.48: a rocket is not fired from inside a vehicle."""
     return unit.riding
+
+
+# ------------------------------------------------------------------ the command handler (M3)
+
+
+@actions.action("at_fire", unconceals=actions.CAUSE_FIRED)
+def _on_at_fire(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    """Rule 37: a flamethrower, a panzerfaust, or a bazooka against a vehicle."""
+    return apply_shot(engine.armor_ctx, engine.fire_ctx, state, command, state.phase)

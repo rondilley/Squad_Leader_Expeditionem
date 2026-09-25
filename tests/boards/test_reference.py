@@ -98,3 +98,15 @@ def test_a_layout_that_is_not_json_says_so(tmp_path, monkeypatch):
     with pytest.raises(reference.ReferenceUnavailable) as exc:
         reference.load_layout("torn", TERRAIN)
     assert "not valid JSON" in str(exc.value)
+
+
+def test_a_layout_with_a_key_the_build_does_not_read_is_refused(tmp_path, monkeypatch):
+    """A misspelled key would turn a board feature off with no sign (M2), so it is refused."""
+    make_root(tmp_path, monkeypatch)
+    path = tmp_path / reference.LAYOUT_DIRECTORY / "board11.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["hexs"] = data.pop("hexes")
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(reference.ReferenceUnavailable) as exc:
+        reference.load_layout("board11", TERRAIN)
+    assert "hexs" in str(exc.value)

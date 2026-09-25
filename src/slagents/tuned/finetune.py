@@ -169,7 +169,13 @@ def run_smoke(samples: Sequence[dict[str, Any]], out: Path, profile: Profile | N
     chosen = list(samples)[:SMOKE_SAMPLES]
     if not chosen:
         raise FinetuneError("the smoke run needs one sample or more")
-    import torch
+    try:
+        import torch
+    except ImportError as exc:  # pragma: no cover - the message names the tier
+        raise FinetuneError(
+            "the fine-tune needs the `finetune` extra: pip install -e \".[finetune]\" for "
+            "torch, transformers, and peft"
+        ) from exc
 
     model = smoke_model(settings)
     trainable = [p for p in model.parameters() if p.requires_grad]

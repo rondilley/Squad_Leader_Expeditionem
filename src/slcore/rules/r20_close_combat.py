@@ -5,7 +5,7 @@ from __future__ import annotations
 from itertools import combinations
 from typing import Mapping
 
-from slcore import geometry
+from slcore import actions, geometry
 from slcore.commands import Command
 from slcore.events import Event
 from slcore.game import CcDeclaration, State
@@ -27,7 +27,6 @@ RULE_20_8 = "20.8"
 RULE_20_9 = "20.9"
 
 LEADER_NOMINAL_FIREPOWER = 1
-MAX_ATTACK_GROUP = 3
 
 
 def contested_hexes(state: State) -> list[HexRef]:
@@ -57,7 +56,12 @@ def already_attacked(state: State, unit_id: int) -> bool:
 
 
 def legal_declarations(state: State, types: Mapping[str, UnitType], player: int) -> list[Command]:
-    """Rule 20.4: the attacks may be divided in any way, and each unit attacks one time."""
+    """Rule 20.4: the attacks may be divided in any way, and each unit attacks one time.
+
+    PR-08: an attacker group is any set of the eligible units of the hex. Rule 6.1 keeps
+    that set to four units. A group with no attack firepower has no odds (rules 20.3 and
+    20.72), so it is not a declaration.
+    """
     out: list[Command] = []
     for h in contested_hexes(state):
         attackers = [u for u in eligible(state, h, player) if not already_attacked(state, u.id)]
@@ -69,8 +73,10 @@ def legal_declarations(state: State, types: Mapping[str, UnitType], player: int)
         target_sets = [(t.id,) for t in targets]
         if len(targets) > 1:
             target_sets.append(tuple(t.id for t in targets))
-        for size in range(1, min(len(attackers), MAX_ATTACK_GROUP) + 1):
+        for size in range(1, len(attackers) + 1):
             for group in combinations([u.id for u in attackers], size):
+                if firepower(state, types, group, attacking=True) <= 0:
+                    continue
                 for tgroup in target_sets:
                     out.append(Command("cc_attack", units=tuple(group), extra=(("targets", tuple(tgroup)),)))
                     for leader in leaders:
@@ -121,6 +127,16 @@ def resolve(state: State, types: Mapping[str, UnitType], table: CcTable) -> tupl
         attack = firepower(state, types, declaration.attackers, attacking=True)
         defense = firepower(state, types, declaration.targets, attacking=False)
         row = table.odds_row(attack, defense)
+        if attack <= 0:
+            # Rule 20.3: an attack with no firepower has no odds and no roll.
+            events.append(
+                Event(
+                    RULE_20_3,
+                    "cc_no_attack",
+                    {"player": declaration.player, "attackers": list(declaration.attackers), "targets": list(declaration.targets)},
+                )
+            )
+            continue
         rng, dice = roll_2d6(state.rng)
         state = state.with_(rng=rng)
         raw = dice[0] + dice[1]
@@ -174,19 +190,19 @@ def resolve(state: State, types: Mapping[str, UnitType], table: CcTable) -> tupl
 def leaders_without_squads(state: State, hexes_before: dict[HexRef, set[int]]) -> tuple[State, list[Event]]:
     """Rule 20.71: leaders go with the last friendly squad in the hex."""
     events: list[Event] = []
-    changed = {}
     for hex_ref, ids in hexes_before.items():
         for player in (0, 1):
             squads = [i for i in ids if state.units[i].player == player and state.units[i].kind != KIND_LEADER]
             if not squads or any(not state.units[i].eliminated for i in squads):
                 continue
-            for i in ids:
+            for i in sorted(ids):
                 unit = state.units[i]
                 if unit.player == player and unit.kind == KIND_LEADER and not unit.eliminated:
-                    changed[i] = unit.with_(eliminated=True, hex=None, carrier=None)
+                    # Rule 13.5: the weapon falls in the hex while the leader still has it.
+                    state, drop = r12_morale.drop_weapons(state, i)
+                    events.extend(drop)
+                    state = state.with_unit(state.units[i].with_(eliminated=True, hex=None, carrier=None))
                     events.append(Event(RULE_20_71, "eliminated", {"unit": i, "cause": "no friendly squad in the close combat hex"}))
-    if changed:
-        state = state.with_units(changed)
     return state, events
 
 
@@ -212,3 +228,12 @@ def update_melee(state: State) -> tuple[State, list[Event]]:
         if h not in state.melee:
             events.append(Event(RULE_20_8, "melee", {"hex": geometry.hex_id(*h)}))
     return state.with_(melee=melee), events
+
+
+# ------------------------------------------------------------------ the command handler (M3)
+# The hex of a close combat is contested, so rule 25.4 has taken each counter already.
+
+
+@actions.action("cc_attack")
+def _on_cc_attack(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    return apply_declaration(state, command, state.active)

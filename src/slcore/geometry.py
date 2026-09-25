@@ -105,12 +105,22 @@ def vertices(col: int, row: int) -> tuple[Point, ...]:
     return tuple((cx + dx, cy + dy) for dx, dy in VERTEX_OFFSETS)
 
 
+# The neighbors of each hex that a caller asked for. The answer depends on the three
+# integers only, and the rules ask for it on each step of each route (NFR-01).
+_NEIGHBORS: dict[tuple[int, int, int], HexRef] = {}
+
+
 def neighbor(col: int, row: int, direction: int) -> HexRef:
+    key = (col, row, direction)
+    found = _NEIGHBORS.get(key)
+    if found is not None:
+        return found
     cx, cy = center(col, row)
     dx, dy = DIRECTIONS[direction]
     found = hex_from_center(cx + dx, cy + dy)
     if found is None:
         raise ValueError(f"no hex in direction {direction} from {hex_id(col, row)}")
+    _NEIGHBORS[key] = found
     return found
 
 
@@ -119,23 +129,25 @@ def neighbors(col: int, row: int) -> tuple[HexRef, ...]:
     return tuple(neighbor(col, row, d) for d in range(6))
 
 
+# The direction index of each neighbor offset.
+_DIRECTION_OF: dict[Point, int] = {offset: d for d, offset in enumerate(DIRECTIONS)}
+
+
 def direction_to(a: HexRef, b: HexRef) -> int | None:
     """The direction index from a to b when the two are adjacent, else None."""
-    ax, ay = center(*a)
-    bx, by = center(*b)
-    delta = (bx - ax, by - ay)
-    for d, offset in enumerate(DIRECTIONS):
-        if offset == delta:
-            return d
-    return None
+    ac, ar = a
+    bc, br = b
+    # The two centers of `center`, with no call: x = 3 * col, y = 2 * row + (col & 1).
+    return _DIRECTION_OF.get((COL_STEP * (bc - ac), 2 * (br - ar) + (bc & 1) - (ac & 1)))
 
 
 def distance(a: HexRef, b: HexRef) -> int:
     """Hex distance (rule 5, range in hexes)."""
-    ax, ay = center(*a)
-    bx, by = center(*b)
-    dcol = abs(bx - ax) // COL_STEP
-    dy = abs(by - ay)
+    ac, ar = a
+    bc, br = b
+    # The two centers of `center`, with no call. The column step divides out.
+    dcol = abs(bc - ac)
+    dy = abs(2 * (br - ar) + (bc & 1) - (ac & 1))
     if dy <= dcol:
         return dcol
     return dcol + (dy - dcol) // 2

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Mapping
 
-from slcore import geometry
+from slcore import actions, geometry
 from slcore.commands import Command
 from slcore.events import Event
 from slcore.game import State
@@ -64,19 +64,16 @@ def attackers_for(
 ) -> list[Unit]:
     """Rule 36.1: unbroken squads and leaders next to the vehicle, in cover.
 
-    Rule 34.8 widens this: a vehicle with its crew exposed can be fired on from any hex in
-    any fire phase, so distance and cover do not hold the attacker back.
+    Rule 34.8 does not widen this. Fire at an exposed crew is a fire group on the Infantry
+    Fire Table (PR-44), and the attempt to immobilize the vehicle keeps its limits.
     """
-    if vehicle.hex is None:
+    if vehicle.hex is None or vehicle.hidden:
         return []
     out: list[Unit] = []
     for unit in state.player_units(player):
         if not unit.is_infantry or unit.hex is None or unit.broken or unit.riding:
             continue
         if unit.fired or unit.prep_fired or unit.directed or unit.carrier is not None:
-            continue
-        if vehicle.crew_exposed:
-            out.append(unit)
             continue
         if not board.adjacent(unit.hex, vehicle.hex):
             continue
@@ -92,7 +89,8 @@ def legal_attacks(
     """Rule 36.1: one command for each squad or leader that may try the vehicle."""
     out: list[Command] = []
     for vehicle in r28_vehicles.vehicles(state, 1 - player):
-        if vehicle.hex is None or vehicle.wreck:
+        # PR-49: a hidden vehicle is in no legal list of the other side.
+        if vehicle.hex is None or vehicle.wreck or vehicle.hidden:
             continue
         for unit in attackers_for(board, state, types, vehicle, player):
             out.append(Command("afv_attack", units=(unit.id,), hex=vehicle.hex))
@@ -240,7 +238,7 @@ def legal_close_combat(
     """Rule 36.2: infantry that advanced onto the vehicle attacks it in close combat."""
     out: list[Command] = []
     for vehicle in r28_vehicles.vehicles(state, 1 - player):
-        if vehicle.hex is None or vehicle.wreck:
+        if vehicle.hex is None or vehicle.wreck or vehicle.hidden:
             continue
         # Rule 36.22: enemy infantry in the hex takes precedence, and the close combat
         # rules of rule 20 settle that fight instead.
@@ -315,3 +313,16 @@ def walk_back(state: State, unit: Unit) -> tuple[State, list[Event]]:
     return state.with_units(changed), [
         Event(RULE_36_24, "returned", {"unit": unit.id, "hex": geometry.hex_id(*dst)})
     ]
+
+
+# ------------------------------------------------------------------ the command handlers (M3)
+
+
+@actions.action("afv_attack", unconceals=actions.CAUSE_FIRED)
+def _on_afv_attack(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    return apply_defensive_attack(engine.armor_ctx, engine.fire_ctx, state, command, state.phase)
+
+
+@actions.action("cc_afv", unconceals=actions.CAUSE_FIRED)
+def _on_cc_afv(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    return apply_close_combat(engine.armor_ctx, state, command)

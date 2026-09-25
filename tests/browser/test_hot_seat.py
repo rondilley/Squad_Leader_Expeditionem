@@ -42,6 +42,12 @@ async def wait_for_frame(page, timeout_ms: int = 15000) -> None:
     await page.wait_for_function("() => window.slClient && window.slClient.state.frameId !== null", timeout=timeout_ms)
 
 
+async def pass_the_screen(page) -> None:
+    """Hot seat covers the screen at each change of side. The next player uncovers it."""
+    if await page.evaluate("() => !document.getElementById('cover').hidden"):
+        await page.click("#cover-button")
+
+
 async def play_until(page, host, predicate, limit: int = 600) -> int:
     """Drive the client. It ends a phase when it can, and places a counter when it must.
 
@@ -58,6 +64,8 @@ async def play_until(page, host, predicate, limit: int = 600) -> int:
         if command_id is None:
             break
         before = host.game.state.seq
+        await pass_the_screen(page)
+        frame_before = await page.evaluate("() => window.slClient.state.frameId")
         await page.evaluate("(id) => window.slClient.send(id)", command_id)
         for _ in range(400):
             if host.game.state.seq > before:
@@ -65,6 +73,9 @@ async def play_until(page, host, predicate, limit: int = 600) -> int:
             await asyncio.sleep(0.005)
         else:
             raise AssertionError("the host did not answer the intent")
+        # The client sends one intent for each frame, so the next command waits for the
+        # frame that the host sends after this one.
+        await page.wait_for_function("(old) => window.slClient.state.frameId !== old", arg=frame_before, timeout=15000)
         steps += 1
     await page.wait_for_function("() => window.slClient.state.frameId !== null", timeout=15000)
     return steps
@@ -159,6 +170,8 @@ async def test_the_answer_time_of_the_host_meets_the_requirement():
                 """async () => {
                     const times = [];
                     for (let i = 0; i < 30; i += 1) {
+                        const cover = document.getElementById('cover');
+                        if (cover && !cover.hidden) { document.getElementById('cover-button').click(); }
                         const ids = window.slClient.commandIds();
                         if (ids.length === 0) { break; }
                         const before = window.slClient.state.frameId;

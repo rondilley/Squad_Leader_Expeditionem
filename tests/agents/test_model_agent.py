@@ -435,7 +435,7 @@ def test_the_cycle_guard_holds_back_the_command_that_returns_the_position(engine
     pickup = next(lc for lc in frame_after.commands if lc.command.action == "pickup" and lc.command.weapon == drop.command.weapon)
     back, _ = engine.apply(after, pickup.command, frame_after)
     assert engine.hash_state(back) != engine.hash_state(state)
-    assert position_key(back) == position_key(state)
+    assert position_key(back, engine.types, frame.player) == position_key(state, engine.types, frame.player)
     commands, held = agent.offered(after, frame_after)
     assert held == [pickup.id]
     assert pickup.id not in [lc.id for lc in commands]
@@ -457,7 +457,7 @@ def test_the_cycle_guard_forgets_its_positions_at_the_next_phase(engine, config)
     state, frame = a_drop(engine)
     agent = PromptedAgent(engine, frame.player, stub(config, []), make_agent("v1", engine, 3, frame.player))
     agent.offered(state, frame)
-    assert agent._window == (state.turn, state.phase) and position_key(state) in agent._seen
+    assert agent._window == (state.turn, state.phase) and position_key(state, engine.types, frame.player) in agent._seen
     scripted = make_agent("v1", engine, 3, frame.player)
     later = state
     while later.phase == state.phase:
@@ -466,7 +466,8 @@ def test_the_cycle_guard_forgets_its_positions_at_the_next_phase(engine, config)
         later, _ = engine.apply(later, chosen.command, frame_now)
     agent.offered(later, engine.legal_commands(later))
     assert agent._window == (later.turn, later.phase)
-    assert position_key(state) not in agent._seen and position_key(later) in agent._seen
+    assert position_key(state, engine.types, frame.player) not in agent._seen
+    assert position_key(later, engine.types, frame.player) in agent._seen
 
 
 def test_the_cycle_guard_stands_down_when_each_command_returns(engine, config):
@@ -477,7 +478,7 @@ def test_the_cycle_guard_stands_down_when_each_command_returns(engine, config):
     agent._window = (state.turn, state.phase)
     for lc in frame.commands:
         after, _ = engine.apply(state, lc.command, frame)
-        agent._seen.add(position_key(after))
+        agent._seen.add(position_key(after, engine.types, frame.player))
     commands, held = agent.offered(state, frame)
     assert held == [] and [lc.id for lc in commands] == [lc.id for lc in frame.commands]
 
@@ -498,7 +499,7 @@ def test_the_fallback_stands_under_the_cycle_guard(engine, config):
 
     agent = PromptedAgent(engine, frame.player, stub(config, []), PicksTheReturn(), retries=0)
     agent._window = (state.turn, state.phase)
-    agent._seen.add(position_key(state))
+    agent._seen.add(position_key(state, engine.types, frame.player))
     chosen = agent.select(after, frame_after)
     assert chosen != pickup.id
     assert frame_after.by_id(chosen) is not None

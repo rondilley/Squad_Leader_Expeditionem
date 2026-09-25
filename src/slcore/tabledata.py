@@ -25,6 +25,22 @@ class IftTable:
         return best
 
     def lookup(self, firepower: int, adjusted_roll: int) -> str:
+        """Rule 10.3: the result of the column of the firepower and the row of the roll.
+
+        The table does not change, so each answer is kept on it (NFR-01). The odds of the
+        scripted agents read the table for each of the 36 rolls of each shot they weigh.
+        """
+        key = (firepower, adjusted_roll)
+        try:
+            return self._lookup_memo[key]
+        except AttributeError:
+            self.__dict__["_lookup_memo"] = {}
+        except KeyError:
+            pass
+        found = self._lookup_memo[key] = self._lookup(firepower, adjusted_roll)
+        return found
+
+    def _lookup(self, firepower: int, adjusted_roll: int) -> str:
         i = self.column_index(firepower)
         if i is None:
             return RESULT_NONE
@@ -53,12 +69,23 @@ class OddsRow:
     kill: int
 
 
+# Rule 20.3 with PR-08: the odds of an attack with no firepower. No roll of two dice with
+# any leadership modifier reaches this kill number.
+NO_ATTACK = OddsRow("none", 0, 1, -100)
+
+
 @dataclass(frozen=True)
 class CcTable:
     odds: tuple[OddsRow, ...]
 
     def odds_row(self, attack: int, defense: int) -> OddsRow:
-        """Rule 20.3: the highest odds row that does not exceed attack to defense, rounded down for the defender."""
+        """Rule 20.3: the highest odds row that does not exceed attack to defense, rounded down for the defender.
+
+        An attack of no firepower has no odds, so it gets the row that no roll can meet
+        (PR-08). The lowest printed row is not that row: it kills on a low roll.
+        """
+        if attack <= 0:
+            return NO_ATTACK
         if defense <= 0:
             return self.odds[-1]
         chosen = self.odds[0]

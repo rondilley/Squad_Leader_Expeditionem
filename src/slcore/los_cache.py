@@ -12,6 +12,8 @@ fills it for a whole board.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from fractions import Fraction
 from math import ceil, floor
@@ -61,6 +63,10 @@ class LosTable:
         self._cache: dict[tuple[HexRef, HexRef], Thread] = {}
         self._rays: dict[tuple[HexRef, HexRef], tuple[HexRef, ...]] = {}
         self.static_results: dict[tuple[HexRef, HexRef], object] = {}
+        # For each ordered pair: the thread, the traced hexes, the rule 17.7 choices, and
+        # the rule 7 verdict, which `los_eval` makes with no choice given. They read the
+        # board only, and a context of smoke or vehicles changes the result after them.
+        self.static_traces: dict[tuple[HexRef, HexRef], tuple] = {}
 
     def thread(self, firer: HexRef, target: HexRef) -> Thread:
         if firer not in self.board or target not in self.board:
@@ -97,6 +103,60 @@ class LosTable:
 
     def __len__(self) -> int:
         return len(self._cache)
+
+
+@dataclass(frozen=True)
+class StaticSnapshot:
+    """The filled table of one board, for a process that plays on the same board.
+
+    The static LOS of a pair of hexes depends on the board only. One process fills the
+    table (`warm_static`), and each worker process loads the snapshot (`load_static`), in
+    place of a fill of its own of 6 to 180 seconds (NFR-01, P1 of the 2026-09-23 review).
+    """
+
+    board: str
+    threads: dict[tuple[HexRef, HexRef], Thread]
+    results: dict[tuple[HexRef, HexRef], object]
+    traces: dict[tuple[HexRef, HexRef], tuple]
+
+
+def board_fingerprint(board: Board) -> str:
+    """SHA-256 of the canonical board document. Two boards with one fingerprint are one board."""
+    text = json.dumps(board.to_dict(), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(text.encode("ascii")).hexdigest()
+
+
+def warm_static(table: LosTable) -> int:
+    """Fill the threads, the traces, and the static results of each ordered pair of hexes.
+
+    The results are the ones that a lazy fill gives, because each one comes from the same
+    evaluator call with no context and no choices.
+    """
+    # The evaluator imports this module, so it is imported here.
+    from slcore.los_eval import evaluate
+
+    board = table.board
+    for a in board.order:
+        for b in board.order:
+            evaluate(board, table, a, b)
+    return len(table.static_results)
+
+
+def static_snapshot(table: LosTable) -> StaticSnapshot:
+    """The table as it is, with the fingerprint of its board."""
+    return StaticSnapshot(
+        board_fingerprint(table.board), dict(table._cache), dict(table.static_results), dict(table.static_traces)
+    )
+
+
+def load_static(table: LosTable, snapshot: StaticSnapshot) -> int:
+    """Put a snapshot of the same board in the table. A snapshot of another board is an error."""
+    if snapshot.board != board_fingerprint(table.board):
+        raise ValueError("the LOS snapshot is of another board")
+    table._cache.update(snapshot.threads)
+    table.static_results.update(snapshot.results)
+    table.static_traces.update(snapshot.traces)
+    return len(table.static_results)
 
 
 def _crossed_kinds(board: Board, ref: HexRef, p: geometry.Point, q: geometry.Point, mode: str) -> frozenset[str]:

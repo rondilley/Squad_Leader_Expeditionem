@@ -253,6 +253,27 @@ def _body(surface: pygame.Surface, unit: dict[str, Any], x: float, y: float, siz
 _FONTS: dict[tuple[int, bool], pygame.font.Font] = {}
 _FONTS_CLEAR_ON_QUIT = False
 
+# The documentation tool sets this, so that a picture is the same on each system (TC-29).
+# A system font draws other glyphs on Windows and on Linux, and the picture test counts pixels.
+BUNDLED_FONT = False
+
+
+def system_font(names: str, size: int, bold: bool = False) -> pygame.font.Font:
+    """A system font by its names, or the font of the library when `BUNDLED_FONT` is set."""
+    if BUNDLED_FONT:
+        font = pygame.font.Font(None, size)
+        font.set_bold(bold)
+        return font
+    return pygame.font.SysFont(names, size, bold=bold)
+
+
+def _forget_fonts() -> None:
+    """Empty the cache at a quit. The library runs a quit function one time, so the next
+    font registers the function again."""
+    global _FONTS_CLEAR_ON_QUIT
+    _FONTS.clear()
+    _FONTS_CLEAR_ON_QUIT = False
+
 
 def _face_font(px: float, bold: bool = True) -> pygame.font.Font:
     """The face font at one pixel size, cached, because a frame prints many numbers.
@@ -268,9 +289,9 @@ def _face_font(px: float, bold: bool = True) -> pygame.font.Font:
         if not pygame.font.get_init():
             pygame.font.init()
         if not _FONTS_CLEAR_ON_QUIT:
-            pygame.register_quit(_FONTS.clear)
+            pygame.register_quit(_forget_fonts)
             _FONTS_CLEAR_ON_QUIT = True
-        font = pygame.font.SysFont(FACE_FONT, key[0], bold=bold)
+        font = system_font(FACE_FONT, key[0], bold=bold)
         _FONTS[key] = font
     return font
 

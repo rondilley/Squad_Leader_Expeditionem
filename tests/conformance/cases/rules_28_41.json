@@ -83,7 +83,8 @@
           "units": [
             "a"
           ],
-          "hex": "E1"
+          "hex": "E1",
+          "facing": 0
         }
       ],
       "illegal": [
@@ -92,7 +93,8 @@
           "units": [
             "b"
           ],
-          "hex": "D1"
+          "hex": "D1",
+          "facing": 5
         }
       ]
     },
@@ -174,7 +176,8 @@
           "units": [
             "t"
           ],
-          "hex": "E4"
+          "hex": "E4",
+          "facing": 0
         }
       ]
     },
@@ -203,7 +206,8 @@
           "units": [
             "t"
           ],
-          "hex": "E2"
+          "hex": "E2",
+          "facing": 1
         }
       ]
     },
@@ -271,7 +275,8 @@
           "units": [
             "t"
           ],
-          "hex": "E2"
+          "hex": "E2",
+          "facing": 0
         }
       ],
       "expect_events": [
@@ -328,7 +333,8 @@
           "units": [
             "t"
           ],
-          "hex": "E2"
+          "hex": "E2",
+          "facing": 0
         }
       ],
       "expect_events": [
@@ -437,7 +443,8 @@
           "units": [
             "t"
           ],
-          "hex": "D2"
+          "hex": "D2",
+          "facing": 2
         }
       ]
     },
@@ -1487,7 +1494,8 @@
           "units": [
             "t"
           ],
-          "hex": "C2"
+          "hex": "C2",
+          "facing": 2
         }
       ],
       "expect_events": [
@@ -1586,7 +1594,8 @@
           "units": [
             "t"
           ],
-          "hex": "C2"
+          "hex": "C2",
+          "facing": 2
         }
       ],
       "expect_events": [
@@ -2232,7 +2241,7 @@
       "id": "r41.4-a-german-tank-uses-its-smoke-dischargers-one-time",
       "rule": "41.4",
       "type": "valid",
-      "citation": "Rule 41.4: all German tanks and self-propelled guns are equipped with smoke dischargers that place smoke in the same hex as the firing tank. Each vehicle's dischargers can be used only once per game.",
+      "citation": "Rule 41.4: all German tanks and self-propelled guns are equipped with smoke dischargers that place smoke in the same hex as the firing tank. Each vehicle's dischargers can be used only once per game. PR-48: the dischargers take a counter from the smoke allowance of the side.",
       "check": "effect",
       "phase": "prep_fire",
       "sub_step": "fire_window",
@@ -2280,7 +2289,10 @@
             "t"
           ]
         }
-      ]
+      ],
+      "smoke_left": {
+        "german": 2
+      }
     },
     {
       "id": "r41.3-a-tank-fires-smoke-at-a-hex-that-is-not-adjacent",
@@ -2665,7 +2677,8 @@
           "units": [
             "t"
           ],
-          "hex": "D4"
+          "hex": "D4",
+          "facing": 5
         }
       ],
       "expect_events": [
@@ -2710,7 +2723,8 @@
           "units": [
             "t"
           ],
-          "hex": "E1"
+          "hex": "E1",
+          "facing": 0
         }
       ],
       "expect_events": [
@@ -2964,7 +2978,8 @@
           "units": [
             "t"
           ],
-          "hex": "C2"
+          "hex": "C2",
+          "facing": 2
         }
       ],
       "expect_events": [
@@ -3019,7 +3034,8 @@
           "units": [
             "t"
           ],
-          "hex": "C2"
+          "hex": "C2",
+          "facing": 2
         }
       ],
       "expect_events": [
@@ -3160,7 +3176,7 @@
       "id": "r37.2-a-flamethrower-burns-the-crew-and-the-infantry-with-it",
       "rule": "37.2",
       "type": "interaction",
-      "citation": "Rule 37.2: regardless of the dice roll of the flamethrower attack on the vehicle, the attacking player may use the same dice roll a second time on the twenty firepower factor column of the Infantry Fire Table.",
+      "citation": "Rule 37.2: regardless of the dice roll of the flamethrower attack on the vehicle, the attacking player may use the same dice roll a second time on the twenty firepower factor column of the Infantry Fire Table. PR-47: the one roll is the kill roll and the infantry roll.",
       "check": "effect",
       "phase": "prep_fire",
       "sub_step": "fire_window",
@@ -3215,10 +3231,19 @@
           "kind": "flamethrower_hit"
         },
         {
-          "rule_id": "37.2",
-          "kind": "afv_fire",
+          "rule_id": "33.4",
+          "kind": "kill_roll",
           "data": {
-            "firepower": 20
+            "raw": 6
+          }
+        },
+        {
+          "rule_id": "37.2",
+          "kind": "flamethrower_infantry",
+          "data": {
+            "firepower": 20,
+            "roll": 6,
+            "adjusted": 6
           }
         }
       ]
@@ -3431,7 +3456,8 @@
           "units": [
             "t"
           ],
-          "hex": "D2"
+          "hex": "D2",
+          "facing": 2
         },
         {
           "action": "vehicle_pivot",
@@ -3553,7 +3579,8 @@
           "units": [
             "t"
           ],
-          "hex": "E1"
+          "hex": "E1",
+          "facing": 0
         }
       ],
       "expect_events": [
@@ -3765,7 +3792,8 @@
           "units": [
             "t"
           ],
-          "hex": "E1"
+          "hex": "E1",
+          "facing": 0
         }
       ],
       "legal": [
@@ -3774,7 +3802,8 @@
           "units": [
             "b"
           ],
-          "hex": "E2"
+          "hex": "E2",
+          "facing": 0
         }
       ]
     },
@@ -3868,7 +3897,8 @@
           "units": [
             "a"
           ],
-          "hex": "D2"
+          "hex": "D2",
+          "facing": 2
         }
       ]
     },
@@ -3952,7 +3982,7 @@
       "id": "r35.8-infantry-under-a-vehicle-steps-to-one-side",
       "rule": "35.8",
       "type": "interaction",
-      "citation": "Rule 35.8: should the vehicle end its Movement Phase in the same hex as an opposing infantry unit, that unit and its support weapons are moved to an adjacent hex of its choice immediately after the current Defensive Fire Phase.",
+      "citation": "Rule 35.8: should the vehicle end its Movement Phase in the same hex as an opposing infantry unit, that unit and its support weapons are moved to an adjacent hex of its choice immediately after the current Defensive Fire Phase. PR-51: the owner names the hex in a window after the phase.",
       "check": "effect",
       "phase": "defensive_fire",
       "sub_step": "fire_window",
@@ -3978,6 +4008,13 @@
       "apply": [
         {
           "action": "end_phase"
+        },
+        {
+          "action": "push_out",
+          "units": [
+            "i"
+          ],
+          "hex": "D3"
         }
       ],
       "expect_events": [
@@ -3993,6 +4030,9 @@
       "expect_units": {
         "t": {
           "hex": "D2"
+        },
+        "i": {
+          "hex": "D3"
         }
       }
     },

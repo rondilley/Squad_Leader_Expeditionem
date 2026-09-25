@@ -200,8 +200,15 @@ def collect(
     generator: torch.Generator,
     on_game_end: Callable[[float], None] | None = None,
     alternate_sides: bool = False,
+    next_opponent: Callable[[], Callable[[SquadLeaderEnv, dict[str, np.ndarray]], tuple[int, int, int, int]]] | None = None,
 ) -> Rollout:
     """Play until the rollout has `steps` decisions of the learner.
+
+    `opponent` plays the game in progress. With `next_opponent`, each new game that
+    starts in this collection takes its opponent from it, so a league member plays one
+    whole game and no member takes over a game in its middle (L3). A game that goes on
+    past the end of the rollout keeps its opponent: the caller gives the same one to the
+    next collection.
 
     The opponent acts in the same environment. Its decisions are not in the rollout,
     because the learner did not make them. With `alternate_sides` the learner takes the
@@ -241,7 +248,7 @@ def collect(
             env.step(opponent(env, env.observe(agent)))
 
     def end_game() -> None:
-        nonlocal paid, learner, learner_agent
+        nonlocal paid, learner, learner_agent, opponent
         pay_last()
         if on_game_end is not None:
             on_game_end(float(env.results[learner_agent]))
@@ -249,6 +256,8 @@ def collect(
             rollout.done[-1] = 1.0
         env.reset(seed=env.seed_value + 1)
         paid = 0.0
+        if next_opponent is not None:
+            opponent = next_opponent()
         if alternate_sides:
             learner = 1 - learner
             learner_agent = env.agent_of(learner)
@@ -499,7 +508,7 @@ def collect_parallel(
             rollout.done.append(0.0)
             rollout.worker.append(w.index)
             w.steps.append(len(rollout) - 1)
-            pool.act(w, triple)
+            pool.act(w, quad)
             awaiting.add(w)
     # Each worker's answer to its last command, so its last step has its reward, and the
     # value of the state it waits at, which is its bootstrap.

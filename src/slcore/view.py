@@ -225,17 +225,29 @@ def hidden_from(state: State, unit: Unit, viewer: int) -> bool:
     if unit.carrier is not None:
         carrier = state.units[unit.carrier]
         return bool(carrier.hidden)
+    if unit.kind == KIND_SW and unit.hex is not None:
+        # A weapon that lies in the hex of a hidden unit of its side is on the record with
+        # that unit. On the board it would tell the other player where the unit is.
+        return any(u.hidden and u.player == unit.player for u in state.units_in(unit.hex))
     return False
 
 
 def concealed_from(state: State, unit: Unit, viewer: int) -> bool:
-    """Rule 25.2: this unit of the other side is below a concealment counter."""
+    """Rule 25.2: this unit of the other side is below a concealment counter.
+
+    Only infantry on foot and the weapons of that hex are below a counter (PR-33). A
+    vehicle and a unit that rides on one stay in full view.
+    """
     if unit.player == viewer:
+        return False
+    if unit.kind == KIND_VEHICLE or unit.riding:
+        return False
+    if unit.carrier is not None and (state.units[unit.carrier].kind == KIND_VEHICLE or state.units[unit.carrier].riding):
         return False
     where = unit.hex if unit.carrier is None else state.units[unit.carrier].hex
     if where is None:
         return False
-    return any(c.hex == where and c.player == unit.player for c in state.concealment)
+    return state.counter_in(where, unit.player)
 
 
 def tokens_for(state: State, viewer: int) -> list[dict[str, Any]]:
@@ -415,6 +427,9 @@ def board_document(board: Any) -> dict[str, Any]:
         }
         if h.road:
             item["road"] = True
+        if h.road_sides:
+            # The hexsides the road crosses (generator version 8). The drawings read them.
+            item["road_sides"] = list(h.road_sides)
         if h.elevation:
             item["elevation"] = h.elevation
         if h.building is not None:

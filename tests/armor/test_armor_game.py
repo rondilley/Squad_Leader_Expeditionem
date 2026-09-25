@@ -71,6 +71,9 @@ def test_a_vehicle_is_placed_with_a_facing():
     frame = engine.legal_commands(state)
     facings = set()
     for command in frame.commands:
+        if not command.command.units:
+            # A concealment counter of rule 25.6 is placed on a hex and names no unit.
+            continue
         unit = state.units[command.command.units[0]]
         if unit.is_vehicle:
             assert "facing" in command.payload, command.payload
@@ -85,6 +88,8 @@ def test_no_vehicle_is_placed_in_a_stone_building():
     engine = build_engine(SCENARIO)
     state = engine.new_game(7)
     for command in engine.legal_commands(state).commands:
+        if not command.command.units:
+            continue
         unit = state.units[command.command.units[0]]
         if unit.is_vehicle and command.command.hex is not None:
             assert engine.board.hex(command.command.hex).terrain != "stone_building"

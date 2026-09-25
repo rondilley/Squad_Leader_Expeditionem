@@ -4,9 +4,12 @@ The 3D window is a new consumer of the same host protocol the pygame window read
 intents and it applies no rule (AR-06). It draws the board as hex prisms that the elevation
 of each hex lifts, so a hill stands up.
 
-With no address the command starts a host inside the same process and connects the window
-to it, the same way `sl-cli window` does. With `--agents v4,v1` it starts an embedded host
-and watches a game of two computer opponents.
+The 3D window is for play (H2). It takes the options of `sl-cli window`: with no address
+it starts a host inside the same process and connects to it. With no computer opponent the
+game is hot seat, and the window plays the two sides. `--agent v7` gives one side to a
+computer opponent (`--agent-side` names it), `--agents v4,v1` watches a game of two
+computer opponents, `--lan` gives one seat to each connection, and `--connect ws://...`
+with `--room-code` joins a host that already runs.
 
 With `--screenshot PATH` it renders one board offscreen, writes the PNG, and exits. That is
 the path a test and a verification run take, and it needs no display.
@@ -22,9 +25,9 @@ import math
 from pathlib import Path
 from typing import Any
 
+from slagents.base import decide
 from slcli.play import build_engine, make_agent
 
-WATCHABLE_DELAY = 0.4
 
 
 class View3DNotInstalled(Exception):
@@ -50,7 +53,7 @@ def _load_offscreen():
     return Board3DApp
 
 
-def _load_interactive():
+def _load_interactive(args: Any = None):
     """Import Panda3D for an open window."""
     try:
         import panda3d.core  # noqa: F401
@@ -58,9 +61,15 @@ def _load_interactive():
         raise View3DNotInstalled() from exc
     from panda3d.core import loadPrcFileData
 
+    width = getattr(args, "width", None) or 1500
+    height = getattr(args, "height", None) or 950
     loadPrcFileData("", "audio-library-name null")
-    loadPrcFileData("", "win-size 1500 950")
-    loadPrcFileData("", "window-title Squad Leader Expeditionem - 3D board (t=2D/3D, drag=pan, wheel=zoom, right-drag=tilt, r=reset, q=quit)")
+    loadPrcFileData("", f"win-size {int(width)} {int(height)}")
+    loadPrcFileData(
+        "",
+        "window-title Squad Leader Expeditionem - 3D board "
+        "(click pick, enter play, ctrl+t 2D/3D, drag pan, wheel zoom, right-drag tilt, ctrl+q quit)",
+    )
     from slwindow3d.app import Board3DApp
 
     return Board3DApp
@@ -100,7 +109,7 @@ def _advance_state(engine: Any, seed: int, agents: dict[int, Any], steps: int):
         frame = engine.legal_commands(state)
         if not frame.commands:
             break
-        chosen = agents[state.active].select(state, frame)
+        chosen = decide(agents[state.active], state, frame)
         legal = frame.by_id(chosen)
         if legal is None:
             break
@@ -130,40 +139,32 @@ def _screenshot(args: Any) -> int:
 
 
 def _interactive(args: Any) -> int:
-    from slcore.view import board_document
-    from slhost.server import Host
-    from slwindow.client import HostClient
-    from slwindow.embedded import start
+    """Play or watch in the 3D window (H2).
 
-    Board3DApp = _load_interactive()
-    engine = build_engine(args.scenario, args.board)
-    agents = {}
-    if args.agents:
-        names = [name.strip() for name in args.agents.split(",")]
-        if len(names) != 2:
-            raise ValueError(f"--agents takes two names, and {args.agents!r} has {len(names)}")
-        for seat, name in enumerate(names):
-            agents[seat] = make_agent(name, engine, args.seed, seat)
-    delay = args.agent_delay
-    if delay is None:
-        delay = WATCHABLE_DELAY if args.agents else 0.0
-    host = Host(engine, seed=args.seed, hot_seat=True, agents=agents, agent_delay=delay)
-    embedded = start(host)
-    print(f"scenario {engine.scenario.id} on board {engine.board.name}")
-    for seat, agent in agents.items():
-        print(f"player {seat} is the computer opponent {agent.name} v{agent.version}")
-    print(f"the 3D window talks to a host inside this process at {embedded.url}")
-    client = HostClient(embedded.url, embedded.room_code, display_name="3D window")
+    The host comes from `window_cmd.connect_or_start`, the same function the 2D window
+    uses, so the options and the game are the same in the two windows. The window sends
+    intents and an undo through the same `HostClient` the 2D window uses.
+    """
+    from slcli.window_cmd import connect_or_start, finish
+    from slwindow.client import HostClient
+
+    Board3DApp = _load_interactive(args)
+    embedded, url, room_code, _caption = connect_or_start(args, title="Squad Leader Expeditionem 3D")
+    client = HostClient(url, room_code, display_name="3D window")
     client.start()
-    board_doc = board_document(engine.board)
-    if args.hills:
-        _synthesize_hill(board_doc)
-    app = Board3DApp(board_doc, poll=client.snapshot, ask_los=client.request_los)
+    board_doc = None
+    if embedded is not None:
+        from slcore.view import board_document
+
+        board_doc = board_document(embedded.host.engine.board)
+        if args.hills:
+            _synthesize_hill(board_doc)
+    app = Board3DApp(board_doc, client=client)
     try:
         app.run()
     finally:
         client.stop()
-        embedded.stop()
+        finish(embedded, args)
     return 0
 
 
@@ -174,17 +175,12 @@ def run(args: Any) -> int:
 
 
 def add_parser(subparsers: Any) -> None:
-    p = subparsers.add_parser("window3d", help="show the board in a 3D window with elevation")
-    p.add_argument("--scenario", default="s01_guards_counterattack")
-    p.add_argument("--board", default=None)
-    p.add_argument("--seed", type=int, default=1)
-    p.add_argument("--agents", default=None, help="give each side to a computer opponent, as two names: v4,v1")
-    p.add_argument(
-        "--agent-delay",
-        type=float,
-        default=None,
-        help=f"seconds between two commands of a game that plays itself. The default is {WATCHABLE_DELAY} with --agents",
-    )
+    from slcli.window_cmd import add_play_options
+
+    p = subparsers.add_parser("window3d", help="play or watch the game in a 3D window with elevation")
+    add_play_options(p)
+    p.add_argument("--width", type=int, default=1500)
+    p.add_argument("--height", type=int, default=950)
     p.add_argument("--screenshot", default=None, help="render one board offscreen to this PNG and exit")
     p.add_argument("--advance", type=int, default=260, help="drive this many setup commands before a screenshot, so pieces are on the board")
     p.add_argument("--hills", action="store_true", help="synthesize a hill on a flat board, so the 3D effect shows")

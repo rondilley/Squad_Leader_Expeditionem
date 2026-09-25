@@ -28,6 +28,7 @@ from slcore.geometry import HexRef
 from slcore.rules import r06_stacking, r08_fire, r11_terrain
 from slcore.rules.r13_rout import is_cover
 from slcore.units import KIND_SW
+from slcore.view import visible_to
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,9 @@ class ScriptedV1:
         for lc in frame.commands:
             by_action.setdefault(lc.command.action, []).append(lc)
         phase = frame.phase
+        if frame.sub_step == "push_out" and "push_out" in by_action:
+            # Rule 35.8: the window of the push out has one kind of command; the first one.
+            return min(by_action["push_out"], key=lambda lc: lc.id).id
         if phase == PHASE_SETUP:
             return self._setup(state, by_action)
         if phase == PHASE_RALLY:
@@ -158,7 +162,7 @@ class ScriptedV1:
         """Odds first: firepower against the target, then the terrain, then the count."""
         halves = self._member_value(state, lc, target)
         modifier = r11_terrain.target_hex_modifier(self.engine.board, target)
-        occupants = sum(1 for u in state.infantry_in(target) if u.player != self.player and not u.broken)
+        occupants = sum(1 for u in state.infantry_in(target) if u.player != self.player and visible_to(state, u, self.player) and not u.broken)
         return (halves * self.params.fire_priority - modifier * 2, occupants, -modifier)
 
     def _member_value(self, state: State, lc: LegalCommand, target: HexRef) -> int:
@@ -234,7 +238,7 @@ class ScriptedV1:
             dst = lc.command.hex
             if unit.hex is None or dst is None:
                 continue
-            enemies = sum(1 for u in state.infantry_in(dst) if u.player != self.player and not u.broken)
+            enemies = sum(1 for u in state.infantry_in(dst) if u.player != self.player and visible_to(state, u, self.player) and not u.broken)
             if enemies and not self.params.advance_into_close_combat:
                 continue
             gain = self._distance(unit.hex) - self._distance(dst)

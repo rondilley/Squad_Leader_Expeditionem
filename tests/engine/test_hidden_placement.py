@@ -103,6 +103,7 @@ def test_a_reveal_says_why_it_happened(played):
         r42_hidden.CAUSE_SMOKE,
         r42_hidden.CAUSE_ADJACENT,
         r42_hidden.CAUSE_HIT,
+        r42_hidden.CAUSE_CONTACT,
         "the unit placed a charge",
     }
     assert causes <= known, causes
@@ -214,12 +215,89 @@ def test_the_hidden_units_of_a_hex_are_the_ones_in_it(engine):
 # ------------------------------------------------------------- what waits for a tier
 
 
-def test_blind_fire_names_the_tier_it_waits_for(engine):
-    """The first half of rule 42.4 changes the action space, so it has its own tier."""
-    with pytest.raises(r42_hidden.HiddenNotAvailable) as exc:
-        r42_hidden.blind_fire_hexes(engine.board, (0, 1))
-    assert "42.4" in str(exc.value)
-    assert "FR-50" in str(exc.value)
+def _blind_setup(engine):
+    """An attacker squad in the open next to a woods or building hex, in its Prep Fire Phase.
+
+    The defender has one squad, hidden, and the second hex it can stand in is far away.
+    """
+    from slcore.phases import PHASE_STEPS
+
+    board = engine.board
+    attacker = engine.scenario.side_index("attacker")
+    for h in board:
+        if not r42_hidden.hex_allows_hiding(board, h.ref):
+            continue
+        spot = next((n for n in board.neighbors(h.ref) if board.hex(n).terrain == "open"), None)
+        if spot is not None:
+            break
+    far = next(
+        g.ref
+        for g in board
+        if r42_hidden.hex_allows_hiding(board, g.ref) and abs(g.ref[0] - h.ref[0]) > 20
+    )
+    state = engine.new_game(5)
+    squad = next(u for u in state.units if u.kind == "squad" and u.player == attacker)
+    hidden = next(u for u in state.units if u.kind == "squad" and u.player != attacker)
+    units = []
+    for u in state.units:
+        if u.id == squad.id:
+            units.append(u.with_(hex=spot))
+        elif u.id == hidden.id:
+            units.append(u.with_(hex=h.ref, hidden=True))
+        else:
+            units.append(u.with_(hex=None, eliminated=u.kind != "sw"))
+    index = next(i for i, s in enumerate(PHASE_STEPS["prep_fire"]) if s.name == "fire_window")
+    state = state.with_(
+        units=tuple(units),
+        phase="prep_fire",
+        sub_step=index,
+        phasing=attacker,
+        active=attacker,
+        setup_index=len(engine.scenario.setup_order),
+    )
+    return state, squad.id, hidden.id, h.ref, far
+
+
+def test_blind_fire_offers_each_hex_where_a_hidden_unit_can_stand(engine):
+    """Rule 42.4 and PR-52: the hex of the hidden unit is a target, and the list does not
+    change when the hidden unit stands somewhere else."""
+    state, squad, hidden, spot, far = _blind_setup(engine)
+    from slcore import geometry
+
+    frame = engine.legal_commands(state)
+    wanted = {"action": "group_add", "units": [squad], "hex": geometry.hex_id(*spot)}
+    assert wanted in [lc.payload for lc in frame.commands]
+    elsewhere = state.with_unit(state.units[hidden].with_(hex=far))
+    assert sorted(engine.legal_commands(elsewhere).ids()) == sorted(frame.ids())
+
+
+def test_blind_fire_is_half_strength_and_a_result_reveals_the_unit(engine):
+    """Rule 42.4: Area Fire at half strength, and a result that is not No Effect reveals."""
+    from slcore import geometry
+    from slcore.commands import Command
+
+    state, squad, hidden, spot, _ = _blind_setup(engine)
+    for seed in range(200):
+        trial = state.with_(rng=engine.new_game(seed).rng)
+        trial, _ = engine.apply(trial, Command("group_add", units=(squad,), hex=spot))
+        trial, events = engine.apply(trial, Command("group_fire"))
+        results = [e.to_dict() for e in events if e.kind == "fire_result"]
+        assert results and results[0]["data"]["concealed"]
+        if results[0]["data"]["result"] != "-":
+            assert not trial.units[hidden].hidden
+            assert any(e.kind == "revealed" and e.rule_id == "42.4" for e in events)
+            break
+    else:
+        raise AssertionError("no seed gave a result")
+    assert geometry.hex_id(*spot)
+
+
+def test_the_hidden_side_has_no_blind_fire(engine):
+    """PR-52: blind fire is for the side that faces hidden units."""
+    state, _, _, _, _ = _blind_setup(engine)
+    defender = 1 - state.active
+    assert engine._blind_hexes(state, defender) == frozenset()
+    assert engine._blind_hexes(state, state.active)
 
 
 # ------------------------------------------------------------------- determinism

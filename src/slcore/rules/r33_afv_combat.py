@@ -60,6 +60,13 @@ LONG_RANGE_C = 12
 
 AMMO_AP = "ap"
 AMMO_HE = "he"
+# Rule 63.3 and PR-45: the HEAT shell of a gun marked H6, its kill column, and the to-hit
+# roll that spends it.
+AMMO_HEAT = "heat"
+HEAT_COLUMN = "h6"
+HEAT_SPENT_ROLL = 6
+RULE_63_3 = "63.3"
+RULE_63_32 = "63.32"
 
 
 @dataclass(frozen=True)
@@ -258,12 +265,17 @@ def roll_to_hit(
     adjusted = raw + modifier
     third: int | None = None
     hit = needed is not None and adjusted <= needed
-    if needed is not None and raw == POSSIBLE_HIT_ROLL and needed < POSSIBLE_HIT_ROLL:
+    # Rule 33.32 reads the final to-hit number, which is the table number less the
+    # modifiers. The core puts the modifiers on the dice instead, and the two are the same
+    # test: the adjusted roll is at or below the table number exactly when the unmodified
+    # roll is at or below the final number.
+    final = None if needed is None else needed - modifier
+    if final is not None and raw == POSSIBLE_HIT_ROLL and final < POSSIBLE_HIT_ROLL:
         # Rule 33.32: an unmodified two can still hit. Add one for each number below two
-        # that the shot needed, and a total under six is a hit.
+        # that the final number needed, and a total under six is a hit.
         rng, third = roll_die(state.rng)
         state = state.with_(rng=rng)
-        hit = third + (POSSIBLE_HIT_ROLL - needed) < THIRD_DIE_LIMIT
+        hit = third + (POSSIBLE_HIT_ROLL - final) < THIRD_DIE_LIMIT
     return state, ToHit(
         hit=hit,
         raw=raw,
@@ -323,26 +335,60 @@ class Kill:
 
 def kill_column_for(ctx: ArmorContext, firer: Unit, ammunition: str) -> str:
     kind = ctx.types[firer.type_key]
+    if ammunition == AMMO_HEAT:
+        # Rule 63.3 and PR-45: a gun marked H6 reads the H6 column with HEAT.
+        if not kind.heat:
+            raise ValueError("rule 63.3: only a gun marked H6 fires HEAT")
+        return HEAT_COLUMN
     if kind.gun_he_only and ammunition == AMMO_AP:
         raise ValueError("rule 33.6: an overscored gun fires high explosive only")
     return ctx.armor.gun_kill_column(kind.gun, ammunition)
+
+
+def heat_available(ctx: ArmorContext, firer: Unit) -> bool:
+    """Rule 63.3: the gun is marked H6 and has not run out of HEAT (rule 63.32)."""
+    return ctx.types[firer.type_key].heat and not firer.heat_spent
+
+
+def spend_heat(state: State, firer: Unit, raw: int) -> tuple[State, bool, list[Event]]:
+    """Rule 63.32: a to-hit roll of 6 or more leaves the gun with no HEAT.
+
+    The roll is read before modification, as rule 34.92 reads canister (PR-45). The shot
+    that rolled it is high explosive, so the second value is True when the shot still
+    reads the H6 column.
+    """
+    if raw < HEAT_SPENT_ROLL:
+        return state, True, []
+    return (
+        state.with_unit(state.units[firer.id].with_(heat_spent=True)),
+        False,
+        [Event(RULE_63_32, "heat_spent", {"unit": firer.id, "roll": raw})],
+    )
 
 
 def roll_kill(
     ctx: ArmorContext, state: State, firer_hex: HexRef, target: Unit, column: str
 ) -> tuple[State, Kill]:
     """Rules 33.4 and 33.41: does the shell go through the armour."""
+    rng, dice = roll_2d6(state.rng)
+    state = state.with_(rng=rng)
+    return state, kill_with_roll(ctx, firer_hex, target, column, dice[0] + dice[1])
+
+
+def kill_with_roll(ctx: ArmorContext, firer_hex: HexRef, target: Unit, column: str, raw: int) -> Kill:
+    """Rules 33.4 and 33.41 for a dice roll that the attack already made.
+
+    Rule 37.2 reads the one roll of a flamethrower on the kill table, and PR-46 does the
+    same for the one roll of a demolition charge.
+    """
     face = r28_vehicles.target_face(target, firer_hex, ctx.types)
     armor_key = ctx.types[target.type_key].armor_key
     needed = ctx.armor.kill_number(face, column)
-    rng, dice = roll_2d6(state.rng)
-    state = state.with_(rng=rng)
-    raw = dice[0] + dice[1]
     # Rule 33.41: the modifier goes on the dice of the attacker. A negative number helps.
     modifier = ctx.armor.kill_number_modifiers.get(armor_key, 0)
     adjusted = raw + modifier
     killed = needed is not None and adjusted <= needed
-    return state, Kill(
+    return Kill(
         killed=killed,
         raw=raw,
         adjusted=adjusted,
@@ -450,6 +496,17 @@ def crew_abandons(ctx: ArmorContext, state: State, vehicle_id: int, cause: str) 
     A pass keeps the crew at its weapons. A failure does not break the crew, but it leaves
     the vehicle, which becomes a wreck with a crew counter on it.
     """
+    return crew_check(ctx.types, state, vehicle_id, cause)
+
+
+def crew_check(
+    types: Mapping[str, UnitType], state: State, vehicle_id: int, cause: str, rule_id: str = RULE_39_2
+) -> tuple[State, list[Event]]:
+    """The crew morale check of rule 39.2, which rule 34.8 uses for an exposed crew too.
+
+    Each vehicle of the counter set has a survival number and each army has a crew
+    counter, so the engine sets a crew counter aside for each vehicle (rule 33.9).
+    """
     from slcore.rules import r12_morale
 
     vehicle = state.units[vehicle_id]
@@ -459,20 +516,20 @@ def crew_abandons(ctx: ArmorContext, state: State, vehicle_id: int, cause: str) 
     rng, dice = roll_2d6(state.rng)
     state = state.with_(rng=rng)
     raw = dice[0] + dice[1]
-    morale = r12_morale.morale_value(ctx.types, crew)
+    morale = r12_morale.morale_value(types, crew)
     passed = raw <= morale
     events = [
         Event(
-            RULE_39_2,
+            rule_id,
             "crew_morale",
             {"vehicle": vehicle_id, "crew": crew.id, "dice": list(dice), "morale": morale, "stayed": passed, "cause": cause},
         )
     ]
     if passed:
         return state, events
-    state = state.with_unit(state.units[vehicle_id].with_(wreck=True, immobilized=True))
+    state = state.with_unit(state.units[vehicle_id].with_(wreck=True, immobilized=True, crew_exposed=False))
     state = state.with_unit(state.units[crew.id].with_(hex=vehicle.hex, moved=True))
-    events.append(Event(RULE_39_2, "crew_abandons", {"vehicle": vehicle_id, "crew": crew.id}))
+    events.append(Event(rule_id, "crew_abandons", {"vehicle": vehicle_id, "crew": crew.id}))
     return state, events
 
 

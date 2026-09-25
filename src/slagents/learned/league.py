@@ -43,7 +43,7 @@ class Member:
 
     name: str
     kind: str
-    act: Callable[[SquadLeaderEnv, Any], tuple[int, int, int]]
+    act: Callable[[SquadLeaderEnv, Any], tuple[int, int, int, int]]
     # What a worker process builds this member from: the agent kind of a scripted member
     # (`v5`) or the snapshot path of a snapshot member. Empty for the random member.
     spec: str = ""

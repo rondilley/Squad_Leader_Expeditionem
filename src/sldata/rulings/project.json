@@ -1,6 +1,6 @@
 {
   "table": "project_rulings",
-  "version": 10,
+  "version": 12,
   "note": "Project rulings fill gaps that the rules text leaves open. Each names the rule it extends and its cause. The official Q and A rulings live in qa.json (slice 3). The owner can change a ruling here, and the change is a data change with a new version.",
   "rulings": [
     {
@@ -55,9 +55,9 @@
     {
       "id": "PR-08",
       "extends": "20.4",
-      "ruling": "The legal list offers each single enemy unit and the whole enemy stack as close combat targets, and attacker groups of up to three units.",
-      "cause": "Rule 20.4 lets a player divide the attacks in any way. The full division is a power set of the attackers and the targets, which the legal list cannot hold. The two ends of the range cover the tactical choice.",
-      "decided": "2026-09-07"
+      "ruling": "The legal list offers each single enemy unit and the whole enemy stack as close combat targets. An attacker group is any set of the eligible units of the hex, so three squads and a leader can attack together. Rule 6.1 limits the hex to four infantry units of a side, and at most three of them squads, so the list stays small. A group whose attack firepower is zero is not a declaration.",
+      "cause": "Rule 20.4 lets a player divide the attacks in any way and combine all of them into one attack. The earlier limit of three units kept a leader out of an attack of three squads, which the rule permits. Rule 20.3 compares the firepower of the attackers with the firepower of the defenders, and rule 20.72 gives a leader firepower only when it began the phase alone in the hex. A group with no firepower has no odds, so it cannot attack. Changed on 2026-09-23 after the review of that day (R1 and the note on PR-08).",
+      "decided": "2026-09-23"
     },
     {
       "id": "PR-09",
@@ -90,16 +90,16 @@
     {
       "id": "PR-13",
       "extends": "25.3",
-      "ruling": "The concealment counters that rule 25.3 gives at the end of a player turn are placed by the core, one on each hex that satisfies the conditions and does not have a counter of that side.",
-      "cause": "Rule 25.3 says a counter can be placed and gives the conditions, but not who chooses. A choice with no cost is not a decision, and an automatic step keeps the legal list small for the trainer and the model agents.",
+      "ruling": "The concealment counters that rule 25.3 gives at the end of a player turn are placed by the core, one on each hex that satisfies the conditions and does not have a counter of that side. Each infantry unit of that side in the hex must satisfy the conditions (changed 2026-09-23).",
+      "cause": "Rule 25.3 says a counter can be placed and gives the conditions, but not who chooses. A choice with no cost is not a decision, and an automatic step keeps the legal list small for the trainer and the model agents. The core keeps one counter for a side in a hex, and it covers each unit of that side there (rule 25.2). A unit that moved or fired in view does not qualify, and before the change the counter of the other units of its hex covered it too.",
       "decided": "2026-09-08"
     },
     {
       "id": "PR-14",
       "extends": "23.3",
-      "ruling": "A demolition charge is operable when the unit that placed it is unbroken and still in its placement hex at the end of the Defensive Fire Phase. A charge that is not operable stays on its target hex and never explodes.",
-      "cause": "Rule 23.3 says the placing unit must survive the Defensive Fires against the placement hex without breaking, and it says what happens when it breaks in that hex. It does not say what happens when the unit leaves the hex or is eliminated, and the project treats both as a charge that is not operable.",
-      "decided": "2026-09-08"
+      "ruling": "A demolition charge is operable when the unit that placed it is unbroken and still in its placement hex at the end of the Defensive Fire Phase. A charge that is not operable does not explode. It leaves its target hex and lies as a support weapon on the ground in the placement hex, and no later phase arms it. A unit may pick it up and place it again as a new charge.",
+      "cause": "Rule 23.3 says the placing unit must survive the Defensive Fires against the placement hex without breaking, and that a charge whose placer breaks there remains in the placement hex and does not explode. It does not say what happens when the unit leaves the hex or is eliminated, and the project treats both as a charge that is not operable. The earlier ruling kept that charge on its target hex, and the core tested it again at each Defensive Fire Phase, so it could arm in a later turn and it gave its dud event in each player turn. Changed on 2026-09-23 after the review of that day (A8).",
+      "decided": "2026-09-23"
     },
     {
       "id": "PR-15",
@@ -146,9 +146,9 @@
     {
       "id": "PR-21",
       "extends": "29.4",
-      "ruling": "A vehicle faces one of the six spines of its hex. Its covered arc is the wedge between the two hexsides that meet at that spine, extended to the edge of the board. A place command carries the facing. A vehicle that moves into a hex arrives on the spine to the right of the direction it moved, and a pivot command sets any other facing at no cost in movement points.",
-      "cause": "Rule 29.4 builds the covered arc from a spine and the two hexsides beside the gun barrel. A counter on a table shows its facing by the way it lies. A command log has no counter, so the facing must be in a payload or a replay cannot reproduce the game. Rule 30.5 gives a free facing change after a move into a hex, and rule 33.32 says the penalty for a pivot and the penalty for a move to a new hex are not cumulative, so one arrival facing plus a free pivot command reaches every state with no command that repeats another.",
-      "decided": "2026-09-08"
+      "ruling": "A vehicle faces one of the six spines of its hex. Its covered arc is the wedge between the two hexsides that meet at that spine, extended to the edge of the board. A place command carries the facing. A move command carries the facing the vehicle takes in the hex it enters, and that facing may be any of the six spines. A pivot command turns a vehicle in the hex where it stands.",
+      "cause": "Rule 29.4 builds the covered arc from a spine and the two hexsides beside the gun barrel. A counter on a table shows its facing by the way it lies. A command log has no counter, so the facing must be in a payload or a replay cannot reproduce the game. Rule 30.5 lets a vehicle change its facing freely after it moves into a hex, and the chart of rule 30 charges the move into a hex outside the covered arc the vehicle had. The earlier ruling gave one fixed arrival facing and a pivot command for the others. PR-30 allows one pivot in a Movement Phase, so after that the fixed facing took away the free change of rule 30.5. Changed on 2026-09-23 after the review of that day (A9).",
+      "decided": "2026-09-23"
     },
     {
       "id": "PR-22",
@@ -212,6 +212,167 @@
       "ruling": "A vehicle makes at most one free pivot in a movement phase. After it has pivoted, the decision frame gives it no more pivot commands until the next player turn resets its movement.",
       "cause": "Rule 30.5 gives a pivot inside the hex, and rule 33.32 charges the pivot to fire and not to movement, so a pivot costs no movement point. With no cost, a vehicle can turn to a facing and back again without end, and a game never terminates. The eval gauntlet found it: v5 against v3 on s04 reached 20000 commands with one vehicle turning between facing 4 and facing 1. One pivot command reads a facing straight from the payload and reaches any of the six facings, so more than one pivot in a hex is never necessary. The single-pivot limit removes the cycle from the action space, so the learned environment and every agent terminate.",
       "decided": "2026-09-12"
+    },
+    {
+      "id": "PR-31",
+      "extends": "25.2",
+      "ruling": "Each concealment counter of the other side is treated as an opposing squad in each legality test, whether a unit is below it or not. No unit enters its hex in the Movement Phase: not by a move, a stack move, a relief move of rule 6.3, or a debark. Its hex is always a fire target for infantry, for a vehicle machine gun, and for the infantry aim of a main gun. A unit may advance into its hex in the Advance Phase, and rule 25.4 then removes the counter at the end of that phase. Fire at a counter with no unit below it rolls and reads the Infantry Fire Table as fire at a concealed squad would: half firepower (rule 25.8) and the modifiers of the target hex. The counter goes when that result is not No Effect (rule 25.9), and the fire has no other effect. For rule 13, a concealed unit and a counter are not known enemy positions (QA-13.41), and a routing unit does not enter the hex of a counter.",
+      "cause": "Rule 25.2 says the stack below a counter must be treated as an opposing squad until proven otherwise, and rule 25.7 makes a counter with nothing below it look the same as a real stack. Rule 5.6 and rule 42.5 forbid a move into an enemy occupied hex in the Movement Phase. So the contact with a real stack cannot happen in the Movement Phase, and the rule-faithful choice is to refuse the entry for every counter. A legal list that allowed the entry into a dummy hex and refused it for a real hex told the player which counter was a dummy. Fire at a dummy removes it only on the result that would remove a real counter, because a dummy that always went when fired at would tell the firer that each counter still standing after a No Effect result is real. The answer to QA-13.41 lets the concealed side abandon its concealment to deny a route. The core gives no window for that choice during the rout of the other side, because the Rout Phase has one window for each side (rule 4.6). That option is not modelled.",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-32",
+      "extends": "42.5",
+      "ruling": "A move or a stack move into the hex of a hidden unit stops the unit, or each unit of the stack, in the hex it came from with no movement factors left (rule 42.5). A rout that reaches the hex of a hidden unit stops in the hex before it. An advance, a sewer arrival, a debark, or any other entry into the hex of a hidden unit puts that unit on the board at once, and the hex is then contested as usual. The test of rule 42.2 at the end of a Defensive Fire Phase or an Advance Phase reads the hex of the hidden unit as well as the hexes next to it.",
+      "cause": "Rule 42.5 names the non-AFV unit that moves in the Movement Phase and gives no case for a stack, a rout, or the Advance Phase. A stack move is the move of each unit in the stack, so each unit stops. Rule 42.6 tells the moving player of a hidden unit when an AFV enters its hex, and an advance or an arrival that shares the hex with the hidden unit is the same contact. Without the reveal the close combat list named a unit that the other player could not see. A hidden unit in the same hex as an enemy is closer than a hidden unit next to it, so rule 42.2 applies to it as well.",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-33",
+      "extends": "25.3",
+      "ruling": "Only infantry on foot is concealed. A vehicle, and a unit that rides on a vehicle, in a hex with a counter of its side stays in full view, and the counter stays over the infantry of that hex. The hidden initial placement of an AFV (rule 42.7) is not changed.",
+      "cause": "Rule 25.3 places a counter on a squad or a leader, and rule 42.7 names hidden initial placement as the only way for an AFV to start concealed. The core tested concealment by the hex, so a tank that drove below a counter left the view of the other player.",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-34",
+      "extends": "25.4",
+      "ruling": "Each command action has one property: the act of rule 25.4 and rule 42.2 that it is, or none. The acts are move (move, stack move, advance, rout, sewer move, vehicle move, vehicle pivot, board, debark, wreck push), fire (group fire, flamethrower fire, anti-tank weapon fire, main gun fire, vehicle machine gun fire, infantry attack on a vehicle, close combat against a vehicle), and smoke (smoke placement, tank smoke, smoke dischargers), and the placement of a demolition charge. The acting units lose their concealment counter and their hidden status. A vehicle holds no counter (PR-33), so its act removes no counter of the infantry in its hex.",
+      "cause": "Rule 25.4 removes a counter when a unit below it fires, moves, or makes smoke, and rule 42.2 reveals a hidden unit for the same acts. The table of acts named only the actions of rules 5 to 27, so an anti-tank shot or a vehicle shot left the firer concealed or hidden.",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-35",
+      "extends": "27.5",
+      "ruling": "A stack that arrives by sewer movement has no track of rule 16.1, and the counter of rule 27.5 goes on at the moment it arrives. A lost stack that comes up at the entrance the other player names gets the counter at that moment too. A unit that made a sewer move makes no other move in that Movement Phase.",
+      "cause": "Rule 27.4 makes the stack immune to fire in each hex except the one it ends in, so no hex of its route is a target hex for rule 16.1. Rule 27.2 says the stack ends its Movement Phase on the entrance. The counter of rule 27.5 went on at the end of the phase, so the arrival stood in full view until then.",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-36",
+      "extends": "13.47",
+      "ruling": "The rout window of a side does not close while a broken unit of that side must rout and has a legal rout. When the side ends the window, the core looks again at each broken unit of the side, and a unit that must rout and has no legal rout left is eliminated (rule 13.47).",
+      "cause": "Rule 13.4 says a broken unit must rout at once, and rule 13.47 eliminates a unit that cannot. The window offered the end of the phase at all times, so a player could keep a broken unit in the open or next to the enemy. One rout can fill the cover hex that another unit needed, so the test at the start of the phase is not enough. A unit with no legal rout has no command in the window, so the test at the end of the window gives the same result as a test after each rout, at a smaller cost for each command.",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-37",
+      "extends": "18.42",
+      "ruling": "The charge target of a berserk unit is each hex at the least distance in hexes that holds an enemy unit in its line of sight, or a concealment counter of the enemy (PR-31). In the Movement Phase the unit may only take a step that is on a shortest route in movement factors to that hex, and it stops next to the hex, because rule 5.6 forbids the entry in the Movement Phase. The Movement Phase does not end while a berserk unit has such a step. In the Advance Phase the unit must advance into the target hex when it is next to it, or one hex along the route when it is not, and the phase does not end before it does. In the Close Combat Phase the side cannot end its declarations while a berserk unit of the side that can attack has not attacked. A berserk squad has 6 movement factors, a berserk leader 8, and a berserk squad in a stack with a berserk leader 8 (rule 18.43). A berserk unit does not fire in the Prep Fire Phase. With no enemy in its line of sight the unit has no target, and it moves as it likes with those factors. A broken unit that rolls 2 becomes berserk and is no longer broken, as rule 18.4 says for a unit that is already broken.",
+      "cause": "Rule 18.42 says the unit must charge the nearest enemy unit in its line of sight by the shortest route in movement factors, during its Movement and Advance Phase, to destroy it in close combat. Rule 5.6 keeps each infantry unit out of an enemy hex until the Advance Phase. The rule gives no case for a unit with no enemy in sight. Rule 18.41 keeps the immunity to morale checks for the rest of the scenario, so the berserk state ends only with the elimination of the unit.",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-38",
+      "extends": "13.5",
+      "ruling": "A pickup of a support weapon of the other side is a capture. A captured machine gun changes owner to the capturing side and keeps its printed values. A captured weapon of another class is eliminated at the capture, except that an American unit keeps and operates it (rule 50.4). No unit captures a weapon in a melee hex (rule 20.84), or a weapon in a hex that holds a concealment counter or a hidden unit of its owner. A captured weapon whose army is not an army of its holder cannot be repaired (rule 18.2).",
+      "cause": "Rule 2.7 and rule 13.5 let either side capture and use a machine gun, and rule 13.5 eliminates the other weapons that the opposing side captures. Rule 50.4 gives the Americans each captured weapon except a radio. The 4th edition gives no penalty in rate of fire, breakdown, or firepower for a captured weapon, so the core gives none. Rule 18.2 forbids a repair of a captured broken weapon. The core gave a picked up enemy weapon to the picker with no change of owner.",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-39",
+      "extends": "16.1",
+      "ruling": "For each hex of the track, the defender may return one unit that moved through it, the units of one stack move through it together, or all the units that moved through it.",
+      "cause": "Rule 16.1 lets the defender return any enemy units that moved through a hex in its line of sight. The command returned all of them together, so the defender could not fire at one unit alone. A full power set of the units is too large for the legal list, and the three choices cover the tactical cases.",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-40",
+      "extends": "15.2",
+      "ruling": "The leadership modifier of a fire group is zero when a member hex has no eligible leader, whatever the sequence in which the units and the leader joined the group, and the leader then does not count as having directed fire. A leader who mans a machine gun in the group gives its modifier only to a group of its own fire (rule 17.4).",
+      "cause": "QA-15.2 gives the modifier to a multi-hex group only when each hex of the chain holds a leader. The core checked the hexes when the leader was named and not when a unit joined after that, so the modifier changed with the sequence of the commands. Rule 17.4 takes the modifier over other firing units away from a leader who mans a machine gun.",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-41",
+      "extends": "17.2",
+      "ruling": "A squad forfeits its inherent firepower when it fires two machine guns in the same player turn whose firepower is more than 4, in one fire group or in two. A squad that already used its inherent firepower cannot add the second machine gun that would take it over 4. One machine gun alone never costs the inherent firepower (rule 17.1).",
+      "cause": "Rule 17.2 says the squad forfeits its inherent firepower for that turn. The core counted the machine guns of one group only, so two groups avoided the forfeit, and it counted one heavy machine gun as a forfeit, which rule 17.1 does not.",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-42",
+      "extends": "13.3",
+      "ruling": "A broken squad routs with 6 movement factors when a leader of its side, broken or not, is in its hex when it routs. More than one leader gives no more factors.",
+      "cause": "Rule 13.3 gives 6 factors to a broken squad stacked with a leader whether broken or not throughout the Rout Phase. The core moves each unit with one command and has no joint rout of rule 15.8, so the leader in the hex at the moment of the rout is the leader the squad routs with.",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-43",
+      "extends": "37.35",
+      "ruling": "In one fire phase a squad or a leader may fire its anti-tank weapons before or after it fires in a fire group, in either sequence. An anti-tank shot marks the weapon, counts against the limit of rule 37.35 (four panzerfausts) or rule 37.46 (two bazookas) for the player turn, and does not mark the unit as fired. A flamethrower shot at a vehicle marks its operator as fired, as flamethrower fire at infantry does. The phase limits still apply: no anti-tank shot in the Prep Fire Phase by a unit that moved, and none in the Advancing Fire Phase by a unit with a Prep Fire counter. A unit that fired any weapon in the Prep Fire Phase, an anti-tank weapon too, gets the Prep Fire counter at the end of that phase.",
+      "cause": "Rule 37.35 lets a squad fire up to four panzerfausts and still use its inherent firepower, and rule 37.46 gives the same to two bazookas. The rules do not give a sequence. The core refused an anti-tank shot by a unit that had fired in a group, and it allowed the group after the shot, so the sequence of the commands changed what was legal. A panzerfaust leaves the game when it fires, so the unit carried nothing that fired and got no Prep Fire counter (review A2 and A12).",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-44",
+      "extends": "34.8",
+      "ruling": "A vehicle with the crew exposed counter is a target of infantry fire groups in each fire phase of the other side while the counter is on, from any hex in the range and the line of sight of the members. The target is the hex of the vehicle, and the group attacks the infantry of that hex as usual. The same dice roll is then read on the Infantry Fire Table against the crew, with the firepower of the group, a modifier of plus two for the vehicle, the leadership modifier of the group, and the smoke die of the group. No terrain modifier and no minus two for movement apply. A KIA puts the crew through the morale check of rule 39.2: a failure abandons the vehicle, which becomes a wreck with its crew counter on it. Each other result has no effect. The attempt of rule 36.12 to immobilize the vehicle keeps its own limits: an adjacent squad or leader in cover in the Defensive Fire Phase. The counter comes off at the end of the first fire phase of the other side after the phase in which the vehicle used its all-round machine gun.",
+      "cause": "Rule 34.8 lets infantry fire at the exposed crew in any fire phase and from a hex that is not adjacent, with plus two, no minus two for movement, morale check results ignored, and a KIA that forces the crew to a morale check that abandons the vehicle on a failure. It does not give the attack of rule 36.12 to every hex. The core gave the immobilize attempt of rule 36.12 to each unit at each range with no line of sight, and it took the counter off at the end of the wrong fire phase (review A3 and A5).",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-45",
+      "extends": "63.3",
+      "ruling": "A main gun whose counter carries H6 may fire HEAT at a vehicle. The payload names the shell before the to-hit roll (rule 63.31). A hit reads the H6 column of the kill table. A to-hit roll of 6 or more before modification leaves the gun with no HEAT for the rest of the scenario, and that shot reads the high explosive column of the gun (rule 63.32). HEAT is not a shell against infantry.",
+      "cause": "Rule 33.6 points the H6 of the American 105 millimetre guns to rule 63.3, which gives the shell, its effect on vehicles, and its supply. The rule reads the 6 or more on the to-hit dice as rule 34.92 reads canister, and rule 34.92 names the dice roll before modification. The core had the HEAT flag and the H6 column and no code that read them (review A10).",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-46",
+      "extends": "23.1",
+      "ruling": "A demolition charge that explodes in a hex with a vehicle that is not a wreck attacks the vehicle on the demolition charge column of the kill table. The explosion dice roll is the kill roll, with the modifier of rule 33.41 for that vehicle. The target facing is the class of the hexside of the vehicle hex that faces the hex the charge was placed from. The same roll is read on the Infantry Fire Table against each infantry unit of the hex that is still there, on foot below the vehicle or on top of it. An unmodified 12 is the malfunction of rule 23.8, and the charge then has no effect on the vehicle or on the infantry.",
+      "cause": "The kill table of rule 33.4 has a column for the demolition charge, and rule 32.5 names the charge as an attack that also hits the infantry below a vehicle. The rules give no separate roll, so the charge makes one roll, in the same way rule 37.2 uses the one roll of a flamethrower on the kill table and on the Infantry Fire Table. The charge is placed from an adjacent hex (rule 23.3), and that hex is the side of the vehicle it is placed against. A charge in a vehicle hex did no damage to the vehicle (review A10).",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-47",
+      "extends": "37.2",
+      "ruling": "Flamethrower fire at a vehicle obeys rule 22. The operator is an assault engineer squad or a leader of minus two or better (rule 22.4), it is not in a melee hex, and the vehicle is within two hexes and in its line of sight. Rule 37.2 gives the hit with no roll. The two dice of the kill roll are the dice of the flamethrower attack: a roll of 9 or more empties the fuel after the attack (rule 22.6), and the same roll is read on the 20 column of the Infantry Fire Table against the infantry of the hex with no modifier (rule 22.2).",
+      "cause": "Rule 37.2 says the flamethrower rolls on the kill table and that the same dice roll goes a second time on the Infantry Fire Table. Rule 22 gives the operator, the fuel, and the absence of modifiers for each flamethrower attack. The core fired the weapon from any infantry unit, rolled new dice for the infantry, added the terrain modifiers, and never emptied the fuel (review A7).",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-48",
+      "extends": "41.3",
+      "ruling": "The target hex of tank smoke is a hex that is not the vehicle's own hex or next to it, that the vehicle sees under rule 7 with the vehicles of rule 32.3, and that the to-hit table gives a number for. A self-propelled gun fires smoke in its covered arc only (rule 33.1). A vehicle fires smoke only while its side has a smoke counter left (rule 24.1), and the smoke dischargers of rule 41.4 take a counter from the same allowance.",
+      "cause": "Rule 41.3 has the vehicle fire smoke instead of its main armament and read the to-hit table for the range, so the shot has the line of sight and the arc of a main gun shot. The core offered every hex of the board, and the dischargers placed a counter when the side had none left (review A11).",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-49",
+      "extends": "42.7",
+      "ruling": "An AFV of the side with hidden initial placement is recorded hidden only in a woods hex or a wooden building hex. A hidden vehicle is not in a legal list of the other side: it is no target of a gun, an anti-tank weapon, or an infantry attack, it is no obstacle of rule 32.3, and it adds no cost of rule 29.1 to a move. A vehicle that enters the hex of a hidden AFV of the other side puts it on the board (rule 42.6). An AFV does not overrun an AFV (rule 35.1) and does not end its move in a hex with another vehicle (rule 30.8), so the moving vehicle goes back to the hex it came from with the cost of the entry spent, and it may move on from there.",
+      "cause": "Rule 42.7 lets an AFV start hidden in a woods or wood building hex only. Rule 42.1 records a hidden unit off the board, so no legal list of the other side may change because of it. Rule 42.6 tells the moving player when a vehicle enters the hex of a hidden unit and makes the overrun, which a hidden AFV cannot take (review A12).",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-50",
+      "extends": "30",
+      "ruling": "The road rate of the Vehicle Movement Cost Chart applies when the road crosses the hexside the vehicle moves through. A board document lists the road hexsides of each road hex (`road_sides`, the directions the road leaves the hex), and a road hexside must be listed from both of its hexes. A board document that lists no road hexside at all reads each pair of adjacent road hexes as joined by a road, which is the reading from before this ruling.",
+      "cause": "The chart gives the road rate for a move along a road through the hexside the road intersects. Two road hexes can touch where the road does not cross their common hexside, for example a hex of a north to south road and the next hex of an east to west road beside the junction. The set of road hexes does not tell which hexsides the road crosses: at a junction of the generated boards two hexes are each next to both roads, so no rule on the hexes alone can find the road. The hexsides must come from the board document. The board generator records road hexes and not yet road hexsides, so the old reading stays for its boards until it writes them (review A12).",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-51",
+      "extends": "35.8",
+      "ruling": "Immediately after the Defensive Fire Phase the owner of the infantry on foot in the hex of an enemy vehicle moves each such unit, with the weapons it carries, to an adjacent hex of its choice, one command for each unit. A hex is a choice when it is on the board, the hexside is not a cliff, it holds no enemy unit and no enemy concealment counter, and the unit fits the stacking limit of rule 6.1 there. A unit with no such hex is eliminated with its weapons when the owner ends the window.",
+      "cause": "Rule 35.8 moves the infantry to an adjacent hex of its choice and eliminates the unit that cannot move because of enemy units, stacking limits, the board edge, or cliff hexsides. The core moved each unit to the first hex with no enemy in it, with no choice and no test of stacking or terrain (review A12).",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-52",
+      "extends": "42.4",
+      "ruling": "When the scenario gives the other side hidden initial placement, each fire window also offers as a target each woods or building hex (rule 42.1) in the line of sight of the firer that holds no enemy unit or counter the firer knows of and no unit of the firer's side. Infantry fire groups, vehicle machine guns, and the high explosive of a main gun may fire there. The fire is Area Fire at half strength (rules 42.4 and 9.4) against each hidden unit in the hex, and a result that is not No Effect puts the hidden units of the hex on the board. The list does not depend on where the hidden units are, and it stays the same for the whole game.",
+      "cause": "Rule 42.4 lets a player fire blind into a suspected enemy position at half strength. A hidden unit can only be in a woods or building hex, so no other hex is a position the rule can mean, and a hex with a unit of the firer's side cannot hold a hidden enemy (PR-32). A list that changed when the last hidden unit came on the board would tell the firer that none is left.",
+      "decided": "2026-09-23"
+    },
+    {
+      "id": "PR-53",
+      "extends": "16.1",
+      "ruling": "The defender may return a unit to a hex of its track only when a unit of the defender has a line of sight to that hex: an unbroken infantry unit on foot on the board or a vehicle that is not a wreck. The line of sight is that of the Defensive Fire Phase, with the vehicles of rule 32.3 and rule 32.6.",
+      "cause": "Rule 16.1 lets the defender return units that moved through a hex in the line of sight of one of his units, a hex his units could fire on. The core offered each hex of each track with no line of sight test. A broken unit cannot fire, so its line of sight gives no target hex.",
+      "decided": "2026-09-23"
     }
   ]
 }

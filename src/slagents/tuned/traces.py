@@ -156,12 +156,22 @@ def _unit_text(unit: Mapping[str, Any]) -> str:
     return f"{unit['id']}:{unit['type']}{name}@{where}{tail}"
 
 
-def outcome_of(events: Iterable[Any]) -> tuple[str, ...]:
-    """The immediate result of one command, as rule and kind pairs from the action log."""
+def outcome_of(events: Iterable[Any], after: State | None = None, player: int | None = None) -> tuple[str, ...]:
+    """The immediate result of one command, as rule and kind pairs from the action log.
+
+    With `after` and `player` the list holds the events that player may see in the state
+    after the command, by the host's own test (`slcore.view.event_visible`, S12). A trace
+    that named the event of a concealed or hidden enemy would teach the model a thing the
+    player could not know, the same way a view with the unit would (SR-09).
+    """
     out: list[str] = []
     for event in events:
         rule = event.rule_id if hasattr(event, "rule_id") else event["rule_id"]
         kind = event.kind if hasattr(event, "kind") else event["kind"]
+        if after is not None and player is not None:
+            data = event.data if hasattr(event, "data") else event.get("data", {})
+            if not view_module.event_visible(after, {"kind": kind, "data": data}, player):
+                continue
         out.append(f"{rule}:{kind}")
     return tuple(out)
 
@@ -186,12 +196,21 @@ class TraceWriter:
         agent: Any,
         command_id: str,
         events: Iterable[Any],
+        after: State | None = None,
     ) -> TraceRecord:
-        """One decision of the acting player, from that player's view alone (SR-09)."""
+        """One decision of the acting player, from that player's view alone (SR-09).
+
+        The outcome holds the events that player may see in the state after the command
+        (S12). `after` is that state; when a caller does not give it, the writer applies
+        the command to `state` with the core, which gives the same state again, because
+        the core is a pure function of the state and the command.
+        """
         player = frame.player
         legal = frame.by_id(command_id)
         if legal is None:
             raise TraceError(f"the command {command_id} is not in the frame of decision {len(self.records)}")
+        if after is None:
+            after, _ = engine.apply(state, legal.command, frame)
         record = TraceRecord(
             game_id=self.game_id,
             decision=len(self.records),
@@ -206,7 +225,7 @@ class TraceWriter:
             legal_command_ids=tuple(lc.id for lc in frame.commands),
             selected_command_id=command_id,
             selected_payload=legal.payload,
-            outcome=outcome_of(events),
+            outcome=outcome_of(events, after, player),
             board_source=self.board_source,
         )
         self.records.append(record)

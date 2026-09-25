@@ -14,7 +14,8 @@ from __future__ import annotations
 
 from typing import Mapping, Sequence
 
-from slcore import geometry
+from slcore import actions, geometry
+from slcore.commands import Command
 from slcore.events import Event
 from slcore.game import Smoke, State
 from slcore.geometry import HexRef
@@ -97,3 +98,13 @@ def modifier(state: State, hexes: Sequence[HexRef]) -> tuple[State, int]:
 def move_penalty(state: State, hex_ref: HexRef) -> int:
     """Rule 24.5: one more movement factor, in half units (NFR-05)."""
     return MF_HALVES_PENALTY if state.smoke_in(hex_ref) else 0
+
+
+# ------------------------------------------------------------------ the command handler (M3)
+
+
+@actions.action("place_smoke", unconceals=actions.CAUSE_SMOKE)
+def _on_place_smoke(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    if command.hex is None:
+        raise ValueError("a smoke counter needs a hex")
+    return place(state, command.units[0], command.hex)

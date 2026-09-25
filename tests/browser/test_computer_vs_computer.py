@@ -192,6 +192,12 @@ async def test_two_computer_opponents_play_a_whole_game_in_the_browser():
                 "() => window.slClient.state.view && window.slClient.state.view.game_over === true",
                 timeout=30000,
             )
+            # H5 and slice 8: the end screen names the result, and it closes to show the board.
+            await page.wait_for_function("() => !document.getElementById('end-screen').hidden", timeout=30000)
+            end_title = await page.locator("#end-title").text_content()
+            end_losses = await page.locator("#end-losses tbody tr").count()
+            await page.screenshot(path=str(pictures / "end-screen.png"))
+            await page.click("#end-close")
             final = await client_state(page)
             drawn = await canvas_colours(page)
             await page.screenshot(path=str(pictures / "final.png"))
@@ -210,6 +216,13 @@ async def test_two_computer_opponents_play_a_whole_game_in_the_browser():
     assert host.game.state.result, "the game ended with no result"
     assert final["over"] is True
     assert final["result"] == host.game.state.result
+
+    assert end_title in ("German wins", "Russian wins", "A draw", "No winner"), end_title
+    assert end_losses == 2, "the end screen has a row of losses for each side"
+
+    # H4: the client merged the log by seq and kept the whole history, not a tail of 40.
+    assert final["logs"] == len(host.game.log_tail_for(0, spectator=True)) or final["logs"] > 40
+    assert final["logs"] == len(host.game.stream("spectator", -1, spectator=True).lines)
 
     # The client and the host agree at the end.
     assert final["turn"] == host.game.state.turn

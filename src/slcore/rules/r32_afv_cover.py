@@ -62,6 +62,11 @@ def obstacle_hexes(state: State, phase: str) -> frozenset[HexRef]:
     for unit in state.units:
         if not unit.is_vehicle or unit.eliminated or unit.hex is None:
             continue
+        if unit.hidden:
+            # Rule 42.1 and PR-49: a hidden vehicle is on the owner's record and not on the
+            # board, so it is no obstacle, and the line of sight of the other side does
+            # not tell where it is.
+            continue
         if not unit.wreck and not blocks_this_phase(state, unit, phase):
             continue
         out.add(unit.hex)
@@ -77,18 +82,20 @@ def vehicle_block(
     wall on the far hexside of its own hex, so a shot that ends in the hex right behind it
     takes the wall modifier and a shot that goes further is blocked. A vehicle in a hex
     next to the firer has no effect at all.
+
+    Each vehicle on the line is a wall of its own. So the line is blocked when any one of
+    them is more than one hex in front of the target, whatever the other vehicles do.
     """
     if not vehicle_hexes:
         return False, 0
-    last: HexRef | None = None
+    modifier = 0
     for ref in traced:
-        if ref in vehicle_hexes and not board.adjacent(firer, ref):
-            last = ref
-    if last is None:
-        return False, 0
-    if board.adjacent(last, target):
-        return False, WALL_MODIFIER
-    return True, 0
+        if ref not in vehicle_hexes or board.adjacent(firer, ref):
+            continue
+        if not board.adjacent(ref, target):
+            return True, 0
+        modifier = WALL_MODIFIER
+    return False, modifier
 
 
 def hull_down_behind_wreck(
@@ -120,7 +127,7 @@ def target_modifier(
 ) -> tuple[int, str]:
     """Rules 32.1 and 32.5: what the vehicle in the target hex adds, and the rule that says so."""
     vehicle = r28_vehicles.vehicle_in(state, target)
-    if vehicle is None:
+    if vehicle is None or vehicle.hidden:
         return 0, ""
     if passengers_only(state, target):
         if not r28_vehicles.in_covered_arc(target, vehicle.facing, firer):
@@ -201,7 +208,7 @@ def group_cancels_open_ground(board: Board, los: "LosTable", state: State, group
         if firer is None or firer == target:
             continue
         traced = thread_hexes(los, firer, target)
-        if any(u.is_vehicle for ref in traced for u in state.units_in(ref)):
+        if any(u.is_vehicle and not u.hidden for ref in traced for u in state.units_in(ref)):
             return True
     return False
 

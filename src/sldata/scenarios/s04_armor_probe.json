@@ -1,7 +1,7 @@
 {
  "id": "s04_armor_probe",
  "title": "Armor probe at the crossroads",
- "notes": "A project scenario, not a printed scenario. It is the first game that plays the armor rules 28 to 41: tanks and self-propelled guns, their covered arcs, their guns against infantry and against each other, the overrun, the panzerfaust, and the wrecks they leave. The board comes from the generator and the forces are the project's own, so no part of it is card text (SR-07, FR-22). Rules 47 and 51 hold the halftrack, the truck, and the jeep, and project ruling PR-20 keeps them out until then.",
+ "notes": "A project scenario, not a printed scenario. It is the first game that plays the armor rules 28 to 41: tanks and self-propelled guns, their covered arcs, their guns against infantry and against each other, the overrun, the panzerfaust, and the wrecks they leave. The board comes from the generator and the forces are the project's own, so no part of it is card text (SR-07, FR-22). Rules 47 and 51 hold the halftrack, the truck, and the jeep, and project ruling PR-20 keeps them out until then. Since 2026-09-23 each side has concealment counters and the German side has an assault engineer squad with a demolition charge, so the armor rules and rules 22 to 25 play together (review of that day).",
  "board": "village",
  "board_generator": {
   "seed": 20260909,
@@ -33,6 +33,10 @@
   "axis"
  ],
  "rules_used": [
+  "22",
+  "23",
+  "24",
+  "25",
   "28",
   "29",
   "30",
@@ -54,6 +58,10 @@
  },
  "smoke_counters": {
   "axis": 2
+ },
+ "concealment_counters": {
+  "axis": 3,
+  "allied": 4
  },
  "sides": [
   {
@@ -79,12 +87,20 @@
        "count": 3
       },
       {
+       "type": "8-3-8",
+       "count": 1
+      },
+      {
        "type": "LMG",
        "count": 1
       },
       {
        "type": "PF",
        "count": 2
+      },
+      {
+       "type": "DC",
+       "count": 1
       }
      ]
     },

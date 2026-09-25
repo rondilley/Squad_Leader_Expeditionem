@@ -18,6 +18,7 @@ of such a run says so.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +72,10 @@ def run(args: Any) -> int:
         else:
             record = finetune.run_full(samples, out, profile)
     except finetune.FinetuneError as exc:
+        if isinstance(exc.__cause__, ImportError):
+            # The extra is not installed: the typed exit code of a missing extra (B8).
+            print(f"ERROR {exc}", file=sys.stderr)
+            return 4
         print(f"ERROR {exc}")
         return 1
     art.stats = {**record, "passed": {"TR-12": bool(record.get("finite_loss")) and record.get("steps", 0) >= finetune.SMOKE_STEPS}}

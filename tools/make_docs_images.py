@@ -33,10 +33,11 @@ sys.path.insert(0, str(ROOT / "src"))
 import pygame  # noqa: E402
 
 from slboards.generator import GeneratorParameters, generate_with_retry  # noqa: E402
-from slcli.play import build_engine, make_agent  # noqa: E402
+from slagents.base import decide  # noqa: E402
+from slagents.registry import build_engine, make_agent  # noqa: E402
 from slcore import view as core_view  # noqa: E402
 from sldata.loaders import load_terrain  # noqa: E402
-from slwindow import layout, panel, theme  # noqa: E402
+from slwindow import counters, layout, panel, theme  # noqa: E402
 from slwindow.app import Window  # noqa: E402
 from slwindow.client import GameView, HostClient  # noqa: E402
 from slwindow.render import draw_board  # noqa: E402
@@ -136,7 +137,7 @@ def board_picture(spec: Picture) -> pygame.Surface:
     )
     document = core_view.board_document(board)
     surface = pygame.Surface((spec.width, spec.height))
-    small = pygame.font.SysFont("dejavusansmono,consolas,couriernew", 12)
+    small = counters.system_font("dejavusansmono,consolas,couriernew", 12)
     draw_board(surface, document, layout.fit(document, spec.width, spec.height), small)
     return surface
 
@@ -158,7 +159,7 @@ def window_picture(spec: Picture) -> pygame.Surface:
     for _ in range(spec.commands):
         if state.game_over or not frame.commands:
             break
-        chosen = agents[state.active].select(state, frame)
+        chosen = decide(agents[state.active], state, frame)
         legal = frame.by_id(chosen)
         if legal is None:
             raise RuntimeError(f"the agent {spec.agent} gave an ID that is not in the frame")
@@ -168,7 +169,7 @@ def window_picture(spec: Picture) -> pygame.Surface:
     window = Window(HostClient("ws://127.0.0.1:1/", "none"), size=(spec.width, spec.height), caption=spec.name)
     snapshot = GameView(
         board=core_view.board_document(engine.board),
-        scenario={"title": engine.scenario.title, "board": engine.board.name, "turns": engine.scenario.turns},
+        scenario={"title": engine.scenario.title, "board": engine.board.name, "turns": engine.scenario.turns, "players": list(engine.scenario.players())},
         seat="axis",
         player=0,
         view=core_view.build(state, engine.types, 0, spectator=True),
@@ -187,7 +188,15 @@ def window_picture(spec: Picture) -> pygame.Surface:
 
 
 def make(spec: Picture) -> pygame.Surface:
-    return window_picture(spec) if spec.scenario else board_picture(spec)
+    """One picture, printed with the font of the library, so it is the same on each system."""
+    before = counters.BUNDLED_FONT
+    counters.BUNDLED_FONT = True
+    counters._FONTS.clear()
+    try:
+        return window_picture(spec) if spec.scenario else board_picture(spec)
+    finally:
+        counters.BUNDLED_FONT = before
+        counters._FONTS.clear()
 
 
 def main() -> int:

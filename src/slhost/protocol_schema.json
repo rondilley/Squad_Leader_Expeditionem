@@ -1,0 +1,166 @@
+{
+  "version": 2,
+  "max_message_bytes": 65536,
+  "client_messages": {
+    "join": "join",
+    "intent": "intent",
+    "view_request": "view_request",
+    "los_request": "los_request",
+    "undo": "undo",
+    "auto_setup": "auto_setup"
+  },
+  "host_messages": {
+    "welcome": "welcome",
+    "frame": "frame",
+    "error": "error",
+    "los_result": "los_result",
+    "game_over": "game_over"
+  },
+  "statuses": {
+    "your_turn": "your_turn",
+    "waiting": "waiting",
+    "computer_thinking": "computer_thinking",
+    "game_over": "game_over"
+  },
+  "error_codes": {
+    "room_code": "room_code",
+    "room_full": "room_full",
+    "rate_limited": "rate_limited",
+    "origin": "origin",
+    "seat": "seat",
+    "illegal": "illegal",
+    "stale_frame": "stale_frame",
+    "protocol": "protocol",
+    "undo_refused": "undo_refused",
+    "internal": "internal"
+  },
+  "terminal_codes": [
+    "room_code",
+    "rate_limited",
+    "origin",
+    "room_full"
+  ],
+  "controllers": {
+    "human": "human",
+    "computer": "computer",
+    "remote": "remote"
+  },
+  "seats": {
+    "hot_seat": "hot_seat",
+    "player": "player",
+    "watcher": "watcher"
+  },
+  "client_fields": {
+    "join": {
+      "required": [
+        "type",
+        "room_code"
+      ],
+      "optional": [
+        "display_name",
+        "seat_token"
+      ]
+    },
+    "intent": {
+      "required": [
+        "type",
+        "frame_id",
+        "command_id"
+      ],
+      "optional": []
+    },
+    "view_request": {
+      "required": [
+        "type"
+      ],
+      "optional": []
+    },
+    "los_request": {
+      "required": [
+        "type",
+        "from",
+        "to"
+      ],
+      "optional": []
+    },
+    "undo": {
+      "required": [
+        "type"
+      ],
+      "optional": []
+    },
+    "auto_setup": {
+      "required": [
+        "type"
+      ],
+      "optional": []
+    }
+  },
+  "host_fields": {
+    "welcome": {
+      "required": [
+        "type",
+        "player",
+        "you",
+        "seat",
+        "board",
+        "scenario",
+        "strict_los",
+        "sides"
+      ],
+      "optional": [
+        "seat_token"
+      ]
+    },
+    "frame": {
+      "required": [
+        "type",
+        "player",
+        "view",
+        "frame_id",
+        "active",
+        "phase",
+        "sub_step",
+        "turn",
+        "legal_commands",
+        "log_tail",
+        "status",
+        "auto_applied",
+        "can_undo",
+        "phase_text"
+      ],
+      "optional": []
+    },
+    "error": {
+      "required": [
+        "type",
+        "rule_id",
+        "message",
+        "code"
+      ],
+      "optional": []
+    },
+    "los_result": {
+      "required": [
+        "type",
+        "from",
+        "to",
+        "result"
+      ],
+      "optional": []
+    },
+    "game_over": {
+      "required": [
+        "type",
+        "result",
+        "winner_name",
+        "outcome",
+        "cause",
+        "conditions",
+        "turn",
+        "casualties"
+      ],
+      "optional": []
+    }
+  }
+}

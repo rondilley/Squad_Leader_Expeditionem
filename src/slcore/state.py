@@ -74,6 +74,9 @@ class Hex:
     sewer: bool = False
     stairs: bool = False
     polygons: tuple[Polygon, ...] = ()
+    # PR-50: the directions in which the road of this hex crosses a hexside. An empty
+    # tuple on every hex of a board means the board document names no road hexside.
+    road_sides: tuple[int, ...] = ()
 
     @property
     def ref(self) -> HexRef:
@@ -127,6 +130,8 @@ class Board:
         self.order: tuple[HexRef, ...] = tuple(sorted(self._hexes))
         self.index: dict[HexRef, int] = {ref: i for i, ref in enumerate(self.order)}
         self._check_hexsides()
+        self.named_road_sides = any(h.road_sides for h in self._hexes.values())
+        self._check_road_sides()
 
     def all_refs(self) -> Iterable[HexRef]:
         for col in range(self.cols):
@@ -188,6 +193,32 @@ class Board:
                             f"hexside {h.id}-{geometry.hex_id(*other)} is {feature!r} on one side and {back!r} on the other"
                         )
 
+    def _check_road_sides(self) -> None:
+        """PR-50: a road hexside is on a road hex and is named from both of its hexes."""
+        for ref, h in self._hexes.items():
+            for d in h.road_sides:
+                if not 0 <= d < 6:
+                    raise ValueError(f"hex {h.id} names road direction {d}")
+                if not h.road:
+                    raise ValueError(f"hex {h.id} names a road hexside and is not a road hex")
+                other = geometry.neighbor(ref[0], ref[1], d)
+                if other in self._hexes and (d + 3) % 6 not in self._hexes[other].road_sides:
+                    raise ValueError(f"the road hexside {h.id}-{geometry.hex_id(*other)} is named from one side only")
+
+    def road_crosses(self, ref: HexRef, direction: int) -> bool:
+        """PR-50: the road of this hex crosses the hexside in this direction.
+
+        A board document that names no road hexside reads two adjacent road hexes as joined,
+        which is the reading from before PR-50.
+        """
+        here = self._hexes[ref]
+        if not here.road:
+            return False
+        if self.named_road_sides:
+            return direction in here.road_sides
+        other = geometry.neighbor(ref[0], ref[1], direction)
+        return other in self._hexes and self._hexes[other].road
+
     def subset_columns(self, lo: int, hi: int) -> "Board":
         """A board of the columns lo to hi. A scenario that uses part of a board uses this."""
         kept = [h for h in self if lo <= h.col <= hi]
@@ -212,6 +243,7 @@ class Board:
                     sewer=h.sewer,
                     stairs=h.stairs,
                     polygons=default_polygons(h.col - lo, h.row, h.terrain, self.terrain),
+                    road_sides=h.road_sides,
                 )
             )
         return Board(hi - lo + 1, self.rows, hexes, self.terrain, name=f"{self.name}-{lo}-{hi}")
@@ -224,6 +256,8 @@ class Board:
                 item["elevation"] = h.elevation
             if h.road:
                 item["road"] = True
+            if h.road_sides:
+                item["road_sides"] = list(h.road_sides)
             if h.building is not None:
                 item["building"] = {"id": h.building.id, "kind": h.building.kind, "size": h.building.size}
             sides = {str(d): f for d, f in enumerate(h.hexsides) if f is not None}
@@ -266,6 +300,7 @@ class Board:
                     sewer=bool(item.get("sewer", False)),
                     stairs=bool(item.get("stairs", False)),
                     polygons=polys,
+                    road_sides=tuple(sorted(int(d) for d in item.get("road_sides", []))),
                 )
             )
         return Board(int(data["cols"]), int(data["rows"]), hexes, terrain, name=str(data.get("name", "")))

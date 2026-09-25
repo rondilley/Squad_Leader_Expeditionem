@@ -17,7 +17,8 @@ from __future__ import annotations
 
 from typing import Iterable, Mapping
 
-from slcore import geometry
+from slcore import actions, geometry
+from slcore.commands import Command
 from slcore.events import Event
 from slcore.game import Concealment, State
 from slcore.geometry import HexRef
@@ -103,6 +104,15 @@ def grow(state: State, board: Board) -> tuple[State, list[Event]]:
                 continue
             if any(c.hex == unit.hex and c.player == player for c in state.concealment):
                 continue
+            if not all(
+                can_conceal(state, board, other)
+                for other in state.infantry_in(unit.hex)
+                if other.player == player and not other.riding
+            ):
+                # A counter covers each unit of its hex (rule 25.2), and rule 25.3 gives
+                # it only to units that qualify. A hex that holds a unit that does not
+                # qualify gets no counter, so that unit stays in view.
+                continue
             hexes.append(unit.hex)
         for hex_ref in hexes:
             state, counter = add(state, player, hex_ref)
@@ -186,3 +196,39 @@ def counters_left(state: State, player: int, allowed: Mapping[int, int]) -> int:
     """Rule 25.6: how many of the counters the scenario gave are still to place."""
     placed = sum(1 for c in state.concealment if c.player == player)
     return max(0, int(allowed.get(player, 0)) - placed)
+
+
+def unconceal(before: State, state: State, units: tuple[int, ...], cause: str) -> tuple[State, list[Event]]:
+    """Rules 25.4 and 25.42: the act of a concealed unit takes the counter of its hex.
+
+    The hex before the act and the hex after it each count. Only infantry holds a counter
+    (PR-33), so the act of a vehicle takes no counter of the infantry that shares its hex.
+    """
+    places: set[tuple[HexRef, int]] = set()
+    for uid in units:
+        for source in (before, state):
+            unit = source.units[uid]
+            if unit.hex is not None and unit.is_infantry and not unit.riding:
+                places.add((unit.hex, unit.player))
+    events: list[Event] = []
+    for hex_ref, player in sorted(places):
+        state, ev = remove_in(state, hex_ref, player, RULE_25_4, cause)
+        events.extend(ev)
+    return state, events
+
+
+# ------------------------------------------------------------------ the command handler (M3)
+
+
+@actions.action("place_concealment")
+def _on_place_concealment(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    if command.hex is None:
+        raise ValueError("a concealment counter needs a hex")
+    state, counter = add(state, state.active, command.hex)
+    return state, [
+        Event(
+            RULE_25_6,
+            "concealed",
+            {"counter": counter.id, "player": state.active, "hex": geometry.hex_id(*command.hex)},
+        )
+    ]

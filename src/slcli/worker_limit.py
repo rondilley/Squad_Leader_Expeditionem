@@ -1,22 +1,15 @@
-"""The ceiling on a worker count.
+"""The ceiling on a worker count, as argparse types.
 
-A command that starts one process for each worker has no other limit. A large count
-forks until the machine stops. 64 is enough for the benches and the gauntlets on the
-owner's machines, and it refuses a larger count at the command line and at each pool.
+The ceiling and `limit_workers` are in `slagents.registry`, because each pool of the
+library reads them. This module gives the command line types that refuse a count
+outside the ceiling.
 """
 
 from __future__ import annotations
 
 import argparse
 
-MAX_WORKERS = 64
-
-
-def limit_workers(workers: int) -> int:
-    """The count, when it is from 1 to `MAX_WORKERS`."""
-    if workers < 1 or workers > MAX_WORKERS:
-        raise ValueError(f"workers must be from 1 to {MAX_WORKERS}, not {workers}")
-    return workers
+from slagents.registry import MAX_WORKERS, limit_workers  # noqa: F401  re-exported for the callers of slcli.worker_limit
 
 
 def workers_argument(text: str) -> int:

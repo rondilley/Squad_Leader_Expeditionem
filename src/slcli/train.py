@@ -20,13 +20,14 @@ import torch
 
 from slagents.learned import ppo
 from slagents.learned.agent import LearnedAgent
-from slagents.learned.encoding import command_index
 from slagents.learned.env import make_env
 from slagents.learned.league import League, Member, load_snapshot
 from slagents.learned.nets import NetConfig, Policy
+from slagents.learned.workers import agent_key
 from slcli.play import build_engine_with_record, make_agent
 from slruns import artifact
 from slruns.elo import wilson_interval
+from slruns.seeds import MINIMUM_BASELINE_GAMES, family_seed, sample_warning
 from slruns.index import connect, upsert
 
 LEARNER = "learner"
@@ -47,22 +48,10 @@ def scripted_member(engine, kind: str, seed: int) -> Member:
     agents = {player: make_agent(kind, engine, seed, player) for player in (0, 1)}
 
     def act(env, observation):
-        return agent_triple(agents[env.frame.player], env)
+        return agent_key(agents[env.frame.player], env)
 
     first = agents[0]
     return Member(name=f"scripted-{first.name}-v{first.version}", kind="scripted", act=act, spec=kind)
-
-
-def agent_triple(agent, env) -> tuple[int, int, int, int]:
-    """The command an Agent selects, as the environment's four-part key."""
-    chosen = agent.select(env.state_, env.frame)
-    legal = env.frame.by_id(chosen)
-    if legal is None:
-        raise RuntimeError(f"the agent {agent.name} gave an ID that is not in the frame")
-    try:
-        return command_index(legal, env.groups)
-    except KeyError as exc:
-        raise RuntimeError(f"the agent {agent.name} gave a command that is not in the action space") from exc
 
 
 def build_league(engine, seed: int) -> League:
@@ -185,7 +174,21 @@ def run_training(
     def next_seed() -> int:
         nonlocal games_started
         games_started += 1
-        return seed + games_started
+        return family_seed("train", seed, games_started)
+
+    # L3: in the one-process path a league member plays a whole game. The member of the
+    # game in progress stays across the rollouts, and a new game samples the next one.
+    current: Member | None = league.sample(generator) if pool is None else None
+
+    def next_opponent():
+        nonlocal current
+        current = league.sample(generator)
+        return current.act
+
+    def record_current(result: float) -> None:
+        if current is None:
+            raise RuntimeError("a game ended with no league member in it")
+        league.record(current, result, LEARNER)
 
     def record_result(member_name: str, result: float) -> None:
         member = league.by_name(member_name)
@@ -195,8 +198,6 @@ def run_training(
 
     try:
         while done < steps and (deadline is None or time.perf_counter() < deadline):
-            member = league.sample(generator)
-            results: list[float] = []
             if pool is not None:
                 rollout = ppo.collect_parallel(
                     pool,
@@ -213,21 +214,20 @@ def run_training(
                     env,
                     policy,
                     side,
-                    member.act,
+                    current.act,
                     min(config.steps_per_update, steps - done),
                     generator,
-                    results.append,
+                    record_current,
                     alternate_sides=alternate_sides,
+                    next_opponent=next_opponent,
                 )
                 side = rollout.next_learner
-                for reward in results:
-                    league.record(member, reward, LEARNER)
             stats = ppo.update(policy, optimizer, rollout, config, env.spaces_record, anchor)
             done += len(rollout)
             updates += 1
             now = time.perf_counter()
             rate = done / max(1e-9, now - started)
-            _log(writer, stats, league, done, rate, member)
+            _log(writer, stats, league, done, rate)
             if now - last_rate_report >= RATE_INTERVAL_SECONDS:
                 rates.append({"step": done, "seconds": round(now - started, 1), "steps_per_second": round(rate, 1)})
                 last_rate_report = now
@@ -243,7 +243,7 @@ def run_training(
     seconds = time.perf_counter() - started
     if not rates:
         rates.append({"step": done, "seconds": round(seconds, 1), "steps_per_second": round(done / max(1e-9, seconds), 1)})
-    evaluation = evaluate(env, policy, league, learner_player, eval_games, workers, scenario) if eval_games else []
+    evaluation = evaluate(env, policy, league, learner_player, eval_games, workers, scenario, first_seed=seed) if eval_games else []
     art.stats = {
         "steps": done,
         "updates": updates,
@@ -273,6 +273,7 @@ def evaluate(
     games: int,
     workers: int = 1,
     scenario: str | None = None,
+    first_seed: int | None = None,
 ) -> list[dict[str, Any]]:
     """TC-18: the win rate of the learner against each constant opponent.
 
@@ -282,10 +283,23 @@ def evaluate(
     sampling, because the measure is what the policy learned and not what it explores.
     With `workers` above one the games play in a process pool, each with its own copy of
     the policy, and `scenario` names the engine each process builds.
+
+    The seeds are in the evaluation range of `slruns.seeds` (L4), so no evaluation game
+    is a game the policy trained on: before this the evaluation played the seeds after the
+    first training seed, which the training had played. `first_seed` is the seed of the
+    run, and the environment's seed when it is none. The two games of each pair share one
+    seed and change the sides (L7), so the side the scenario favours cancels in the pair.
+    A repeated position counts as a loss for the learner in the win rate (L5), and the
+    `repeated` count keeps the games apart.
     """
     from slagents.learned.workers import evaluation_parallel, member_spec
 
     rows: list[dict[str, Any]] = []
+    base_seed = env.seed_value if first_seed is None else first_seed
+
+    def game_seed(game: int) -> int:
+        return family_seed("train_evaluation", base_seed, 1 + game // 2)
+
     learner = LearnedAgent.from_policy(env.engine, policy)
     members = [m for m in league.members if m.kind != "snapshot"]
     outcomes: dict[str, list[tuple[float, bool, bool]]] = {}
@@ -296,7 +310,7 @@ def evaluate(
         for member in members:
             for game in range(games):
                 player = learner_player if game % 2 == 0 else 1 - learner_player
-                tasks.append((member_spec(member), player, env.seed_value + 1 + len(tasks)))
+                tasks.append((member_spec(member), player, game_seed(game)))
         played_games = evaluation_parallel(scenario, policy, tasks, workers, env.max_commands)
         for member in members:
             outcomes[member.name] = played_games[: games]
@@ -316,12 +330,13 @@ def evaluate(
             if workers > 1:
                 result, truncated, repeated = outcomes[member.name][game]
             else:
-                result, truncated = _play_one(env, learner, member, player)
+                result, truncated = _play_one(env, learner, member, player, game_seed(game))
                 repeated = env.repeated
             played += 1
             if truncated and repeated:
                 # A cycle: a command undid the one before it, and the environment stopped
-                # the game there as a defeat of the side that made the cycle.
+                # the game there as a defeat of the side that made the cycle. It adds
+                # nothing to the score, so the win rate counts it as a loss (L5).
                 outcome = "repeated"
             elif truncated:
                 # A game that hit the command limit is not a draw and not half a win. The
@@ -347,6 +362,7 @@ def evaluate(
                 "win_rate": round(wins / played, 4) if played else 0.0,
                 "confidence_low": round(low, 4),
                 "confidence_high": round(high, 4),
+                "seeds": sorted({game_seed(game) for game in range(games)}),
                 "results": results,
                 "by_side": by_side,
                 "beats_opponent": low > 0.5,
@@ -355,16 +371,16 @@ def evaluate(
     return rows
 
 
-def _play_one(env, learner: LearnedAgent, member: Member, learner_player: int) -> tuple[float, bool]:
+def _play_one(env, learner: LearnedAgent, member: Member, learner_player: int, seed: int) -> tuple[float, bool]:
     """One whole game of the learner against one member. Gives the result and whether it was truncated."""
-    env.reset(seed=env.seed_value + 1)
+    env.reset(seed=seed)
     while True:
         agent = env.agent_selection
         if env.terminations[agent] or env.truncations[agent]:
             learner_agent = env.agent_of(learner_player)
             return float(env.results[learner_agent]), bool(env.truncations[learner_agent])
         if env.player_of(agent) == learner_player:
-            env.step(agent_triple(learner, env))
+            env.step(agent_key(learner, env))
         else:
             env.step(member.act(env, env.observe(agent)))
 
@@ -402,7 +418,7 @@ def _tensorboard(log_dir: Path | None):
     return SummaryWriter(str(log_dir))
 
 
-def _log(writer, stats: dict[str, float], league: League, step: int, rate: float, member: Member) -> None:
+def _log(writer, stats: dict[str, float], league: League, step: int, rate: float) -> None:
     """IR-07: loss, entropy, win rate, and Elo as scalars."""
     if writer is None:
         return
@@ -462,6 +478,9 @@ def run(args: Any) -> int:
         )
         for side, counts in row["by_side"].items():
             print(f"    as {side}: {_counts(counts)}")
+        warning = sample_warning(row["games"])
+        if warning:
+            print(f"    {warning}")
     directory = art.write(args.runs)
     conn = connect(Path(args.runs) / "runs.sqlite")
     try:
@@ -484,7 +503,12 @@ def add_parser(subparsers: Any) -> None:
     p.add_argument("--scenario", default="s01_guards_counterattack")
     p.add_argument("--steps", type=int, default=10000, help="how many decisions of the learner")
     p.add_argument("--hours", type=float, default=0.0, help="stop after this many hours, 0 for no limit")
-    p.add_argument("--seed", type=int, default=1)
+    p.add_argument(
+        "--seed",
+        type=int,
+        default=1,
+        help="the first training seed; the evaluation plays its own range of seeds (slruns.seeds), so no evaluation game is a training game",
+    )
     p.add_argument(
         "--player",
         default="0",
@@ -519,6 +543,11 @@ def add_parser(subparsers: Any) -> None:
     p.add_argument("--snapshot-every", type=int, default=20000, help="0 for no snapshot")
     p.add_argument("--out", default="runs/train", help="directory for the snapshots")
     p.add_argument("--tensorboard", default=None, help="directory for the TensorBoard scalars (IR-07)")
-    p.add_argument("--eval-games", type=int, default=0, help="games against each constant opponent at the end (TC-18)")
+    p.add_argument(
+        "--eval-games",
+        type=int,
+        default=0,
+        help=f"games against each constant opponent at the end (TC-18); a baseline rate needs {MINIMUM_BASELINE_GAMES} or more, and each rate prints with its 95 percent Wilson interval",
+    )
     p.add_argument("--runs", default="runs")
     p.set_defaults(func=run)

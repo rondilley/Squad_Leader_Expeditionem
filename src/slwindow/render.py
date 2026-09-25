@@ -51,6 +51,9 @@ BUILDING_INSET = 0.64
 CROWN_LIGHT_SCALE = 12.0
 # How many points a road curve is sampled at.
 CURVE_STEPS = 10
+# The width of a road, as a share of the camera scale. The browser draws with the same
+# share (`ROAD_WIDTH_SHARE` in client/src/board/render.ts).
+ROAD_WIDTH_SHARE = 0.40
 
 
 def draw_board(surface: pygame.Surface, board: dict[str, Any], camera: Camera, font: pygame.font.Font) -> None:
@@ -321,14 +324,9 @@ def _roads(surface: pygame.Surface, board: dict[str, Any], camera: Camera) -> No
     breaking at each centre. A junction gets a straight arm to each hexside and a round
     middle, so the crossing is one piece of road.
     """
-    width = max(2, int(camera.scale * 0.40))
+    width = max(2, int(camera.scale * ROAD_WIDTH_SHARE))
     casing = width + max(2, width // 3)
-    arms: dict[tuple[int, int], list[tuple[float, float]]] = {}
-    for pair in _road_links(board):
-        first, second = sorted(pair)
-        middle = ((first[0] + second[0]) / 2.0, (first[1] + second[1]) / 2.0)
-        arms.setdefault(first, []).append(middle)
-        arms.setdefault(second, []).append(middle)
+    arms = road_arms(board)
     lone = [tuple(h["center"]) for h in board["hexes"] if h.get("road") and tuple(h["center"]) not in arms]
     for colour, thickness in ((theme.ROAD_EDGE, casing), (theme.ROAD, width)):
         for centre, ends in sorted(arms.items()):
@@ -370,6 +368,39 @@ def _curve(
         pygame.draw.line(surface, colour, a, b, width)
     for point in points:
         pygame.draw.circle(surface, colour, point, width / 2.0)
+
+
+def road_arms(board: dict[str, Any]) -> dict[tuple[int, int], list[tuple[float, float]]]:
+    """The arms of road that each road hex draws, from its centre to a hexside midpoint.
+
+    PR-50: a board document of generator version 8 names the hexsides each road crosses
+    (`road_sides`). Each road hex then draws one arm to the midpoint of each named hexside,
+    and no other. Two road hexes beside a crossroads touch, but no road joins them, so no
+    arm goes across the corner of the junction.
+
+    A board document that names no road hexside (a record of version 7) keeps the links of
+    `_road_links`, the reading from before PR-50.
+    """
+    found = board.get("_road_arms")
+    if found is not None:
+        return found
+    arms: dict[tuple[int, int], list[tuple[float, float]]] = {}
+    if any(h.get("road_sides") for h in board["hexes"]):
+        for h in board["hexes"]:
+            if not h.get("road"):
+                continue
+            centre = tuple(h["center"])
+            for direction in sorted(int(d) for d in h.get("road_sides", ())):
+                dx, dy = STEPS[direction]
+                arms.setdefault(centre, []).append((centre[0] + dx / 2.0, centre[1] + dy / 2.0))
+    else:
+        for pair in _road_links(board):
+            first, second = sorted(pair)
+            middle = ((first[0] + second[0]) / 2.0, (first[1] + second[1]) / 2.0)
+            arms.setdefault(first, []).append(middle)
+            arms.setdefault(second, []).append(middle)
+    board["_road_arms"] = arms
+    return arms
 
 
 def _road_links(board: dict[str, Any]) -> list[frozenset]:

@@ -21,10 +21,12 @@ from __future__ import annotations
 
 from typing import Iterable, Mapping
 
-from slcore import geometry
+from slcore import actions, geometry
+from slcore.commands import Command
 from slcore.events import Event
 from slcore.game import SewerParty, State
 from slcore.geometry import HexRef
+from slcore.rng import roll_die
 from slcore.state import Board
 from slcore.units import KIND_LEADER, KIND_SW, Unit, UnitType
 
@@ -117,7 +119,8 @@ def send(state: State, unit_ids: tuple[int, ...], start: HexRef, target: HexRef,
         changed = {}
         for uid in unit_ids:
             unit = state.units[uid]
-            changed[uid] = unit.with_(hex=target, moved=True, sewer_move=True, mf_used=0, track=(start, target))
+            # Rule 27.4 and PR-35: no hex of the route is a target hex, so the move has no track.
+            changed[uid] = unit.with_(hex=target, moved=True, sewer_move=True, mf_used=0, track=())
             for w in state.carried_by(uid):
                 changed[w.id] = w.with_(hex=target, moved=True)
         return state.with_units(changed), [Event(RULE_27_22, "sewer_move", data)]
@@ -139,7 +142,7 @@ def surface(state: State, party: SewerParty, target: HexRef) -> tuple[State, lis
         unit = state.units[uid]
         if unit.eliminated:
             continue
-        changed[uid] = unit.with_(hex=target, moved=True, sewer_move=True, track=(party.start, target))
+        changed[uid] = unit.with_(hex=target, moved=True, sewer_move=True, track=())
         for w in state.carried_by(uid):
             changed[w.id] = w.with_(hex=target, moved=True)
     state = state.with_units(changed)
@@ -166,17 +169,61 @@ def arrivals(state: State, player: int) -> tuple[Unit, ...]:
 
 
 def same_building_enemy(board: Board, state: State, hex_ref: HexRef, player: int) -> bool:
-    """Rule 27.5: an enemy next to the arrival hex in the same building."""
+    """Rule 27.5: an enemy next to the arrival hex in the same building.
+
+    The enemy is one the arriving player sees: a hidden unit is not on the board (rule
+    42.1), and a concealment counter is an enemy unit whether a unit is below it or not
+    (rule 25.2, PR-31). So the counter of the arrival does not tell what is below the
+    enemy counter or where a hidden unit is.
+    """
     building = board.hex(hex_ref).building
     for other in geometry.neighbors(*hex_ref):
         if other not in board:
             continue
         if building is None or board.hex(other).building is None or board.hex(other).building.id != building.id:
             continue
-        for u in state.infantry_in(other):
-            if u.player != player:
-                return True
-    for u in state.infantry_in(hex_ref):
-        if u.player != player:
+        if _enemy_seen(state, other, player):
             return True
-    return False
+    return _enemy_seen(state, hex_ref, player)
+
+
+def _enemy_seen(state: State, hex_ref: HexRef, player: int) -> bool:
+    if state.enemy_counter_in(hex_ref, player):
+        return True
+    return any(u.player != player and not u.hidden for u in state.infantry_in(hex_ref))
+
+
+def lost_party(state: State) -> SewerParty | None:
+    """Rule 27.22: the lost stack of the phasing side that waits for its entrance."""
+    for party in state.sewer_lost:
+        if party.units and state.units[party.units[0]].player == state.phasing:
+            return party
+    return None
+
+
+# ------------------------------------------------------------------ the command handlers (M3)
+# Rule 27.5 and PR-35: the stack is covered at the moment it arrives.
+
+
+@actions.action("sewer_move", unconceals=actions.CAUSE_MOVED, conceal_on_arrival=True)
+def _on_sewer_move(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    """Rules 27.2, 27.3, and 27.22: the stack goes down, and one die says where it arrives."""
+    if command.hex is None:
+        raise ValueError("sewer movement needs a destination hex")
+    start = state.units[command.units[0]].hex
+    if start is None:
+        raise ValueError("sewer movement needs a unit on the board")
+    state, events = drop_heavy(state, engine.types, command.units)
+    rng, die = roll_die(state.rng)
+    state = state.with_(rng=rng)
+    state, moved = send(state, command.units, start, command.hex, die)
+    events.extend(moved)
+    return state, events
+
+
+@actions.action("sewer_return", conceal_on_arrival=True)
+def _on_sewer_return(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    party = lost_party(state)
+    if party is None or command.hex is None:
+        raise ValueError("no lost sewer stack is waiting")
+    return surface(state, party, command.hex)

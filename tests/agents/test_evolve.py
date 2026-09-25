@@ -125,7 +125,13 @@ def test_the_generation_plays_each_candidate_on_the_same_seeds_as_each_side():
     jobs, keys = generation_jobs(candidates, base, ["v6", "v1"], "s00_movement_drill", 4, 500)
     assert len(jobs) == 2 * 2 * 4
     seeds_of = {ci: sorted(seed for c, seed, _, _ in keys if c == ci) for ci in (0, 1)}
-    assert seeds_of[0] == seeds_of[1] == [500, 500, 501, 501, 502, 502, 503, 503]
+    # The two games of a side pair share one seed (L7), for each of the two opponents.
+    assert seeds_of[0] == seeds_of[1] == [500, 500, 500, 500, 501, 501, 501, 501]
+    pairs = {}
+    for c, seed, opponent, first in keys:
+        if c == 1:
+            pairs.setdefault((seed, opponent), []).append(first)
+    assert all(sorted(sides) == [False, True] for sides in pairs.values()), "each seed plays the candidate on each side"
     firsts = [first for c, _, _, first in keys if c == 1]
     assert firsts.count(True) == firsts.count(False) == 4
     texts = {job[2] for job in jobs} | {job[3] for job in jobs}
@@ -189,12 +195,23 @@ def test_the_final_stage_plays_the_best_and_the_base_on_new_seeds(tmp_path):
     assert rows and any(row["is_base"] for row in rows)
     assert all(row["games"] == 2 for row in rows)
     assert all(row["final"] >= rows[i + 1]["final"] for i, row in enumerate(rows[:-1]))
+    from slruns.seeds import family_seed
+
     seeds = set(art.seeds)
-    final_seeds = {art.config["seed"] + 1000 * (art.config["generations"] + 2) + g for g in range(2)}
-    assert final_seeds <= seeds
-    generation_seeds = {art.config["seed"] + 1000 * (i + 1) + g for i in range(2) for g in range(2)}
-    assert not (final_seeds & generation_seeds)
-    assert art.stats["games"] == 2 * 2 + 3 * 2 + sum(row["games"] for row in rows)
+    seed = art.config["seed"]
+    final_seeds = {family_seed("evolve_final", seed)}
+    confirm_seeds = {family_seed("evolve_confirm", seed)}
+    generation_seeds = {family_seed("evolve", seed, 1000 * (i + 1)) for i in range(2)}
+    assert final_seeds <= seeds and confirm_seeds <= seeds and generation_seeds <= seeds
+    assert not (final_seeds & generation_seeds) and not (confirm_seeds & (final_seeds | generation_seeds))
+    assert seeds == final_seeds | confirm_seeds | generation_seeds, "two games of a side pair share one seed"
+    assert min(seeds) >= family_seed("evolve", 0), "the evolve seeds are not the seeds of a training run or a gauntlet"
+    # L7: the pick of the final stage plays again on new seeds, after the pick.
+    confirm = art.stats["confirm"]
+    assert confirm and confirm[0]["id"] == rows[0]["id"]
+    assert confirm[-1]["is_base"] and all(row["games"] == 2 for row in confirm)
+    assert len(confirm) == (1 if rows[0]["is_base"] else 2)
+    assert art.stats["games"] == 2 * 2 + 3 * 2 + sum(row["games"] for row in rows) + sum(row["games"] for row in confirm)
 
 
 def test_a_search_moves_the_parameters_of_the_only_list_and_no_other():

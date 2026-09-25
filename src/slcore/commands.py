@@ -57,6 +57,8 @@ ACTIONS = (
     "push_wreck",
     "afv_smoke",
     "afv_dischargers",
+    # Rule 35.8 and PR-51: the infantry below an enemy vehicle steps to one side.
+    "push_out",
 )
 
 

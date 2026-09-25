@@ -50,11 +50,20 @@ class ConditionResult:
 
 
 def buildings_on(board: Board) -> dict[str, tuple]:
-    out: dict[str, list] = {}
-    for h in board:
-        if h.building is not None:
-            out.setdefault(h.building.id, []).append(h.ref)
-    return {k: tuple(sorted(v)) for k, v in out.items()}
+    """The hexes of each building of the board, in sorted order.
+
+    A board does not change, so the answer is kept on it, and each caller gets its own
+    copy of the dictionary (NFR-01).
+    """
+    found = board.__dict__.get("_buildings_memo")
+    if found is None:
+        out: dict[str, list] = {}
+        for h in board:
+            if h.building is not None:
+                out.setdefault(h.building.id, []).append(h.ref)
+        found = {k: tuple(sorted(v)) for k, v in out.items()}
+        board.__dict__["_buildings_memo"] = found
+    return dict(found)
 
 
 def update_last_occupant(state: State, board: Board) -> State:

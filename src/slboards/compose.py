@@ -31,14 +31,16 @@ and the two forms are one form on the lattice: `y -> 2 * (rows + 1) - y`. The co
 columns must be odd, so that a turn keeps the shift of each column. A printed board has 33
 columns, which is odd.
 
-A hexside feature turns with the board: direction d becomes direction d plus three. A
+A hexside feature turns with the board: direction d becomes direction d plus three, and
+so does each road hexside of PR-50. Where two half hexes become one hex, the road of that
+hex crosses the road hexsides of the two halves. A
 polygon turns on the lattice, point by point, so a woods hex keeps the shape it had and
 the line of sight through it does not change.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Iterable, Mapping, Sequence
 
 from slcore import geometry
@@ -83,6 +85,7 @@ def turn(board: Board) -> Board:
         col = board.cols - 1 - h.col
         row = board.rows + 1 - h.row - (h.col & 1)
         sides = tuple(h.hexsides[(d + HALF_TURN) % 6] for d in range(6))
+        road_sides = tuple(sorted((d + HALF_TURN) % 6 for d in h.road_sides))
         polygons = tuple(Polygon.make(p.kind, [move(v) for v in p.points]) for p in h.polygons)
         hexes.append(
             Hex(
@@ -96,6 +99,7 @@ def turn(board: Board) -> Board:
                 sewer=h.sewer,
                 stairs=h.stairs,
                 polygons=polygons,
+                road_sides=road_sides,
             )
         )
     return Board(board.cols, board.rows, hexes, board.terrain, name=f"{board.name}-turned")
@@ -157,6 +161,7 @@ def moved(h: Hex, dcol: int, drow: int, tag: str = "") -> Hex:
         sewer=h.sewer,
         stairs=h.stairs,
         polygons=tuple(Polygon.make(p.kind, [(x + dx, y + dy) for x, y in p.points]) for p in h.polygons),
+        road_sides=h.road_sides,
     )
 
 
@@ -187,6 +192,11 @@ def compose(
         raise CompositionError(f"a composition is two to four boards, and not {len(placements)}")
     spots = offsets(placements, side)
     cols, rows = size(placements, side)
+    named = [p.board.named_road_sides for p in placements]
+    # PR-50: a board that names no road hexside reads each pair of adjacent road hexes as
+    # joined, but only while no hex of the surface names one. So where the surface mixes
+    # the two, the hexes of such a board get that reading written out.
+    unnamed: set[HexRef] = set()
     table = dict(terrain or placements[0].board.terrain)
     seen: dict[HexRef, Hex] = {}
     problems: list[str] = []
@@ -199,16 +209,66 @@ def compose(
         for h in board:
             here = moved(h, dcol, drow, tag)
             found = seen.get(here.ref)
+            if not placement.board.named_road_sides and any(named):
+                unnamed.add(here.ref)
             if found is None:
                 seen[here.ref] = here
                 ids[here.id] = f"{placement.board.name}:{h.id}"
                 continue
             problems.extend(check_seam(found, here))
+            if here.road_sides:
+                # PR-50: the two half hexes are one hex now, and the road of that hex
+                # crosses each hexside that the road of either half crosses.
+                seen[here.ref] = replace(found, road_sides=tuple(sorted(set(found.road_sides) | set(here.road_sides))))
     if problems:
         raise CompositionError("the boards do not agree at a seam: " + "; ".join(problems[:6]))
-    composed = Board(cols, rows, list(seen.values()), table, name=name or composed_name(placements, side))
+    composed = Board(cols, rows, joined_roads(adjacent_roads(seen, unnamed)), table, name=name or composed_name(placements, side))
     composed.source_ids = ids  # type: ignore[attr-defined]
     return composed
+
+
+def adjacent_roads(hexes: Mapping[HexRef, Hex], unnamed: set[HexRef]) -> dict[HexRef, Hex]:
+    """PR-50: the road hexsides of the hexes of a board that names none.
+
+    Such a board reads each pair of adjacent road hexes as joined. The surface names the
+    road hexsides of its other boards, so this writes that reading out: a hexside between
+    a road hex of such a board and any adjacent road hex is a road hexside, from both sides.
+    """
+    if not unnamed:
+        return dict(hexes)
+    sides: dict[HexRef, set[int]] = {ref: set(h.road_sides) for ref, h in hexes.items()}
+    for ref in sorted(unnamed):
+        if not hexes[ref].road:
+            continue
+        for d in range(6):
+            other = hexes.get(geometry.neighbor(ref[0], ref[1], d))
+            if other is not None and other.road:
+                sides[ref].add(d)
+                sides[other.ref].add((d + HALF_TURN) % 6)
+    return {
+        ref: h if sides[ref] == set(h.road_sides) else replace(h, road_sides=tuple(sorted(sides[ref])))
+        for ref, h in hexes.items()
+    }
+
+
+def joined_roads(hexes: Mapping[HexRef, Hex]) -> list[Hex]:
+    """PR-50: a road hexside on a seam stays only when the road goes on across it.
+
+    A board names the road hexside on its north or south edge where it has a road entry.
+    The road continues across the join only when the board on the other side has a road
+    entry there too. A board with fewer road columns has no road in that hex, and the road
+    then ends at the edge of the first board.
+    """
+    out = []
+    for ref, h in hexes.items():
+        kept = tuple(
+            d
+            for d in h.road_sides
+            if (other := hexes.get(geometry.neighbor(ref[0], ref[1], d))) is None
+            or (d + HALF_TURN) % 6 in other.road_sides
+        )
+        out.append(h if kept == h.road_sides else replace(h, road_sides=kept))
+    return out
 
 
 def composed_name(placements: Sequence[Placement], side: str) -> str:

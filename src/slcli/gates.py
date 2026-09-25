@@ -17,6 +17,7 @@ from slcore.frame import DecisionFrame
 from slcli.play import build_engine_with_record, make_agent, play_game
 from slruns import artifact
 from slruns.index import connect, upsert
+from slruns.seeds import family_seed
 
 
 def shuffled(frame: DecisionFrame, rng: random.Random) -> DecisionFrame:
@@ -52,6 +53,9 @@ def run_gate(scenario: str, board: str | None, agent_a: str, agent_b: str, games
             "agent_b": agent_b,
             "games": games,
             "first_seed": seed,
+            # L7: the seeds of a gate are in their own range, apart from the seeds of a
+            # training run, a gauntlet, and an evolution. The artifact records each seed.
+            "seed_family": "gate",
             "shuffle_games": shuffle_games,
             "criteria": ["TC-04", "TC-05", "TC-10", "TC-38"],
         },
@@ -64,7 +68,7 @@ def run_gate(scenario: str, board: str | None, agent_a: str, agent_b: str, games
     rules: set[str] = set()
     sides = engine.scenario.players()
     for i in range(games):
-        game_seed = seed + i
+        game_seed = family_seed("gate", seed, i)
         agents = (make_agent(agent_a, engine, game_seed, 0), make_agent(agent_b, engine, game_seed, 1))
         started = time.perf_counter()
         try:

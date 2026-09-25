@@ -42,6 +42,11 @@ finetune = [
     "datasets>=2.20",
     "accelerate>=0.33",
 ]
+# `sl-cli shape` (slshape) needs numpy. The picture net of the analysis also needs torch,
+# which is the `train` extra.
+shape = [
+    "numpy>=2.0",
+]
 
 [project.scripts]
 sl-cli = "slcli.main:main"
@@ -54,6 +59,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 sldata = ["tables/*.json", "counters/*.json", "scenarios/*.json", "rulings/*.json", "boards/*.json", "providers.json"]
+slhost = ["protocol_schema.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

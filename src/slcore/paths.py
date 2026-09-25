@@ -42,6 +42,49 @@ def shortest_paths(ctx: MoveContext, start: HexRef, step_allowed: StepAllowed, l
     return dist, pred
 
 
+def nearest_goals(
+    ctx: MoveContext, start: HexRef, step_allowed: StepAllowed, is_goal: Callable[[HexRef], bool]
+) -> tuple[int | None, list[HexRef], dict[HexRef, HexRef]]:
+    """The cost of the nearest goal hexes, those hexes in sorted order, and the predecessors.
+
+    This is `shortest_paths` that stops at the first goal hex it takes from the heap.
+    Each step costs one half or more, so each hex of a lower cost is done at that time:
+    the cost of each hex at the goal cost is final, and so is its predecessor with the
+    same tie break. A route from `route` to one of the goals is the route that the full
+    search gives. The start hex is never a goal. With no goal in reach the cost is None
+    and the list is empty.
+    """
+    dist: dict[HexRef, int] = {start: 0}
+    pred: dict[HexRef, HexRef] = {}
+    heap: list[tuple[int, HexRef]] = [(0, start)]
+    board = ctx.board
+    neighbor = geometry.neighbor
+    best: int | None = None
+    while heap:
+        cost, here = heapq.heappop(heap)
+        if cost > dist.get(here, 1 << 30):
+            continue
+        if here != start and is_goal(here):
+            best = cost
+            break
+        for d in range(6):
+            nxt = neighbor(*here, d)
+            if nxt not in board or not step_allowed(here, nxt):
+                continue
+            step, _ = entry_cost_halves(ctx, here, nxt)
+            if step is None:
+                continue
+            total = cost + step
+            if total < dist.get(nxt, 1 << 30) or (total == dist.get(nxt) and pred.get(nxt, (1 << 30, 0)) > here):
+                dist[nxt] = total
+                pred[nxt] = here
+                heapq.heappush(heap, (total, nxt))
+    if best is None:
+        return None, [], pred
+    goals = sorted(ref for ref, cost in dist.items() if cost == best and ref != start and is_goal(ref))
+    return best, goals, pred
+
+
 def route(pred: dict[HexRef, HexRef], start: HexRef, goal: HexRef) -> list[HexRef]:
     """The hexes from start to goal, start excluded, goal included."""
     out: list[HexRef] = []

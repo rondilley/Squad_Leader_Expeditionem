@@ -21,8 +21,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-from slagents.base import RandomAgent
+from slagents.base import RandomAgent, decide
 from slcli.play import build_engine
+from slcore.los_cache import load_static, static_snapshot, warm_static
 from sldata.loaders import DataError
 
 JOIN_GRACE_SECONDS = 120.0
@@ -39,10 +40,16 @@ def hardware_manifest() -> dict[str, Any]:
     }
 
 
-def worker(scenario: str, board: str | None, seed_start: int, seconds: float, out: Any) -> None:
-    """One worker: play random legal games until the deadline and report its counts."""
+def worker(scenario: str, board: str | None, seed_start: int, seconds: float, out: Any, los: Any = None) -> None:
+    """One worker: play random legal games until the deadline and report its counts.
+
+    `los` is the LOS table that the parent filled (`slcore.los_cache.static_snapshot`),
+    or None for a worker that fills its table as it plays.
+    """
     try:
         engine = build_engine(scenario, board)
+        if los is not None:
+            load_static(engine.los, los)
         steps = 0
         games = 0
         seed = seed_start
@@ -52,7 +59,8 @@ def worker(scenario: str, board: str | None, seed_start: int, seconds: float, ou
             state = engine.new_game(seed)
             while not state.game_over and time.perf_counter() < deadline:
                 frame = engine.legal_commands(state)
-                chosen = agents[state.active].select(state, frame)
+                # The agent decides from the state its player may know (AR-09), as in play.
+                chosen = decide(agents[state.active], state, frame)
                 legal = frame.by_id(chosen)
                 if legal is None:
                     raise RuntimeError("the random agent gave an ID that is not in the frame")
@@ -67,7 +75,19 @@ def worker(scenario: str, board: str | None, seed_start: int, seconds: float, ou
         out.put({"error": f"{type(exc).__name__}: {exc}", "seed_start": seed_start})
 
 
-def run_bench(scenario: str, board: str | None, workers: int, seconds: float) -> dict[str, Any]:
+def warm_los(scenario: str, board: str | None) -> tuple[Any, float]:
+    """The filled LOS table of the board of the run, and the seconds the fill took.
+
+    The parent fills the table one time and gives it to each worker, so that no worker
+    pays the fill in its measured time (P1 of the 2026-09-23 review).
+    """
+    started = time.perf_counter()
+    engine = build_engine(scenario, board)
+    warm_static(engine.los)
+    return static_snapshot(engine.los), time.perf_counter() - started
+
+
+def run_bench(scenario: str, board: str | None, workers: int, seconds: float, los: Any = None) -> dict[str, Any]:
     from slcli.worker_limit import limit_workers
 
     workers = limit_workers(workers)
@@ -76,7 +96,7 @@ def run_bench(scenario: str, board: str | None, workers: int, seconds: float) ->
     procs = []
     started = time.perf_counter()
     for w in range(workers):
-        p = ctx.Process(target=worker, args=(scenario, board, 1000 * (w + 1), seconds, results_queue))
+        p = ctx.Process(target=worker, args=(scenario, board, 1000 * (w + 1), seconds, results_queue, los))
         p.start()
         procs.append(p)
     results: list[dict[str, Any]] = []
@@ -132,9 +152,18 @@ def run(args: Any) -> int:
         "runs": [],
     }
     path = Path(args.out) if args.out else None
+    los = None
+    # The command line fills the table by default. A caller that builds its own
+    # arguments with no such field gets the workers that fill their own tables.
+    warm = bool(getattr(args, "warm_los", False))
+    if warm:
+        los, warm_seconds = warm_los(args.scenario, args.board)
+        report["los_warm_seconds"] = round(warm_seconds, 1)
+        print(f"filled the LOS table of the board in {warm_seconds:.1f} s", flush=True)
+    report["los_warm"] = warm
     failed = False
     for w in worker_counts:
-        result = run_bench(args.scenario, args.board, w, seconds)
+        result = run_bench(args.scenario, args.board, w, seconds, los)
         report["runs"].append(result)
         note = ""
         if result["worker_failures"] or result["workers_missing"]:
@@ -164,4 +193,10 @@ def add_parser(subparsers: Any) -> None:
     p.add_argument("--minutes", type=float, default=0.0)
     p.add_argument("--seconds", type=float, default=10.0)
     p.add_argument("--out", default=None, help="stats file path")
+    p.add_argument(
+        "--no-warm-los",
+        dest="warm_los",
+        action="store_false",
+        help="each worker fills its own LOS table as it plays, in its measured time",
+    )
     p.set_defaults(func=run)

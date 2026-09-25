@@ -44,6 +44,7 @@ from slcore.game import (
     State,
 )
 from slcore.rules import r28_vehicles
+from slcore.view import visible_to
 
 ARMOR_FIRE_ACTIONS = ("at_fire", "afv_fire", "afv_mg", "afv_attack")
 
@@ -114,7 +115,7 @@ class ScriptedV3(ScriptedV2):
         payload = dict(lc.command.extra)
         vehicle = r28_vehicles.vehicle_in(state, target)
         hostile = vehicle is not None and vehicle.player != self.player
-        occupants = sum(1 for u in state.infantry_in(target) if u.player != self.player and not u.broken)
+        occupants = sum(1 for u in state.infantry_in(target) if u.player != self.player and visible_to(state, u, self.player) and not u.broken)
         if action == "at_fire":
             # Rule 37: one of these weapons has no other target, so it fires when it can.
             return (self.params.armor_priority * 2, 0) if hostile else None
@@ -144,7 +145,7 @@ class ScriptedV3(ScriptedV2):
             if unit.hex is None or dst is None:
                 continue
             gain = self._distance(unit.hex) - self._distance(dst)
-            enemies = sum(1 for u in state.infantry_in(dst) if u.player != self.player)
+            enemies = sum(1 for u in state.infantry_in(dst) if u.player != self.player and visible_to(state, u, self.player))
             if enemies and not self.params.overrun:
                 continue
             score = (gain * self.params.tank_aggression + enemies * self.params.armor_priority, enemies)

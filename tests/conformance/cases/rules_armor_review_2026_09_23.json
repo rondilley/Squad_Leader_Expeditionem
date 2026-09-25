@@ -1,0 +1,1551 @@
+{
+ "family": "rules 16 to 63, the armour review of 2026-09-23",
+ "cases": [
+  {
+   "id": "r37.31-a-panzerfaust-needs-a-line-of-sight",
+   "rule": "37.31",
+   "type": "invalid",
+   "citation": "Rule 8.1 with rule 37.31: an anti-tank weapon fires at a vehicle it sees. The stone building of E5 blocks D5 to F5 (review A1).",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "D5"
+    },
+    {
+     "ref": "pf",
+     "side": "german",
+     "type": "PF",
+     "carrier": "s"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "T34",
+     "hex": "F5",
+     "facing": 0
+    }
+   ],
+   "illegal": [
+    {
+     "action": "at_fire",
+     "units": [
+      "s"
+     ],
+     "weapon": "pf",
+     "hex": "F5"
+    }
+   ]
+  },
+  {
+   "id": "r37.31-a-panzerfaust-fires-along-a-clear-line",
+   "rule": "37.31",
+   "type": "valid",
+   "citation": "Rule 37.31: a panzerfaust reaches three hexes. A7 sees A9 across open ground.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A7"
+    },
+    {
+     "ref": "pf",
+     "side": "german",
+     "type": "PF",
+     "carrier": "s"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "T34",
+     "hex": "A9",
+     "facing": 0
+    }
+   ],
+   "legal": [
+    {
+     "action": "at_fire",
+     "units": [
+      "s"
+     ],
+     "weapon": "pf",
+     "hex": "A9"
+    }
+   ]
+  },
+  {
+   "id": "r37.35-a-panzerfaust-shot-leaves-the-prep-fire-counter",
+   "rule": "37.35",
+   "type": "interaction",
+   "citation": "Rule 4.2 and PR-43: a unit that fired any weapon in the Prep Fire Phase gets the Prep Fire counter, a panzerfaust too (review A2).",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A7"
+    },
+    {
+     "ref": "pf",
+     "side": "german",
+     "type": "PF",
+     "carrier": "s"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "T34",
+     "hex": "A9",
+     "facing": 0
+    }
+   ],
+   "apply": [
+    {
+     "action": "at_fire",
+     "units": [
+      "s"
+     ],
+     "weapon": "pf",
+     "hex": "A9"
+    },
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_units": {
+    "s": {
+     "prep_fired": true
+    }
+   },
+   "expect_illegal_after": [
+    {
+     "action": "move",
+     "units": [
+      "s"
+     ],
+     "hex": "A8"
+    }
+   ]
+  },
+  {
+   "id": "r37.35-group-fire-first-then-the-panzerfaust",
+   "rule": "37.35",
+   "type": "boundary",
+   "citation": "PR-43: rule 37.35 lets a squad fire panzerfausts and its inherent firepower in one turn, in either sequence.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A7"
+    },
+    {
+     "ref": "pf",
+     "side": "german",
+     "type": "PF",
+     "carrier": "s"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "T34",
+     "hex": "A9",
+     "facing": 0
+    },
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B7"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "s"
+     ],
+     "hex": "B7"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_legal_after": [
+    {
+     "action": "at_fire",
+     "units": [
+      "s"
+     ],
+     "weapon": "pf",
+     "hex": "A9"
+    }
+   ]
+  },
+  {
+   "id": "r34.8-no-immobilize-attempt-from-afar",
+   "rule": "34.8",
+   "type": "invalid",
+   "citation": "Rule 34.8 lets infantry fire on an exposed crew. It does not give the attack of rule 36.12 to a unit that is not adjacent (review A3, PR-44).",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C9"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "MkIVF2",
+     "hex": "C7",
+     "army": "german",
+     "facing": 0,
+     "crew_exposed": true
+    },
+    {
+     "ref": "c",
+     "side": "russian",
+     "type": "2-3-7",
+     "crew_of": "t"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "afv_attack",
+     "units": [
+      "s"
+     ],
+     "hex": "C7"
+    }
+   ]
+  },
+  {
+   "id": "r34.8-the-exposed-crew-is-a-fire-group-target",
+   "rule": "34.8",
+   "type": "valid",
+   "citation": "Rule 34.8 and PR-44: the hex of a vehicle with an exposed crew is a target of an infantry fire group in range and sight.",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C9"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "MkIVF2",
+     "hex": "C7",
+     "army": "german",
+     "facing": 0,
+     "crew_exposed": true
+    },
+    {
+     "ref": "c",
+     "side": "russian",
+     "type": "2-3-7",
+     "crew_of": "t"
+    }
+   ],
+   "legal": [
+    {
+     "action": "group_add",
+     "units": [
+      "s"
+     ],
+     "hex": "C7"
+    }
+   ]
+  },
+  {
+   "id": "r34.8-a-kia-on-the-crew-and-a-failed-check-abandon-the-vehicle",
+   "rule": "34.8",
+   "type": "interaction",
+   "citation": "Rule 34.8: plus two, a KIA forces the crew morale check, and a failure abandons the vehicle. Sixteen factors at 2 plus 2 is a KIA.",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C8"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "MkIVF2",
+     "hex": "C7",
+     "army": "german",
+     "facing": 0,
+     "crew_exposed": true
+    },
+    {
+     "ref": "c",
+     "side": "russian",
+     "type": "2-3-7",
+     "crew_of": "t"
+    },
+    {
+     "ref": "s2",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C8"
+    }
+   ],
+   "dice": [
+    1,
+    1,
+    6,
+    6
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "s"
+     ],
+     "hex": "C7"
+    },
+    {
+     "action": "group_add",
+     "units": [
+      "s2"
+     ],
+     "hex": "C7"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "34.8",
+     "kind": "crew_fire",
+     "data": {
+      "adjusted": 4,
+      "result": "KIA"
+     }
+    },
+    {
+     "rule_id": "34.8",
+     "kind": "crew_abandons"
+    }
+   ],
+   "expect_units": {
+    "t": {
+     "wreck": true
+    }
+   }
+  },
+  {
+   "id": "r34.8-the-counter-lasts-through-the-next-enemy-fire-phase",
+   "rule": "34.8",
+   "type": "boundary",
+   "citation": "Rule 34.8: the counter comes off at the end of the next enemy fire phase. A defender that exposed its crew in the Defensive Fire Phase keeps the counter into the Advancing Fire Phase (review A5).",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "T34",
+     "hex": "C7",
+     "facing": 0,
+     "crew_exposed": true
+    }
+   ],
+   "apply": [
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_state": {
+    "phase": "advancing_fire"
+   },
+   "expect_units": {
+    "t": {
+     "crew_exposed": true
+    }
+   }
+  },
+  {
+   "id": "r32.3-a-second-vehicle-does-not-clear-the-block-of-the-first",
+   "rule": "32.3",
+   "type": "interaction",
+   "citation": "Rule 32.3: each vehicle outline is a wall on the far hexside of its hex. A vehicle two hexes before the target blocks, whatever vehicle stands next to the target (review A4).",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A1"
+    },
+    {
+     "ref": "v1",
+     "side": "russian",
+     "type": "T34",
+     "hex": "A4",
+     "facing": 0
+    },
+    {
+     "ref": "v2",
+     "side": "russian",
+     "type": "T34",
+     "hex": "A6",
+     "facing": 0
+    },
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A7"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "group_add",
+     "units": [
+      "s"
+     ],
+     "hex": "A7"
+    }
+   ]
+  },
+  {
+   "id": "r33.32-an-unmodified-two-hits-on-the-third-die",
+   "rule": "33.32",
+   "type": "valid",
+   "citation": "Rule 33.32: a hull down vehicle at 8 hexes needs 5. Cases A, B, and D add 6, so the final number is -1. A roll of 2 and a third die of 2 is a hit, because 2 plus 3 is under 6 (review A6).",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "f",
+     "side": "russian",
+     "type": "M4M52",
+     "hex": "A1",
+     "army": "american",
+     "facing": 5
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "MkIVF2",
+     "hex": "A9",
+     "facing": 0,
+     "moved": true
+    },
+    {
+     "ref": "w",
+     "side": "russian",
+     "type": "T34",
+     "hex": "A8",
+     "facing": 0,
+     "wreck": true
+    }
+   ],
+   "dice": [
+    1,
+    1,
+    2
+   ],
+   "single_dice": true,
+   "apply": [
+    {
+     "action": "afv_fire",
+     "units": [
+      "f"
+     ],
+     "hex": "A9",
+     "aim": "vehicle",
+     "ammo": "he"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "33.3",
+     "kind": "to_hit",
+     "data": {
+      "raw": 2,
+      "needed": 5,
+      "modifier": 6,
+      "third_die": 2,
+      "hit": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "r33.32-a-third-die-of-three-misses",
+   "rule": "33.32",
+   "type": "boundary",
+   "citation": "Rule 33.32: the same shot with a third die of 3 gives 6, which is not under 6.",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "f",
+     "side": "russian",
+     "type": "M4M52",
+     "hex": "A1",
+     "army": "american",
+     "facing": 5
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "MkIVF2",
+     "hex": "A9",
+     "facing": 0,
+     "moved": true
+    },
+    {
+     "ref": "w",
+     "side": "russian",
+     "type": "T34",
+     "hex": "A8",
+     "facing": 0,
+     "wreck": true
+    }
+   ],
+   "dice": [
+    1,
+    1,
+    3
+   ],
+   "single_dice": true,
+   "apply": [
+    {
+     "action": "afv_fire",
+     "units": [
+      "f"
+     ],
+     "hex": "A9",
+     "aim": "vehicle",
+     "ammo": "he"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "33.3",
+     "kind": "to_hit",
+     "data": {
+      "raw": 2,
+      "third_die": 3,
+      "hit": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "r37.2-only-an-assault-engineer-fires-a-flamethrower-at-a-vehicle",
+   "rule": "37.2",
+   "type": "invalid",
+   "citation": "Rule 22.4 with PR-47: only an assault engineer squad or a leader of minus two or better operates a flamethrower (review A7).",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A7"
+    },
+    {
+     "ref": "ft",
+     "side": "german",
+     "type": "FT",
+     "carrier": "s"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "T34",
+     "hex": "A8",
+     "facing": 0
+    },
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A8"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "at_fire",
+     "units": [
+      "s"
+     ],
+     "weapon": "ft",
+     "hex": "A8"
+    }
+   ]
+  },
+  {
+   "id": "r37.2-the-flamethrower-roll-is-the-fuel-roll-and-the-infantry-roll",
+   "rule": "37.2",
+   "type": "interaction",
+   "citation": "Rules 37.2, 22.2, and 22.6 with PR-47: one roll of 10. It reads the kill table, the 20 column with no modifier, and it empties the fuel.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "A7"
+    },
+    {
+     "ref": "ft",
+     "side": "german",
+     "type": "FT",
+     "carrier": "s"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "T34",
+     "hex": "A8",
+     "facing": 0
+    },
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A8"
+    }
+   ],
+   "dice": [
+    5,
+    5
+   ],
+   "apply": [
+    {
+     "action": "at_fire",
+     "units": [
+      "s"
+     ],
+     "weapon": "ft",
+     "hex": "A8"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "33.4",
+     "kind": "kill_roll",
+     "data": {
+      "raw": 10
+     }
+    },
+    {
+     "rule_id": "37.2",
+     "kind": "flamethrower_infantry",
+     "data": {
+      "roll": 10,
+      "adjusted": 10
+     }
+    },
+    {
+     "rule_id": "22.6",
+     "kind": "out_of_fuel"
+    }
+   ],
+   "expect_eliminated": [
+    "ft"
+   ]
+  },
+  {
+   "id": "r23.3-a-dud-charge-lies-in-the-placement-hex",
+   "rule": "23.3",
+   "type": "boundary",
+   "citation": "Rule 23.3 and PR-14: the placer broke, so the charge does not explode. It lies in the placement hex and no later phase arms it (review A8).",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "B7",
+     "broken": true
+    },
+    {
+     "ref": "dc",
+     "side": "german",
+     "type": "DC"
+    },
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B8"
+    }
+   ],
+   "demo": [
+    {
+     "side": "german",
+     "hex": "B8",
+     "placer": "e",
+     "from": "B7",
+     "weapon": "dc"
+    }
+   ],
+   "apply": [
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "23.3",
+     "kind": "demo_dud",
+     "data": {
+      "left_in": "B7"
+     }
+    }
+   ],
+   "expect_demo_count": 0,
+   "expect_units": {
+    "dc": {
+     "hex": "B7",
+     "carrier": null,
+     "eliminated": false
+    }
+   }
+  },
+  {
+   "id": "r30.5-the-move-names-any-facing",
+   "rule": "30.5",
+   "type": "valid",
+   "citation": "Rule 30.5 and PR-21: a vehicle changes its facing freely after it moves into a hex, and the move command names it (review A9).",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "german",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "t",
+     "side": "german",
+     "type": "MkIVF2",
+     "hex": "B2",
+     "facing": 3
+    }
+   ],
+   "apply": [
+    {
+     "action": "vehicle_move",
+     "units": [
+      "t"
+     ],
+     "hex": "B3",
+     "facing": 5
+    }
+   ],
+   "expect_units": {
+    "t": {
+     "facing": 5,
+     "pivoted": false
+    }
+   }
+  },
+  {
+   "id": "r63.3-a-gun-marked-h6-fires-heat-at-a-vehicle",
+   "rule": "63.3",
+   "type": "valid",
+   "citation": "Rule 63.3 and PR-45: the Priest and the M4 105 fire HEAT at a vehicle (review A10).",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "p",
+     "side": "russian",
+     "type": "Priest",
+     "hex": "A1",
+     "army": "american",
+     "facing": 2
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "MkIVF2",
+     "hex": "A4",
+     "facing": 0
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A3"
+    }
+   ],
+   "legal": [
+    {
+     "action": "afv_fire",
+     "units": [
+      "p"
+     ],
+     "hex": "A4",
+     "aim": "vehicle",
+     "ammo": "heat"
+    }
+   ]
+  },
+  {
+   "id": "r63.3-heat-is-no-shell-against-infantry",
+   "rule": "63.3",
+   "type": "invalid",
+   "citation": "Rule 63.3: HEAT has no effect on infantry, so it is not a shot at infantry.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "p",
+     "side": "russian",
+     "type": "Priest",
+     "hex": "A1",
+     "army": "american",
+     "facing": 2
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "MkIVF2",
+     "hex": "A4",
+     "facing": 0
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A3"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "afv_fire",
+     "units": [
+      "p"
+     ],
+     "hex": "A3",
+     "aim": "infantry",
+     "ammo": "heat"
+    }
+   ]
+  },
+  {
+   "id": "r63.32-a-heat-roll-of-six-spends-the-heat",
+   "rule": "63.32",
+   "type": "boundary",
+   "citation": "Rule 63.32 and PR-45: a to-hit roll of 6 or more leaves the gun with no HEAT, and that shot is high explosive.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "p",
+     "side": "russian",
+     "type": "Priest",
+     "hex": "A1",
+     "army": "american",
+     "facing": 2
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "MkIVF2",
+     "hex": "A4",
+     "facing": 0
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A3"
+    }
+   ],
+   "dice": [
+    3,
+    3,
+    1,
+    1
+   ],
+   "apply": [
+    {
+     "action": "afv_fire",
+     "units": [
+      "p"
+     ],
+     "hex": "A4",
+     "aim": "vehicle",
+     "ammo": "heat"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "63.32",
+     "kind": "heat_spent"
+    },
+    {
+     "rule_id": "33.4",
+     "kind": "kill_roll",
+     "data": {
+      "column": "he105"
+     }
+    }
+   ],
+   "expect_units": {
+    "p": {
+     "heat_spent": true
+    }
+   },
+   "expect_illegal_after": [
+    {
+     "action": "afv_fire",
+     "units": [
+      "p"
+     ],
+     "hex": "A4",
+     "aim": "vehicle",
+     "ammo": "heat"
+    }
+   ]
+  },
+  {
+   "id": "r63.3-a-heat-hit-reads-the-h6-column",
+   "rule": "63.3",
+   "type": "interaction",
+   "citation": "Rule 63.3 with rule 33.4: a HEAT hit reads the H6 column of the kill table.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "p",
+     "side": "russian",
+     "type": "Priest",
+     "hex": "A1",
+     "army": "american",
+     "facing": 2
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "MkIVF2",
+     "hex": "A4",
+     "facing": 0
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A3"
+    }
+   ],
+   "dice": [
+    2,
+    2,
+    1,
+    1
+   ],
+   "apply": [
+    {
+     "action": "afv_fire",
+     "units": [
+      "p"
+     ],
+     "hex": "A4",
+     "aim": "vehicle",
+     "ammo": "heat"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "33.4",
+     "kind": "kill_roll",
+     "data": {
+      "column": "h6",
+      "killed": true
+     }
+    }
+   ],
+   "expect_units": {
+    "e": {
+     "wreck": true
+    }
+   }
+  },
+  {
+   "id": "r23.1-a-demolition-charge-attacks-the-vehicle-of-its-hex",
+   "rule": "23.1",
+   "type": "interaction",
+   "citation": "PR-46 with rules 23.1, 32.5, and 33.4: the explosion roll of 4 reads the demolition charge column, 9 against the front.",
+   "phase": "advancing_fire",
+   "sub_step": "demo_window",
+   "phasing": "german",
+   "check": "effect",
+   "dice": [
+    2,
+    2
+   ],
+   "units": [
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "8-3-8",
+     "hex": "B7"
+    },
+    {
+     "ref": "dc",
+     "side": "german",
+     "type": "DC"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "T34",
+     "hex": "B8",
+     "facing": 0
+    }
+   ],
+   "demo": [
+    {
+     "side": "german",
+     "hex": "B8",
+     "placer": "e",
+     "from": "B7",
+     "weapon": "dc",
+     "armed": true
+    }
+   ],
+   "apply": [
+    {
+     "action": "explode_demo",
+     "hex": "B8",
+     "charge": 0
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "33.4",
+     "kind": "kill_roll",
+     "data": {
+      "column": "demolition_charge",
+      "raw": 4,
+      "killed": true
+     }
+    }
+   ],
+   "expect_units": {
+    "t": {
+     "wreck": true
+    }
+   }
+  },
+  {
+   "id": "r41.3-no-tank-smoke-through-a-building",
+   "rule": "41.3",
+   "type": "invalid",
+   "citation": "Rule 41.3 and PR-48: tank smoke goes to a hex the gun sees. E5 blocks D5 to F5 (review A11).",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "check": "legality",
+   "smoke_left": {
+    "german": 1
+   },
+   "units": [
+    {
+     "ref": "t",
+     "side": "german",
+     "type": "MkIVF2",
+     "hex": "D5",
+     "facing": 2
+    }
+   ],
+   "illegal": [
+    {
+     "action": "afv_smoke",
+     "units": [
+      "t"
+     ],
+     "hex": "F5"
+    }
+   ],
+   "legal": [
+    {
+     "action": "afv_smoke",
+     "units": [
+      "t"
+     ],
+     "hex": "D7"
+    }
+   ]
+  },
+  {
+   "id": "r41.4-no-dischargers-with-no-smoke-counter-left",
+   "rule": "41.4",
+   "type": "boundary",
+   "citation": "Rule 24.1 and PR-48: the dischargers take a counter from the allowance of the side, and none is left.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "t",
+     "side": "german",
+     "type": "MkIVF2",
+     "hex": "C7",
+     "facing": 0
+    }
+   ],
+   "illegal": [
+    {
+     "action": "afv_dischargers",
+     "units": [
+      "t"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r42.7-a-hidden-vehicle-is-no-target",
+   "rule": "42.7",
+   "type": "invalid",
+   "citation": "Rule 42.1 and PR-49: a hidden vehicle is in no legal list of the other side (review A12).",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A7"
+    },
+    {
+     "ref": "pf",
+     "side": "german",
+     "type": "PF",
+     "carrier": "s"
+    },
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "T34",
+     "hex": "A9",
+     "facing": 0,
+     "hidden": true
+    }
+   ],
+   "illegal": [
+    {
+     "action": "at_fire",
+     "units": [
+      "s"
+     ],
+     "weapon": "pf",
+     "hex": "A9"
+    }
+   ]
+  },
+  {
+   "id": "r33.31-case-h-reads-a-counter-of-the-target-side-only",
+   "rule": "33.31",
+   "type": "boundary",
+   "citation": "Rule 33.31 case H is a concealed target. A counter of the firer's own side in the hex conceals no enemy (review A12).",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "check": "effect",
+   "dice": [
+    6,
+    6
+   ],
+   "concealment": [
+    {
+     "side": "german",
+     "hex": "A5"
+    }
+   ],
+   "units": [
+    {
+     "ref": "t",
+     "side": "german",
+     "type": "MkIVF2",
+     "hex": "A1",
+     "facing": 2
+    },
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A5"
+    }
+   ],
+   "apply": [
+    {
+     "action": "afv_fire",
+     "units": [
+      "t"
+     ],
+     "hex": "A5",
+     "aim": "infantry",
+     "ammo": "he"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "33.3",
+     "kind": "to_hit",
+     "data": {
+      "cases": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "r35.5-the-passengers-get-off-before-the-overrun",
+   "rule": "35.5",
+   "type": "interaction",
+   "citation": "Rule 35.5: the passengers do not ride into the overrun hex. They stay in the hex the vehicle leaves (review A12).",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "german",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "t",
+     "side": "german",
+     "type": "MkIVF2",
+     "hex": "B2",
+     "facing": 3
+    },
+    {
+     "ref": "p",
+     "side": "german",
+     "type": "4-6-7",
+     "riding": "t"
+    },
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B3"
+    }
+   ],
+   "apply": [
+    {
+     "action": "vehicle_move",
+     "units": [
+      "t"
+     ],
+     "hex": "B3",
+     "facing": 3
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "35.5",
+     "kind": "dismount"
+    },
+    {
+     "rule_id": "35.1",
+     "kind": "overrun"
+    }
+   ],
+   "expect_units": {
+    "p": {
+     "hex": "B2"
+    }
+   }
+  },
+  {
+   "id": "r35.1-a-dummy-counter-is-overrun-as-a-stack-is",
+   "rule": "35.1",
+   "type": "boundary",
+   "citation": "PR-31 with rule 35.1: the hex of an enemy counter is overrun whether a unit is below it or not.",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "german",
+   "check": "effect",
+   "concealment": [
+    {
+     "side": "russian",
+     "hex": "B3"
+    }
+   ],
+   "units": [
+    {
+     "ref": "t",
+     "side": "german",
+     "type": "MkIVF2",
+     "hex": "B2",
+     "facing": 3
+    }
+   ],
+   "apply": [
+    {
+     "action": "vehicle_move",
+     "units": [
+      "t"
+     ],
+     "hex": "B3",
+     "facing": 3
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "35.1",
+     "kind": "overrun"
+    }
+   ],
+   "expect_units": {
+    "t": {
+     "overran": true
+    }
+   }
+  },
+  {
+   "id": "r35.8-the-owner-chooses-the-hex",
+   "rule": "35.8",
+   "type": "valid",
+   "citation": "Rule 35.8 and PR-51: the owner moves the unit to an adjacent hex of its choice. B4 holds an enemy unit.",
+   "phase": "defensive_fire",
+   "sub_step": "push_out",
+   "phasing": "german",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "t",
+     "side": "german",
+     "type": "MkIVF2",
+     "hex": "B3",
+     "facing": 3
+    },
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B3"
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "B4"
+    }
+   ],
+   "legal": [
+    {
+     "action": "push_out",
+     "units": [
+      "r"
+     ],
+     "hex": "C3"
+    },
+    {
+     "action": "push_out",
+     "units": [
+      "r"
+     ],
+     "hex": "A3"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "push_out",
+     "units": [
+      "r"
+     ],
+     "hex": "B4"
+    },
+    {
+     "action": "end_phase"
+    }
+   ]
+  },
+  {
+   "id": "r35.8-the-push-out-obeys-the-stacking-limit",
+   "rule": "35.8",
+   "type": "invalid",
+   "citation": "Rule 35.8 with rule 6.1: a hex where the unit breaks the stacking limit is no choice.",
+   "phase": "defensive_fire",
+   "sub_step": "push_out",
+   "phasing": "german",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "t",
+     "side": "german",
+     "type": "MkIVF2",
+     "hex": "B3",
+     "facing": 3
+    },
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B3"
+    },
+    {
+     "ref": "x0",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C3"
+    },
+    {
+     "ref": "x1",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C3"
+    },
+    {
+     "ref": "x2",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C3"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "push_out",
+     "units": [
+      "r"
+     ],
+     "hex": "C3"
+    }
+   ]
+  },
+  {
+   "id": "r16.1-a-track-hex-out-of-sight-gives-no-return",
+   "rule": "16.1",
+   "type": "invalid",
+   "citation": "Rule 16.1 and PR-53: the defender returns a unit to a track hex that one of his units sees. E5 blocks D5 to F5.",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "D5"
+    },
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "G4",
+     "moved": true,
+     "track": [
+      "F5",
+      "G4"
+     ]
+    }
+   ],
+   "illegal": [
+    {
+     "action": "track_return",
+     "units": [
+      "r"
+     ],
+     "hex": "F5"
+    }
+   ]
+  },
+  {
+   "id": "r16.1-a-track-hex-in-sight-gives-a-return",
+   "rule": "16.1",
+   "type": "valid",
+   "citation": "Rule 16.1: F7 sees F5, so the defender may return the unit there.",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "F7"
+    },
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "G4",
+     "moved": true,
+     "track": [
+      "F5",
+      "G4"
+     ]
+    }
+   ],
+   "legal": [
+    {
+     "action": "track_return",
+     "units": [
+      "r"
+     ],
+     "hex": "F5"
+    }
+   ]
+  }
+ ]
+}

@@ -74,13 +74,15 @@ def test_a_hidden_unit_and_a_concealed_unit_are_absent_from_the_other_player():
     assert shown_planes[theirs, col, row] == 1.0
 
     mover = built.unit("own")
-    event = Event("5.5", "move", {"unit": mover.id, "from": "A1", "to": "A2"})
+    # The sneak term pays at the end of the Movement Phase, for a unit with a track (L1).
+    moving = state.with_(phase="movement", phasing=mover.player).with_unit(replace(mover, track=((0, 0),)))
+    event = Event("4", "phase", {"phase": "defensive_fire", "turn": 1, "phasing": mover.player})
     full = state.with_unit(replace(built.unit("hid"), eliminated=True))
     dummy = full.with_unit(replace(built.unit("con"), eliminated=True, hex=None))
     visible = state.with_(concealment=()).with_unit(replace(built.unit("hid"), eliminated=True))
-    full_counts = term_counts(engine, state, full, [event])
-    dummy_counts = term_counts(engine, state, dummy, [event])
-    visible_counts = term_counts(engine, state, visible, [event])
+    full_counts = term_counts(engine, moving, full, [event])
+    dummy_counts = term_counts(engine, moving, dummy, [event])
+    visible_counts = term_counts(engine, moving, visible, [event])
     side = mover.player
     assert full_counts[side]["sneak"] == dummy_counts[side]["sneak"] == 1
     assert visible_counts[side]["sneak"] == 0

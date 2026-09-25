@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Mapping
 
-from slcore import geometry
+from slcore import actions, geometry
 from slcore.commands import Command
 from slcore.events import Event
 from slcore.game import State
-from slcore.rules import r06_stacking
+from slcore.rules import r06_stacking, r42_hidden
 from slcore.rules.r05_movement import LEADER_MAX_PORTAGE
 from slcore.scenario import Scenario
 from slcore.state import Board
@@ -108,7 +108,11 @@ def apply_place(state: State, command: Command) -> tuple[State, list[Event]]:
     if command.hex is None:
         raise ValueError("place needs a hex")
     placed = unit.with_(hex=command.hex, carrier=None)
-    return state.with_unit(placed), [Event(RULE_21_2, "place", {"unit": unit.id, "hex": geometry.hex_id(*command.hex)})]
+    changed = {placed.id: placed}
+    # PR-11: a unit placed again takes the weapons it carries to its new hex.
+    for weapon in state.carried_by(unit.id):
+        changed[weapon.id] = weapon.with_(hex=command.hex)
+    return state.with_units(changed), [Event(RULE_21_2, "place", {"unit": unit.id, "hex": geometry.hex_id(*command.hex)})]
 
 
 def apply_place_weapon(state: State, command: Command) -> tuple[State, list[Event]]:
@@ -118,3 +122,46 @@ def apply_place_weapon(state: State, command: Command) -> tuple[State, list[Even
         raise ValueError("place_weapon needs a weapon")
     placed = weapon.with_(hex=carrier.hex, carrier=carrier.id)
     return state.with_unit(placed), [Event(RULE_21_2, "place_weapon", {"weapon": weapon.id, "carrier": carrier.id})]
+
+
+# ------------------------------------------------------------------ the command handlers (M3)
+
+
+def hide_on_setup(scenario: Scenario, players: tuple[str, ...], board: Board, state: State, command: Command) -> tuple[State, list[Event]]:
+    """Rule 42.1: the side the scenario names records a unit instead of placing it.
+
+    Only a woods hex or a building hex holds a hidden unit. A unit of that side in any
+    other hex goes on the board in full view, which is what rule 42.1 says.
+    """
+    side = scenario.hidden_side
+    if not side or not command.units:
+        return state, []
+    unit = state.units[command.units[0]]
+    sides = {scenario.side_index(name): name for name in players}
+    if not r42_hidden.can_hide(side, sides, board, unit):
+        return state, []
+    hidden = unit.with_(hidden=True)
+    return state.with_unit(hidden), [
+        Event(
+            r42_hidden.RULE_42_1,
+            "hidden",
+            {"unit": unit.id, "hex": geometry.hex_id(*unit.hex) if unit.hex else None},
+        )
+    ]
+
+
+@actions.action("place")
+def _on_place(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    state, events = apply_place(state, command)
+    facing = dict(command.extra).get("facing")
+    if facing is not None:
+        # Rule 30.1 and PR-21: a vehicle goes on the board with a facing.
+        state = state.with_unit(state.units[command.units[0]].with_(facing=int(facing)))
+    state, hide = hide_on_setup(engine.scenario, engine.players, engine.board, state, command)
+    events.extend(hide)
+    return state, events
+
+
+@actions.action("place_weapon")
+def _on_place_weapon(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    return apply_place_weapon(state, command)

@@ -417,7 +417,9 @@ A picture that the project makes from its own code is not a scan. Those go in `d
 
 SR-08: The project name and the served page MUST NOT use "Squad Leader" or "Avalon Hill" as the brand. Descriptive text MUST have a non-affiliation notice.
 
-*RC.*
+The one exception is the public title "Squad Leader Expeditionem", which the owner named on 2026-09-18. The window captions and the served page MAY show that title. Each place that shows it MUST also have the non-affiliation notice. The release audit accepts the full title and no other use of the two names.
+
+*RC.* Source: the owner decision of 2026-09-18.
 
 SR-09: Prompts to a model and traces for training MUST be built from the acting agent's view only. Logs and run artifacts MUST NOT contain API keys, authorization headers, or opponent-hidden state.
 

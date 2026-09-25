@@ -632,10 +632,10 @@
    ]
   },
   {
-   "id": "r17.2-one-machine-gun-above-four-factors-forfeits-the-squad",
-   "rule": "17.2",
+   "id": "r17.1-one-machine-gun-above-four-factors-keeps-the-squad-fire",
+   "rule": "17.1",
    "type": "boundary",
-   "citation": "Rules 17.1 and 17.2: a squad fires one machine gun of more than 4 factors only by forfeiting its inherent firepower. A flamethrower is not a machine gun and does not cause that forfeit.",
+   "citation": "Rule 17.1 and PR-41: a squad fires any one machine gun at no cost to its own firepower, a heavy machine gun of 6 factors as well. Rule 17.2 applies to two machine guns only.",
    "check": "group_firepower",
    "units": [
     {"ref": "s", "side": "german", "type": "4-6-7", "hex": "A1"},
@@ -644,8 +644,25 @@
    ],
    "target": "A2",
    "members": [["s", null], ["s", "hmg"]],
+   "expect_halves": 40,
+   "expect_members": 2
+  },
+  {
+   "id": "r17.2-two-machine-guns-above-four-factors-forfeit-the-squad",
+   "rule": "17.2",
+   "type": "boundary",
+   "citation": "Rule 17.2: a squad that fires two machine guns of more than 4 factors together forfeits its own inherent firepower. An MMG and an LMG are 6 factors.",
+   "check": "group_firepower",
+   "units": [
+    {"ref": "s", "side": "german", "type": "4-6-7", "hex": "A1"},
+    {"ref": "mmg", "side": "german", "type": "MMG", "carrier": "s"},
+    {"ref": "lmg", "side": "german", "type": "LMG", "carrier": "s"},
+    {"ref": "t", "side": "russian", "type": "4-4-7", "hex": "A2"}
+   ],
+   "target": "A2",
+   "members": [["s", null], ["s", "mmg"], ["s", "lmg"]],
    "expect_halves": 24,
-   "expect_members": 1
+   "expect_members": 2
   },
   {
    "id": "r22.3-a-flamethrower-does-not-forfeit-the-squad",

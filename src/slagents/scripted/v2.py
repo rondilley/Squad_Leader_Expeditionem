@@ -29,6 +29,7 @@ from slcore.frame import DecisionFrame, LegalCommand
 from slcore.game import PHASE_SETUP, State
 from slcore.geometry import HexRef
 from slcore.rules import r10_resolution
+from slcore.view import visible_to
 from slagents.scripted.v1 import Parameters as V1Parameters
 from slagents.scripted.v1 import ScriptedV1
 
@@ -116,7 +117,7 @@ class ScriptedV2(ScriptedV1):
             target = lc.command.hex
             if target is None:
                 continue
-            enemies = sum(1 for u in state.infantry_in(target) if u.player != self.player)
+            enemies = sum(1 for u in state.infantry_in(target) if u.player != self.player and visible_to(state, u, self.player))
             if enemies == 0 and self._enemy_distance(state, target) > self.params.charge_range:
                 continue
             building = self.engine.board.hex(target).building is not None
@@ -145,7 +146,7 @@ class ScriptedV2(ScriptedV1):
     def _occupants(self, state: State, hex_ref: HexRef | None) -> int:
         if hex_ref is None:
             return 0
-        return sum(1 for u in state.infantry_in(hex_ref) if u.player != self.player)
+        return sum(1 for u in state.infantry_in(hex_ref) if u.player != self.player and visible_to(state, u, self.player))
 
     # ---------------------------------------------------------------- rule 27
 

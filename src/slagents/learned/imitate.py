@@ -7,8 +7,8 @@ the policy first learns to give the command a scripted agent gives in the same s
 PPO then starts from a policy that already attacks.
 
 The data comes from games the scripted agents play in the environment of FR-50, so each
-observation is the one the trainer reads, and each label is the triple of the environment's
-action space. A trace file of FR-60 holds the view and not the state, so it cannot give the
+observation is the one the trainer reads, and each label is the four-part key of the
+environment's action space. A trace file of FR-60 holds the view and not the state, so it cannot give the
 board tensor again; the games are played here instead. Nothing in this module knows a
 rule of the game: the teacher selects from the frame, and the environment asks the core.
 
@@ -42,6 +42,7 @@ import numpy as np
 import torch
 from torch import nn
 
+from slagents.base import decide
 from slagents.learned.encoding import Spaces, command_index
 from slagents.learned.env import SquadLeaderEnv
 from slagents.learned.league import write_snapshot
@@ -185,7 +186,7 @@ def _record(data: GameBuffer, env: SquadLeaderEnv, observation: dict[str, np.nda
 
 def _teacher_key(teacher: Any, env: SquadLeaderEnv) -> tuple[int, int, int, int]:
     """The four parts of the command the teacher names. The option is that command, not the lowest id."""
-    legal = env.frame.by_id(teacher.select(env.state_, env.frame))
+    legal = env.frame.by_id(decide(teacher, env.state_, env.frame))
     if legal is None:
         raise RuntimeError("the teacher gave an ID that is not in the frame")
     try:
@@ -280,12 +281,12 @@ def play_demonstration(
             break
         player = env.player_of(agent)
         observation = env.observe(agent)
-        triple = _teacher_key(actors[player], env)
-        label = triple if labelers[player] is actors[player] else _teacher_key(labelers[player], env)
+        key = _teacher_key(actors[player], env)
+        label = key if labelers[player] is actors[player] else _teacher_key(labelers[player], env)
         _record(buffer, env, observation, label, player)
         paid.append(float(env._cumulative_rewards[agent]))
         players.append(player)
-        env.step(triple)
+        env.step(key)
     # The return of a decision is the total its side was paid at the end, less what it
     # had been paid before the decision.
     return data, _close_game(data, buffer, env, paid, players)
@@ -360,18 +361,18 @@ def play_correction(
         label = _teacher_key(labelers[player], env)
         if player == side:
             if mix > 0.0 and float(torch.rand((), generator=generator).item()) < mix:
-                triple = label
+                key = label
             else:
-                triple, _, _, _, _ = choose(policy, observation, env, generator)
+                key, _, _, _, _ = choose(policy, observation, env, generator)
         elif labels[player] == kind:
             # The opponent is the label teacher of its side, so the label is its command.
-            triple = label
+            key = label
         else:
-            triple = _teacher_key(opponent, env)
+            key = _teacher_key(opponent, env)
         _record(buffer, env, observation, label, player)
         paid.append(float(env._cumulative_rewards[agent]))
         players.append(player)
-        env.step(triple)
+        env.step(key)
     result = _close_game(data, buffer, env, paid, players)
     return data, result if side == 0 else -result
 

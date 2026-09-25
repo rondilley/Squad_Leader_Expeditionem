@@ -15,8 +15,18 @@ command put the agent with the best win rate fourth, because its pair played fir
 too close to separate at the game count that ran.
 
 Balance: each pair alternates sides, so a scenario that favors one side does not bias the
-result. The seed is deterministic in the field order and the scenario order, so a re-run of
-the same gauntlet reproduces every game (TR-02).
+result. The two games of each side order share one seed (a paired design, L7): the same
+dice and the same board decide the game with the agents on each side, so the difference
+of the pair is the agents and not the seed. The Bradley-Terry fit has a side term for each
+scenario (`slruns.elo.settled_ratings_by_side`), and the artifact reports it as the Elo
+points the first side of the scenario gets from its side alone. The seeds are in the
+gauntlet range of `slruns.seeds`, so a gauntlet does not replay the games a training run or
+an evolution chose its candidate on. The seed is deterministic in the field order and the
+scenario order, so a re-run of the same gauntlet reproduces every game (TR-02).
+
+Sample size: a pair of 20 games gives a 95 percent interval about 40 points wide. A
+baseline needs 200 games or more (`slruns.seeds.MINIMUM_BASELINE_GAMES`), and each rate
+prints with its Wilson interval.
 
 `--anchor-only` skips the panel-against-panel games and plays the candidate against each panel
 member only. That is the fast loop for "is my new agent better than the field"; the default
@@ -39,7 +49,8 @@ from typing import Any
 
 from slcli.play import build_engine, build_engine_with_record, make_agent, play_game
 from slruns import artifact
-from slruns.elo import Record, settled_ratings
+from slruns.elo import Record, settled_ratings_by_side
+from slruns.seeds import MINIMUM_BASELINE_GAMES, family_seed, rate_text, sample_warning
 from slruns.index import connect, upsert
 
 # The default field. Random anchors the bottom, v0 and v1 are the early ladder, v4 is the
@@ -159,7 +170,9 @@ def run_gauntlet(
     if len(field) < 2:
         raise ValueError("the gauntlet needs the candidate and one panel agent or more")
 
-    results: list[tuple[str, str, float]] = []
+    # Each result as the agent of the first side, the agent of the second side, the score
+    # of the first side, and the scenario, for the fit with the side term.
+    results: list[tuple[str, str, float, str]] = []
     overall: dict[str, Record] = {name: Record() for name in field}
     per_scenario: dict[str, dict[str, Record]] = {name: {} for name in field}
 
@@ -173,6 +186,8 @@ def run_gauntlet(
             "scenarios": list(scenarios),
             "games_per_pair": games,
             "first_seed": seed,
+            "first_game_seed": family_seed("gauntlet", seed),
+            "paired_seeds": balance,
             "anchor_only": anchor_only,
             "balance_sides": balance,
             "workers": workers,
@@ -183,6 +198,7 @@ def run_gauntlet(
     errors: list[dict[str, Any]] = []
     harness_rows: list[dict[str, Any]] = []
     counter = 0
+    seeds_used = 0
     started = time.perf_counter()
 
     # The list of games is fixed first, so the workers change nothing but the clock.
@@ -198,7 +214,11 @@ def run_gauntlet(
                     continue
                 pair_jobs: list[tuple[int, tuple[str, str]]] = []
                 for g in range(games):
-                    game_seed = seed + counter
+                    # With balance on, game g and game g + 1 play one seed with the sides
+                    # changed. An odd count leaves the last game with a seed of its own.
+                    if not balance or g % 2 == 0:
+                        game_seed = family_seed("gauntlet", seed, seeds_used)
+                        seeds_used += 1
                     counter += 1
                     swap = balance and g % 2 == 1
                     order = (second, first) if swap else (first, second)
@@ -230,7 +250,8 @@ def run_gauntlet(
                     }
                 )
                 continue
-            art.seeds.append(game_seed)
+            if game_seed not in art.seeds:
+                art.seeds.append(game_seed)
             for row in outcome.get("harness", []):
                 harness_rows.append({"scenario": scenario, "seed": game_seed, "side": sides[row["player"]], **row})
             winner = outcome["winner"]
@@ -249,7 +270,7 @@ def run_gauntlet(
             _apply(overall[second], outcome_second)
             _apply(per_scenario[first].setdefault(scenario, Record()), outcome_first)
             _apply(per_scenario[second].setdefault(scenario, Record()), outcome_second)
-            results.append((first, second, outcome_first))
+            results.append((order[0], order[1], outcome_first_in_order, scenario))
             if outcome_first == 1.0:
                 wins[first] += 1
             elif outcome_first == 0.0:
@@ -273,8 +294,9 @@ def run_gauntlet(
         )
 
     # The ratings come from the whole result list, so the order of the pairs does not set
-    # the rank (see settled_ratings).
-    elo = settled_ratings(results)
+    # the rank, and the side term takes out the side each scenario favours (L7).
+    fit = settled_ratings_by_side(results)
+    elo = fit.table
     leaderboard = [
         {
             "agent": name,
@@ -292,6 +314,11 @@ def run_gauntlet(
         "seconds": round(time.perf_counter() - started, 1),
         "leaderboard": leaderboard,
         "elo": elo.to_dict(),
+        # The Elo points the first side of each scenario gets from its side alone.
+        "side_advantage": {
+            scenario: {"first_side": sides_of[scenario][0], "elo": value}
+            for scenario, value in fit.to_dict().items()
+        },
         "pairs": rows,
         "per_scenario": {
             name: {sc: rec.to_dict() for sc, rec in by_sc.items()} for name, by_sc in per_scenario.items()
@@ -329,10 +356,22 @@ def _print_leaderboard(art: artifact.RunArtifact, candidate: str) -> None:
         mine, other = ("a", "b") if row["agent_a"] == candidate else ("b", "a")
         by_side = row[f"{mine}_wins_by_side"]
         sides = ", ".join(f"{n} as {side}" for side, n in by_side.items())
+        score = row[f"{mine}_wins"] + 0.5 * row["draws"]
         print(
             f"  {row['scenario']:30s} against {row[f'agent_{other}']:8s} "
-            f"{row[f'{mine}_wins']:3d} of {row['completed']:3d}  ({sides})"
+            f"{rate_text(score, row['completed'])}  ({sides})"
         )
+    advantage = art.stats.get("side_advantage", {})
+    if advantage:
+        print()
+        print("the side term of the fit, in Elo points for the first side of each scenario:")
+        for scenario, entry in advantage.items():
+            print(f"  {scenario:34s} {entry['first_side']:10s} {entry['elo']:+7.1f}")
+    games = next((r["games"] for r in board if r["agent"] == candidate), 0)
+    warning = sample_warning(games)
+    if warning:
+        print()
+        print(warning)
     failed = art.stats.get("errors", [])
     if failed:
         # A game that did not finish is not in the win rates. Say so, so the number is honest
@@ -409,8 +448,13 @@ def add_parser(subparsers: Any) -> None:
         default=",".join(DEFAULT_SCENARIOS),
         help="a comma list of scenario ids (default: %(default)s)",
     )
-    p.add_argument("--games", type=int, default=20, help="games for each pair on each scenario")
-    p.add_argument("--seed", type=int, default=1)
+    p.add_argument(
+        "--games",
+        type=int,
+        default=20,
+        help=f"games for each pair on each scenario, two for each seed; a baseline needs {MINIMUM_BASELINE_GAMES} or more games of the candidate, and each rate prints with its 95 percent Wilson interval",
+    )
+    p.add_argument("--seed", type=int, default=1, help="the first seed, inside the gauntlet range of seeds (slruns.seeds)")
     p.add_argument(
         "--anchor-only",
         action="store_true",

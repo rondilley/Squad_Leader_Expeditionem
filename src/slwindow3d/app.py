@@ -15,23 +15,43 @@ Two camera modes:
 The `t` key or Tab toggles the two modes. The camera orbits a target point, which is the
 centre of the board.
 
+Ctrl and t toggles the two modes at any time. For a watcher the `t` key does it too, and
+Tab does it while the frame has no legal list.
+
 Move around:
 
 - a mouse drag, or the four arrow keys: pan the target
-- the wheel, or the plus and minus keys: zoom (dolly in 3D, film size in 2D)
+- the wheel over the board, or the plus and minus keys: zoom (dolly in 3D, film size in 2D)
 - a right drag, or the bracket keys: tilt and turn (3D only)
-- r: reset the view
-- i: show or hide the tactical overlay (the shaded hexes, the tracers, the bursts)
-- o: show or hide the options of the unit in focus (where it can move, what it can fire at)
+- Ctrl and r: reset the view
+- Ctrl and i: show or hide the tactical overlay (the shaded hexes, the tracers, the bursts)
+- Ctrl and o: show or hide the options of the unit in focus (where it can move, what it can
+  fire at)
 
-Play, the same as the 2D window:
+Play (H2), the same as the 2D window, through the same `HostClient` and `Chooser`:
 
 - a click on a hex: put the top unit of the hex in focus, and a second click takes the
-  next unit of the stack. With no click the focus is the unit that acted last.
+  next unit of the stack. The command list narrows to the commands of that unit, and the
+  overlay shades where it can move and what it can fire at. With no click the focus is
+  the unit that acted last.
+- a click on a shaded hex of the unit in focus: the list narrows to the commands of the
+  unit that name that hex, and when one is left the window plays it
 - the pointer over a hex: the line of sight from the focus unit to that hex, as shaded
   hexes, from the answer of the host (FR-34). The hex under the pointer comes from a ray
   through the lens against the flat tops of the hexes (`mesh.hex_on_ray`).
-- Escape: clear the focus. q: leave.
+- the panel on the right: a click on a row plays it, and the wheel over it scrolls it
+- Tab and Shift and Tab: move down and up the list, and the two page keys by one page
+- Enter: play the command under the cursor
+- typing: narrow the list. Escape clears what was typed, then the board choice, then the
+  focus.
+- Ctrl and z: ask the host to take back the last command (undo)
+- Ctrl and a: ask the host to set up the side of this person ("set up for me")
+- Ctrl and q: leave
+
+The keys follow the policy of `slwindow.choice` (H7): for a person who holds a seat a
+plain letter goes to the filter, and with Ctrl a letter is always its shortcut. A watcher
+types no filter, so for a watcher the plain letters t, r, i, o, and q are shortcuts too,
+as they were before.
 
 The window opens on Windows and on Unix, because Panda3D ships a wheel for each. A test or a
 screenshot uses the offscreen path (`render_screenshot`), which needs no display.
@@ -57,6 +77,7 @@ from panda3d.core import (
     Vec3,
 )
 
+from slwindow.choice import Chooser, is_watcher
 from slwindow.overlay import next_focus, position_of
 from slwindow3d import counters as counter3d
 from slwindow3d.indicators import Indicators
@@ -85,12 +106,22 @@ DRAG_PAN = 0.06
 DRAG_TILT = 0.25
 # A press that moves the pointer less than this (in the -1 to 1 film space) is a click.
 CLICK_SLOP = 0.01
+# The width of the side panel in pixels.
+PANEL_WIDTH = 360
+# The plain letters that are shortcuts while the frame has no legal list.
+WATCH_LETTERS = ("t", "r", "i", "o", "q")
 
 
 class Board3DApp(ShowBase):
     """The 3D board window. Build it with a board document; feed it view documents."""
 
-    def __init__(self, board_doc: dict[str, Any] | None = None, poll: Any = None, ask_los: Any = None) -> None:
+    def __init__(
+        self,
+        board_doc: dict[str, Any] | None = None,
+        poll: Any = None,
+        ask_los: Any = None,
+        client: Any = None,
+    ) -> None:
         super().__init__()
         self.setBackgroundColor(*BACKGROUND)
         self.disableMouse()
@@ -99,10 +130,22 @@ class Board3DApp(ShowBase):
         self.indicator_root: NodePath | None = None
         self.indicators: Indicators | None = None
         self.board_doc: dict[str, Any] | None = None
+        # The client of the host (`slwindow.client.HostClient`). The window reads its
+        # snapshot, asks it for a line of sight, and sends an intent or an undo through it.
+        self.client = client
+        if client is not None:
+            poll = poll or client.snapshot
+            ask_los = ask_los or client.request_los
         self._poll = poll
         # The overlay asks the host for a line of sight through this (FR-34, AR-06).
         self._ask_los = ask_los
         self._last_frame_id = None
+        self._session_seen = 0
+        # The command list: the filter, the board choice, the cursor, and the scroll.
+        self.chooser = Chooser()
+        self._hud_key: Any = None
+        self._hud_rows: list[tuple[Any, int]] = []
+        self._hud_width = PANEL_WIDTH
         self._hud = None
         self._panel_font = None
         self._panel_small = None
@@ -135,7 +178,8 @@ class Board3DApp(ShowBase):
             from direct.gui.OnscreenText import OnscreenText
 
             OnscreenText(
-                text="click focus  esc clear  t 2D/3D  drag pan  wheel zoom  r reset  i overlay  o options  q quit",
+                text="click pick  enter play  tab list  type find  esc clear  ctrl+z undo  "
+                "ctrl+t 2D/3D  ctrl+r reset  ctrl+i overlay  ctrl+o options  ctrl+q quit",
                 parent=self.a2dBottomLeft,
                 pos=(0.02, 0.04),
                 scale=0.035,
@@ -251,9 +295,6 @@ class Board3DApp(ShowBase):
     # ------------------------------------------------------------------ the camera
 
     def _bind_keys(self) -> None:
-        self.accept("t", self.toggle_mode)
-        self.accept("tab", self.toggle_mode)
-        self.accept("r", self.reset_view)
         self.accept("arrow_left", self._pan, [-PAN_STEP, 0])
         self.accept("arrow_left-repeat", self._pan, [-PAN_STEP, 0])
         self.accept("arrow_right", self._pan, [PAN_STEP, 0])
@@ -262,22 +303,129 @@ class Board3DApp(ShowBase):
         self.accept("arrow_up-repeat", self._pan, [0, PAN_STEP])
         self.accept("arrow_down", self._pan, [0, -PAN_STEP])
         self.accept("arrow_down-repeat", self._pan, [0, -PAN_STEP])
-        for key in ("+", "="):
-            self.accept(key, self._zoom, [ZOOM_OUT])
-        self.accept("-", self._zoom, [ZOOM_IN])
-        self.accept("wheel_up", self._zoom, [ZOOM_OUT])
-        self.accept("wheel_down", self._zoom, [ZOOM_IN])
+        for key in ("+", "=", "shift-+", "shift-="):
+            self.accept(key, self._zoom_key, [ZOOM_OUT])
+        self.accept("-", self._zoom_key, [ZOOM_IN])
+        self.accept("wheel_up", self._wheel, [ZOOM_OUT, -3])
+        self.accept("wheel_down", self._wheel, [ZOOM_IN, 3])
         self.accept("[", self._tilt, [-TILT_STEP])
         self.accept("[-repeat", self._tilt, [-TILT_STEP])
         self.accept("]", self._tilt, [TILT_STEP])
         self.accept("]-repeat", self._tilt, [TILT_STEP])
-        self.accept("i", self._toggle_indicators)
-        self.accept("o", self._toggle_options)
-        self.accept("q", self.userExit)
-        self.accept("escape", self.clear_focus)
+        # The shortcuts. With Ctrl they work at any time. A plain letter is a shortcut only
+        # for a watcher, else it goes to the filter (`_keystroke`).
+        shortcuts = {
+            "t": self.toggle_mode,
+            "r": self.reset_view,
+            "i": self._toggle_indicators,
+            "o": self._toggle_options,
+            "q": self.userExit,
+        }
+        for letter, action in shortcuts.items():
+            self.accept(f"control-{letter}", action)
+            self.accept(letter, self._watch_key, [action])
+        self.accept("control-z", self.undo)
+        self.accept("control-a", self.auto_setup)
+        self.accept("escape", self.escape)
+        self.accept("tab", self._tab, [1])
+        self.accept("shift-tab", self._tab, [-1])
+        self.accept("page_down", self._page, [1])
+        self.accept("page_up", self._page, [-1])
+        self.accept("enter", self.play_selected)
+        self.accept("backspace", self._backspace)
+        self.accept("backspace-repeat", self._backspace)
+        self.accept("keystroke", self._keystroke)
         for button in ("mouse1", "mouse3"):
             self.accept(button, self._drag_start, [button])
             self.accept(f"{button}-up", self._drag_stop, [button])
+        throwers = getattr(self, "buttonThrowers", None) or []
+        for thrower in throwers:
+            # The typed characters come as one `keystroke` event each, for the filter.
+            thrower.node().setKeystrokeEvent("keystroke")
+
+    # ------------------------------------------------------------ the command list
+
+    def _legal(self) -> list[dict[str, Any]]:
+        return list(getattr(self._snapshot, "legal", None) or [])
+
+    def _view(self) -> dict[str, Any] | None:
+        return getattr(self._snapshot, "view", None)
+
+    def _watcher(self) -> bool:
+        return self._snapshot is None or is_watcher(self._snapshot)
+
+    def _watch_key(self, action: Any) -> None:
+        """A plain letter is a shortcut only for a watcher, who types no filter."""
+        if self._watcher():
+            action()
+
+    def _keystroke(self, text: str) -> None:
+        """A typed character goes to the filter of a person who holds a seat. The plus
+        and the minus keys zoom while the filter is empty, so they go to it only after a
+        letter."""
+        if self._watcher() or not isinstance(text, str) or len(text) != 1 or not text.isprintable():
+            return
+        if text in "+=-" and not self.chooser.filter_text:
+            return
+        self.chooser.type(text)
+
+    def _zoom_key(self, factor: float) -> None:
+        if not self._watcher() and self.chooser.filter_text:
+            return
+        self._zoom(factor)
+
+    def _wheel(self, factor: float, rows: int) -> None:
+        """The wheel over the panel scrolls the list. Over the board it zooms."""
+        if self.pointer_in_panel():
+            self.chooser.scroll_by(rows, self._legal(), self._view())
+            return
+        self._zoom(factor)
+
+    def _tab(self, step: int) -> None:
+        """Tab moves the cursor of the list. With no legal list it toggles the mode, as it
+        did for a watcher before."""
+        if self._legal():
+            self.chooser.move(step, self._legal(), self._view())
+        elif step > 0:
+            self.toggle_mode()
+
+    def _page(self, step: int) -> None:
+        self.chooser.page(step, self._legal(), self._view())
+
+    def _backspace(self) -> None:
+        self.chooser.backspace()
+
+    def escape(self) -> None:
+        """Escape clears the typed text, then the board choice, then the focus."""
+        cleared = self.chooser.escape()
+        if cleared == "unit" or not cleared:
+            self.pinned = None
+
+    def play_selected(self) -> bool:
+        """Enter: play the command under the cursor."""
+        index = self.chooser.selected(self._legal(), self._view())
+        return False if index is None else self.send(index)
+
+    def send(self, index: int) -> bool:
+        """Send the command at this index of the legal list with the frame token as it
+        came from the host (DR-04). An index the list does not hold sends nothing."""
+        snapshot = self._snapshot
+        legal = self._legal()
+        if self.client is None or snapshot is None or not getattr(snapshot, "frame_id", ""):
+            return False
+        if index < 0 or index >= len(legal):
+            return False
+        return bool(self.client.send_intent(snapshot.frame_id, str(legal[index]["id"])))
+
+    def undo(self) -> None:
+        """Ctrl and z: ask the host to take back the last command of this side."""
+        if self.client is not None:
+            self.client.send_undo()
+
+    def auto_setup(self) -> None:
+        """Ctrl and a: ask the host to set up the side of this person."""
+        if self.client is not None:
+            self.client.send_auto_setup()
 
     def toggle_mode(self) -> None:
         self.mode = MODE_2D if self.mode == MODE_3D else MODE_3D
@@ -295,22 +443,64 @@ class Board3DApp(ShowBase):
     # -------------------------------------------------------------------- the focus
 
     def clear_focus(self) -> None:
-        """Escape: the focus goes back to the unit that acted last."""
+        """The focus goes back to the unit that acted last."""
         self.pinned = None
 
     def click(self, hex_id: str | None) -> None:
-        """A click on a hex puts its top unit in focus, and a second click the next one.
-        The choice is `overlay.next_focus`, the same as the 2D window."""
-        view = getattr(self._snapshot, "view", None)
-        self.pinned = next_focus(view, hex_id, self.pinned)
+        """A click on a hex: pin a unit, or choose a shaded hex of the pinned unit.
+
+        The rules are `Chooser.board_click`, the same in the 2D window: the top unit of
+        the hex goes in focus and a second click takes the next one, and a hex that a legal
+        entry of the pinned unit names is a choice. A hex is a choice only because the host
+        named it (AR-06).
+        """
+        picked = self.chooser.board_click(self._view(), self._legal(), hex_id, self.pinned, next_focus)
+        self.pinned = picked.pinned
+        if picked.send is not None:
+            self.send(picked.send)
+
+    def _pointer(self) -> tuple[float, float] | None:
+        watcher = getattr(self, "mouseWatcherNode", None)
+        if watcher is None or not watcher.hasMouse():
+            return None
+        return (watcher.getMouseX(), watcher.getMouseY())
+
+    def _window_size(self) -> tuple[int, int]:
+        return (self.win.getXSize() or 1500, self.win.getYSize() or 950)
+
+    def panel_point(self, pointer: tuple[float, float] | None = None) -> tuple[int, int] | None:
+        """The pixel of the panel picture under the pointer, or None off the panel. The
+        pointer is in the -1 to 1 space of the window."""
+        pointer = pointer if pointer is not None else self._pointer()
+        if pointer is None:
+            return None
+        width, height = self._window_size()
+        px = (pointer[0] + 1.0) / 2.0 * width
+        py = (1.0 - pointer[1]) / 2.0 * height
+        left = width - self._hud_width
+        if px < left:
+            return None
+        return (int(px - left), int(py))
+
+    def pointer_in_panel(self) -> bool:
+        return self.panel_point() is not None
+
+    def click_panel(self, point: tuple[int, int]) -> bool:
+        """A click on a row of the panel plays that command."""
+        for row, index in self._hud_rows:
+            if row.collidepoint(point):
+                self.chooser.point_at(index, self._legal(), self._view())
+                return self.send(index)
+        return False
 
     def hex_under_pointer(self) -> str | None:
-        """The hex the pointer is on: a ray through the lens against the hex tops."""
-        if self.board_doc is None or not self.mouseWatcherNode.hasMouse():
+        """The hex the pointer is on: a ray through the lens against the hex tops. The
+        panel is not on the board, so the pointer over it is on no hex."""
+        pointer = self._pointer()
+        if self.board_doc is None or pointer is None or self.panel_point(pointer) is not None:
             return None
         near, far = Point3(), Point3()
-        pointer = Point2(self.mouseWatcherNode.getMouseX(), self.mouseWatcherNode.getMouseY())
-        if not self.camLens.extrude(pointer, near, far):
+        if not self.camLens.extrude(Point2(*pointer), near, far):
             return None
         near_world = self.render.getRelativePoint(self.cam, near)
         far_world = self.render.getRelativePoint(self.cam, far)
@@ -337,18 +527,24 @@ class Board3DApp(ShowBase):
             self.pitch = max(MIN_PITCH, min(MAX_PITCH, self.pitch + delta))
 
     def _drag_start(self, button: str) -> None:
+        pointer = self._pointer()
+        if button == "mouse1" and pointer is not None:
+            point = self.panel_point(pointer)
+            if point is not None:
+                # A press on the panel is a click on a row and never a drag of the board.
+                self.click_panel(point)
+                return
         self._drag_button = button
         self._dragged = 0.0
-        if self.mouseWatcherNode.hasMouse():
-            self._drag_from = (self.mouseWatcherNode.getMouseX(), self.mouseWatcherNode.getMouseY())
+        if pointer is not None:
+            self._drag_from = pointer
 
     def _drag_stop(self, button: str) -> None:
         if self._drag_button != button:
             return
         self._drag_button = None
-        # A press that did not move the pointer is a click, and a click picks a unit. The
-        # pointer hex of this frame is the hex the press was on, and the panel on the right
-        # is not on the board, so a click there picks nothing.
+        # A press that did not move the pointer is a click, and a click picks a unit or a
+        # hex. The pointer hex of this frame is the hex the press was on.
         if button == "mouse1" and self._dragged <= CLICK_SLOP:
             self.click(self.hex_under_pointer())
 
@@ -384,10 +580,10 @@ class Board3DApp(ShowBase):
         self.camera.lookAt(self.target)
 
     def _apply_drag(self) -> None:
-        if self._drag_button is None or not self.mouseWatcherNode.hasMouse():
+        pointer = self._pointer()
+        if self._drag_button is None or pointer is None:
             return
-        x = self.mouseWatcherNode.getMouseX()
-        y = self.mouseWatcherNode.getMouseY()
+        x, y = pointer
         dx = x - self._drag_from[0]
         dy = y - self._drag_from[1]
         self._drag_from = (x, y)
@@ -403,22 +599,39 @@ class Board3DApp(ShowBase):
     # -------------------------------------------------------------------- the poll
 
     def _poll_task(self, task: Any) -> int:
-        """Read a snapshot from the host client and rebuild the counters when it changes."""
+        """Read a snapshot from the host client, and draw what changed."""
         snapshot = self._poll()
         if snapshot is None:
             return task.cont
+        self.show_snapshot(snapshot)
+        return task.cont
+
+    def show_snapshot(self, snapshot: Any) -> None:
+        """Take one snapshot: the board, the counters, the list, the overlay, the panel."""
         self._snapshot = snapshot
         board = snapshot.board
         view = snapshot.view
         frame_id = snapshot.frame_id
         if board is not None and self.board_doc is None:
             self.set_board(board)
+        self.chooser.sync(str(frame_id or ""), list(getattr(snapshot, "legal", None) or []))
+        session = getattr(snapshot, "session", 0)
+        if session != self._session_seen:
+            # A new session (a reconnect) has no answer on the way for an old question.
+            self._session_seen = session
+            if self.indicators is not None:
+                self.indicators.forget_questions()
         if frame_id != self._last_frame_id:
             self._last_frame_id = frame_id
             # The board does not change during a game, so keep the one that is built and
             # update only the counters. A rebuild would draw the 2D board texture again,
             # which is slow and needless once a game is running.
             self.load_view(None, view)
+        # The panel draws again when anything it shows changed: a frame, the end of the
+        # game, a notice, the status, the list cursor, the filter, or the log (H8).
+        key = self.hud_key(snapshot)
+        if key != self._hud_key:
+            self._hud_key = key
             self._update_hud(snapshot)
         # The tactical overlay reads each snapshot, because the pointer moves, a line of
         # sight answer arrives, and a mark expires between two frames of the host. It
@@ -427,12 +640,36 @@ class Board3DApp(ShowBase):
             self.indicators.pinned = self.pinned
             self.indicators.pointer_hex = self.pointer_hex
             self.indicators.update(snapshot)
-        return task.cont
+
+    def hud_key(self, snapshot: Any) -> tuple:
+        """A value that changes when the panel must draw again."""
+        log = list(getattr(snapshot, "log", None) or [])
+        last = log[-1].get("seq", len(log)) if log else -1
+        chooser = self.chooser
+        return (
+            getattr(snapshot, "frame_id", ""),
+            getattr(snapshot, "frames", 0),
+            getattr(snapshot, "game_over", False),
+            tuple(sorted((getattr(snapshot, "over", None) or {}).keys())),
+            getattr(snapshot, "notice", ""),
+            getattr(snapshot, "status", ""),
+            getattr(snapshot, "errors", 0),
+            getattr(snapshot, "connected", False),
+            getattr(snapshot, "reconnecting", False),
+            len(log),
+            last,
+            chooser.filter_text,
+            chooser.position,
+            chooser.scroll,
+            chooser.unit,
+            chooser.hex,
+            self._window_size(),
+        )
 
     def _update_hud(self, snapshot: Any) -> None:
-        """Draw the side panel of the pygame window (scenario, turn, phase, log, commands) to
-        a texture and show it on the right of the 3D window, so the 3D view has the same play
-        status the 2D window has. It reuses `slwindow.panel`, so there is one panel drawing."""
+        """Draw the side panel of the pygame window (scenario, status, commands, log) to a
+        texture and show it on the right of the 3D window. It reuses `slwindow.panel`, so
+        there is one panel drawing, and it keeps the rows for a click."""
         from direct.gui.OnscreenImage import OnscreenImage
         from panda3d.core import TransparencyAttrib
 
@@ -440,18 +677,27 @@ class Board3DApp(ShowBase):
         from slwindow3d.counters import _ensure_pygame, _surface_to_texture
 
         pygame = _ensure_pygame()
-        win_w = self.win.getXSize() or 1500
-        win_h = self.win.getYSize() or 950
-        panel_w = 360
+        win_w, win_h = self._window_size()
+        panel_w = self._hud_width
         if self._panel_font is None:
             self._panel_font = pygame.font.SysFont("dejavusans,arial,helvetica", 15)
             self._panel_small = pygame.font.SysFont("dejavusansmono,consolas,couriernew", 12)
         surface = pygame.Surface((panel_w, win_h))
         rect = pygame.Rect(0, 0, panel_w, win_h)
+        legal = list(getattr(snapshot, "legal", None) or [])
         try:
-            panel.draw_panel(surface, rect, snapshot, self._panel_font, self._panel_small, -1, "")
-        except Exception as exc:
-            print(f"the 3D panel was not drawn: {exc}", file=sys.stderr)
+            self._hud_rows = panel.draw_panel(
+                surface,
+                rect,
+                snapshot,
+                self._panel_font,
+                self._panel_small,
+                self.chooser.selected(legal, snapshot.view),
+                self.chooser.filter_text,
+                self.chooser,
+            )
+        except Exception as exc:  # a panel bug must not end the game window
+            print(f"the 3D panel was not drawn: {exc!r}", file=sys.stderr)
             return
         texture = _surface_to_texture(surface, "hud")
         if self._hud is not None:
@@ -479,15 +725,20 @@ class Board3DApp(ShowBase):
         The caller sets `window-type offscreen` before it imports Panda3D, so this needs no
         display. It is the path a test and a `--screenshot` run take.
         """
-        app = cls(board_doc)
+        import builtins
+
+        # Panda3D permits one ShowBase in a process, so a second picture reuses the window.
+        existing = getattr(builtins, "base", None)
+        app = existing if isinstance(existing, cls) else cls(board_doc)
+        if app.board_doc is not board_doc:
+            app.set_board(board_doc)
+        app.load_view(board_doc, view_doc)
         app.mode = mode
         # Frame the whole board, but from a lower angle and a closer distance than a top-down
         # shot, so the height of a hill reads from the side of the board.
         app.distance = app.span * 1.2
         if mode == MODE_3D:
             app.pitch = -40.0
-        if view_doc is not None:
-            app.load_view(board_doc, view_doc)
         app._place_camera()
         for _ in range(max(1, frames)):
             app.graphicsEngine.renderFrame()

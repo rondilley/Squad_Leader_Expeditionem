@@ -8,6 +8,13 @@ The breaker closes again after a rest, because a provider that was busy for a mi
 not a provider that is gone. A breaker that never closes turns one timeout into a run with
 one provider.
 
+A failure counts toward the breaker only when a rest can cure it: a timeout, a network
+error, 408, 429, or a 5xx (`is_transient`). A 400 comes back on each call with the same
+request, so before this correction (L6) one prompt that a provider refused opened the
+breaker of each host of a pool in turn, and the run went on with no provider. Such a
+failure still moves the call to the next provider, and the failover record says it was
+not counted.
+
 The router gives the same `complete` as one provider, so the harness does not know whether
 it talks to one provider or to five.
 """
@@ -19,6 +26,7 @@ from dataclasses import dataclass, field
 from typing import Any, Sequence
 
 from slagents.prompted.providers import Answer, Provider, ProviderError, ProviderUnavailable
+from slagents.prompted.providers.base import is_transient
 
 FAILURES_TO_OPEN = 2
 REST_SECONDS = 60.0
@@ -110,12 +118,16 @@ class Router:
             try:
                 answer = provider.complete(system, user, max_tokens, temperature, json_schema)
             except ProviderError as exc:
-                breaker.record_failure(time.monotonic())
+                transient = is_transient(exc)
+                if transient:
+                    breaker.record_failure(time.monotonic())
                 last = exc
                 self.failovers.append(
                     {
                         "provider": provider.name,
                         "cause": str(exc)[:200],
+                        "status": exc.status,
+                        "counted": transient,
                         "failures": breaker.failures,
                         "breaker_open": breaker.failures >= self.failures_to_open,
                     }

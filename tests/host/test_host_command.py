@@ -73,7 +73,7 @@ def test_a_watched_game_gets_a_pace_a_person_can_follow():
     """A game that plays itself with no pause gives a result and shows no game."""
     from slcli.host_cmd import WATCHABLE_DELAY, run
 
-    args = parse("--agents", "v1,v2", "--port", "0")
+    args = parse("--agents", "v1,v2", "--port", "0", "--no-save")
     seen = {}
 
     def fake_run(self, address, port):

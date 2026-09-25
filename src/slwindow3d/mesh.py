@@ -40,9 +40,29 @@ THICKNESS = 0.35
 SIDE_SHADE = 0.62
 
 
+# The lattice y grows down the 2D board, row A at the top (`slwindow.layout`). The world y
+# of the 3D board grows away from the camera, which is up on the screen. So the world y is
+# the lattice y with the sign turned: the 3D board has the north of the 2D board at the
+# top, and the 2D board picture on the hex tops reads the right way up. Before this sign
+# the 3D board was the mirror image of the 2D board, and each hex label was upside down.
+#
+# The turn of the sign also turns the order of the corners, so the six corners go in the
+# reverse order of `VERTEX_OFFSETS` here. Then they go counterclockwise seen from above,
+# and each top face looks up.
+LATTICE_CORNERS = tuple(reversed(VERTEX_OFFSETS))
+WORLD_CORNERS = tuple((float(ox), -float(oy) * ROOT_THREE) for ox, oy in LATTICE_CORNERS)
+
+
 def hex_world(center: Sequence[float]) -> tuple[float, float]:
-    """The world x and y of a hex centre. The y unit carries the square root of three."""
-    return (float(center[0]), float(center[1]) * ROOT_THREE)
+    """The world x and y of a hex centre. The y unit carries the square root of three,
+    and its sign turns, so the north of the board is away from the camera."""
+    return (float(center[0]), -float(center[1]) * ROOT_THREE)
+
+
+def world_corners(center: Sequence[float], inset: float = 1.0) -> list[tuple[float, float]]:
+    """The six world corners of a hex top, counterclockwise seen from above."""
+    cx, cy = hex_world(center)
+    return [(cx + ox * inset, cy + oy * inset) for ox, oy in WORLD_CORNERS]
 
 
 def elevation_z(level: int, height_per_level: float = HEIGHT_PER_LEVEL) -> float:
@@ -139,16 +159,13 @@ def build_board_geom(
 
     for hexagon in board_doc["hexes"]:
         cx, world_y = hex_world(hexagon["center"])
-        lattice_y = float(hexagon["center"][1])
         level = int(hexagon.get("elevation", 0) or 0)
         top_z = elevation_z(level, height_per_level)
         base_z = -thickness
         base_rgb = theme.TERRAIN.get(hexagon["terrain"], theme.GROUND)
         top = _col01(base_rgb)
         side = _darker(base_rgb)
-        corners = [
-            (cx + ox, (lattice_y + oy) * ROOT_THREE) for ox, oy in VERTEX_OFFSETS
-        ]
+        corners = world_corners(hexagon["center"])
         # The top face is a fan from the centre to each pair of corners.
         centre_index = add_vertex((cx, world_y, top_z), (0, 0, 1), top)
         top_indices = [add_vertex((x, y, top_z), (0, 0, 1), top) for x, y in corners]
@@ -178,7 +195,9 @@ def build_board_geom(
 def _uv(camera: Any, tex_w: int, tex_h: int, lattice_x: float, lattice_y: float) -> tuple[float, float]:
     """The texture coordinate of a lattice point, from the same 2D layout camera the pygame
     window draws the board with. The `_surface_to_texture` path flips the image, so the v of
-    a pixel `py` from the top of the surface is `1 - py / height`."""
+    a pixel `py` from the top of the surface is `1 - py / height`. The top of the picture
+    (a small lattice y) is at the far side of the board (a large world y, see
+    `hex_world`), so the picture and each label on it read the right way up."""
     px, py = camera.to_screen(lattice_x, lattice_y)
     return (px / tex_w, 1.0 - py / tex_h)
 
@@ -207,10 +226,8 @@ def _build_tops(board_doc: dict[str, Any], camera: Any, tex_w: int, tex_h: int, 
         top_z = elevation_z(int(hexagon.get("elevation", 0) or 0), height_per_level)
         centre = add((cx, world_y, top_z), _uv(camera, tex_w, tex_h, lat_x, lat_y))
         corner_indices = []
-        for ox, oy in VERTEX_OFFSETS:
-            corner_indices.append(
-                add((cx + ox, (lat_y + oy) * ROOT_THREE, top_z), _uv(camera, tex_w, tex_h, lat_x + ox, lat_y + oy))
-            )
+        for (ox, oy), (wx, wy) in zip(LATTICE_CORNERS, world_corners(hexagon["center"])):
+            corner_indices.append(add((wx, wy, top_z), _uv(camera, tex_w, tex_h, lat_x + ox, lat_y + oy)))
         for i in range(6):
             tris.addVertices(centre, corner_indices[i], corner_indices[(i + 1) % 6])
     geom = Geom(vdata)
@@ -238,12 +255,10 @@ def _build_sides(board_doc: dict[str, Any], height_per_level: float, thickness: 
         return index
 
     for hexagon in board_doc["hexes"]:
-        cx, _ = hex_world(hexagon["center"])
-        lat_y = float(hexagon["center"][1])
         top_z = elevation_z(int(hexagon.get("elevation", 0) or 0), height_per_level)
         base_z = -thickness
         side = _darker(theme.TERRAIN.get(hexagon["terrain"], theme.GROUND))
-        corners = [(cx + ox, (lat_y + oy) * ROOT_THREE) for ox, oy in VERTEX_OFFSETS]
+        corners = world_corners(hexagon["center"])
         for i in range(6):
             x1, y1 = corners[i]
             x2, y2 = corners[(i + 1) % 6]

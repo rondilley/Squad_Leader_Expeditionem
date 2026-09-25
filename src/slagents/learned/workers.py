@@ -9,7 +9,7 @@ million rung was days.
 
 The split here: each worker process owns one environment, its opponent, and the seed of
 its games. It plays the opponent's commands itself and sends the trainer the observation
-at each decision of the learner, with the legal triples of that state and the reward that
+at each decision of the learner, with the legal four-part keys of that state and the reward that
 accrued since the last one. The trainer batches the observations of every worker into one
 forward pass, samples one composed command for each, and sends them back. The workers run
 in parallel on the cores, and the card sees one batch and not sixteen batches of one.
@@ -20,8 +20,8 @@ policy never leaves the trainer's process, except as a snapshot file a worker lo
 opponent (FR-52), which it runs on the processor.
 
 The protocol is small. The trainer sends `("reset", member_spec, learner_side, seed)` or
-`("act", triple)` or `("stop",)`. The worker answers each of the first two with
-`("decision", observation, legal_triples, reward_delta, ended, result)`. When `ended` is
+`("act", key)` or `("stop",)`. The worker answers each of the first two with
+`("decision", observation, legal_keys, reward_delta, ended, result)`. When `ended` is
 true the observation is the last state's, the delta holds the end reward, and the trainer
 sends the next reset. A member spec is `("random",)`, `("scripted", kind)`, or
 `("snapshot", path)`.
@@ -39,12 +39,27 @@ import numpy as np
 MemberSpec = tuple[str, ...]
 
 
+def agent_key(agent: Any, env: Any) -> tuple[int, int, int, int]:
+    """The command an Agent selects, as the environment's four-part key."""
+    from slagents.base import decide
+    from slagents.learned.encoding import command_index
+
+    chosen = decide(agent, env.state_, env.frame)
+    legal = env.frame.by_id(chosen)
+    if legal is None:
+        raise RuntimeError(f"the agent {agent.name} gave an ID that is not in the frame")
+    try:
+        return command_index(legal, env.groups)
+    except KeyError as exc:
+        raise RuntimeError(f"the agent {agent.name} gave a command that is not in the action space") from exc
+
+
 @dataclass
 class Decision:
     """What a worker sends at each decision of the learner, or at the end of the game."""
 
     observation: dict[str, np.ndarray]
-    legal: list[tuple[int, int, int]]
+    legal: list[tuple[int, int, int, int]]
     reward_delta: float
     ended: bool
     result: float
@@ -55,33 +70,31 @@ def worker_main(connection: Connection, scenario: str, index: int, seed: int, ma
     import torch
 
     from slagents.learned.env import make_env
-    from slcli.play import build_engine, make_agent
+    from slagents.registry import build_engine, make_agent
 
     torch.set_num_threads(1)
     engine = build_engine(scenario)
     env = make_env(engine, seed=seed, max_commands=max_commands)
     learner = 0
-    opponents: dict[MemberSpec, Callable[[], tuple[int, int, int]]] = {}
+    opponents: dict[MemberSpec, Callable[[], tuple[int, int, int, int]]] = {}
     generator = torch.Generator().manual_seed(seed + index)
 
-    def scripted(kind: str) -> Callable[[], tuple[int, int, int]]:
-        from slcli.train import agent_triple
-
+    def scripted(kind: str) -> Callable[[], tuple[int, int, int, int]]:
         agents = {player: make_agent(kind, engine, seed, player) for player in (0, 1)}
-        return lambda: agent_triple(agents[env.frame.player], env)
+        return lambda: agent_key(agents[env.frame.player], env)
 
-    def random_act() -> tuple[int, int, int]:
-        triples = list(env.groups)
-        return triples[int(torch.randint(len(triples), (1,), generator=generator).item())]
+    def random_act() -> tuple[int, int, int, int]:
+        keys = list(env.groups)
+        return keys[int(torch.randint(len(keys), (1,), generator=generator).item())]
 
-    def snapshot(path: str) -> Callable[[], tuple[int, int, int]]:
+    def snapshot(path: str) -> Callable[[], tuple[int, int, int, int]]:
         from slagents.learned.agent import load_policy
         from slagents.learned.ppo import choose
 
         policy = load_policy(path)
         return lambda: choose(policy, env.observe(env.agent_selection), env, generator)[0]
 
-    def opponent_of(spec: MemberSpec) -> Callable[[], tuple[int, int, int]]:
+    def opponent_of(spec: MemberSpec) -> Callable[[], tuple[int, int, int, int]]:
         if spec not in opponents:
             if spec[0] == "random":
                 opponents[spec] = random_act
@@ -160,7 +173,7 @@ class WorkerPool:
     """The worker processes of one training run."""
 
     def __init__(self, scenario: str, workers: int, seed: int, max_commands: int, spaces: Any) -> None:
-        from slcli.worker_limit import limit_workers
+        from slagents.registry import limit_workers
 
         workers = limit_workers(workers)
         context = mp.get_context("spawn")
@@ -189,8 +202,8 @@ class WorkerPool:
         worker.steps = []
         worker.connection.send(("reset", spec, learner, seed))
 
-    def act(self, worker: Worker, triple: tuple[int, int, int]) -> None:
-        worker.connection.send(("act", triple))
+    def act(self, worker: Worker, quad: tuple[int, int, int, int]) -> None:
+        worker.connection.send(("act", quad))
 
     def receive(self, worker: Worker) -> Decision:
         decision = worker.connection.recv()
@@ -228,7 +241,7 @@ def _init_imitation(scenario: str, max_commands: int, policy_state: dict | None,
 
     from slagents.learned.env import make_env
     from slagents.learned.nets import NetConfig, Policy
-    from slcli.play import build_engine
+    from slagents.registry import build_engine
 
     torch.set_num_threads(1)
     engine = build_engine(scenario)
@@ -242,7 +255,7 @@ def _init_imitation(scenario: str, max_commands: int, policy_state: dict | None,
 
 
 def _make_teacher(kind: str, game_seed: int, player: int) -> Any:
-    from slcli.play import make_agent
+    from slagents.registry import make_agent
 
     return make_agent(kind, _imitation["engine"], game_seed, player)
 
@@ -284,7 +297,7 @@ def demonstrations_parallel(
     pairs = teacher_pairs(kinds)
     tasks = [(pairs[game % len(pairs)][0], pairs[game % len(pairs)][1], seed + game, labels) for game in range(games)]
     data = Demonstrations()
-    from slcli.worker_limit import limit_workers
+    from slagents.registry import limit_workers
 
     workers = limit_workers(workers)
     context = mp.get_context("spawn")
@@ -314,7 +327,7 @@ def corrections_parallel(
     state = {k: v.detach().cpu() for k, v in policy.state_dict().items()}
     tasks = [(labels, game % 2, opponents[game % len(opponents)], seed + game, mix) for game in range(games)]
     data = Demonstrations()
-    from slcli.worker_limit import limit_workers
+    from slagents.registry import limit_workers
 
     workers = limit_workers(workers)
     context = mp.get_context("spawn")
@@ -329,8 +342,7 @@ def corrections_parallel(
 def _evaluation_game(args: tuple) -> tuple[float, bool, bool]:
     """One game of the policy, as the agent a tournament plays, against one member."""
     from slagents.learned.agent import LearnedAgent
-    from slcli.play import make_agent
-    from slcli.train import agent_triple
+    from slagents.registry import make_agent
 
     spec, learner_side, game_seed = args
     env = _imitation["env"]
@@ -349,7 +361,7 @@ def _evaluation_game(args: tuple) -> tuple[float, bool, bool]:
             learner_agent = env.agent_of(learner_side)
             return float(env.results[learner_agent]), bool(env.truncations[learner_agent]), bool(env.repeated)
         actor = learner if env.player_of(agent) == learner_side else opponent
-        env.step(agent_triple(actor, env))
+        env.step(agent_key(actor, env))
 
 
 def evaluation_parallel(
@@ -365,7 +377,7 @@ def evaluation_parallel(
     `LearnedAgent`, so the result is the one the one-process evaluation gives.
     """
     state = {k: v.detach().cpu() for k, v in policy.state_dict().items()}
-    from slcli.worker_limit import limit_workers
+    from slagents.registry import limit_workers
 
     workers = limit_workers(workers)
     context = mp.get_context("spawn")

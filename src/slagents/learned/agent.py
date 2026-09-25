@@ -31,7 +31,7 @@ so the distribution the policy reads is the distribution it was trained on.
 
 Torch is a heavy optional dependency (the `train` extra). It is imported inside the methods,
 so importing this module never needs torch. A consumer that has no torch gets the typed error
-at the boundary in `slcli.play`, and not here.
+at the boundary in `slagents.registry`, and not here.
 """
 
 from __future__ import annotations
@@ -41,8 +41,10 @@ from typing import TYPE_CHECKING, Mapping
 
 from slagents.learned import encoding
 from slagents.learned.encoding import position_key
+from slcore.engine import IllegalCommand
 from slcore.frame import DecisionFrame, LegalCommand
 from slcore.game import State
+from slcore.player_state import for_player
 
 if TYPE_CHECKING:  # pragma: no cover - types only, no runtime import
     from slcore.engine import Engine
@@ -159,8 +161,8 @@ class LearnedAgent:
             )
         import torch
 
-        self._remember(state)
         player = frame.player
+        self._remember(state, player)
         groups = encoding.group_commands(frame, self.hexes)
         device = next(self.policy.parameters()).device
         board = torch.from_numpy(
@@ -177,27 +179,44 @@ class LearnedAgent:
         if self._generator is not None:
             first = self._sample(scores, groups, torch)
             ordered = [first] + [c for c in ordered if c is not first]
-        return self._first_that_does_not_repeat(state, frame, ordered).id
+        return self._first_that_does_not_repeat(state, frame, ordered, player).id
 
     # ---------------------------------------------------------------- inside
 
-    def _remember(self, state: State) -> None:
+    @staticmethod
+    def _view_key(state: State, player: int) -> str:
+        """The position as this player may know it (S13, S3).
+
+        A key of the full state would let the choice depend on what the player cannot
+        see: two commands with the same view and a different hidden unit or a different
+        generator state would be one repeat and one new position.
+        """
+        return position_key(for_player(state, player))
+
+    def _remember(self, state: State, player: int) -> None:
         """The positions this agent decided in, for the current game only."""
         if state.seq < self._last_seq:
             self._seen.clear()
         self._last_seq = state.seq
-        self._seen.add(position_key(state))
+        self._seen.add(self._view_key(state, player))
 
-    def _first_that_does_not_repeat(self, state: State, frame: DecisionFrame, ordered: list[LegalCommand]) -> LegalCommand:
+    def _first_that_does_not_repeat(self, state: State, frame: DecisionFrame, ordered: list[LegalCommand], player: int) -> LegalCommand:
         """The first command of the order whose position the agent has not decided in.
 
         The first choice costs one `apply`. A choice that repeats costs one more for the
         next. When each legal command repeats, which the last command of a cycle can force,
         the first choice stands and the environment gives its verdict.
         """
+        own = self.engine.legal_commands(state)
         for choice in ordered:
-            after, _ = self.engine.apply(state, choice.command, frame)
-            if position_key(after) not in self._seen:
+            try:
+                after, _ = self.engine.apply(state, choice.command, own)
+            except IllegalCommand:
+                # The state here is the player state, with no enemy unit that the view
+                # hides. A command of the true list that this state does not offer has no
+                # lookahead, and the choice stands.
+                return choice
+            if self._view_key(after, player) not in self._seen:
                 return choice
         return ordered[0]
 

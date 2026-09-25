@@ -114,6 +114,19 @@ def test_a_page_with_the_notice_and_a_name_of_its_own_is_clean(tmp_path: Path):
     assert audit.check_page(tmp_path, page) == []
 
 
+def test_the_public_title_the_owner_named_is_clean_with_the_notice(tmp_path: Path):
+    page = tmp_path / "index.html"
+    page.write_text(PAGE.format(title=audit.PUBLIC_TITLE, footer=NOTICE), encoding="utf-8")
+    assert audit.check_page(tmp_path, page) == []
+
+
+def test_the_public_title_without_the_notice_is_a_finding(tmp_path: Path):
+    page = tmp_path / "index.html"
+    body = 'GPL-3. <a href="src">Corresponding Source</a>.'
+    page.write_text(PAGE.format(title=audit.PUBLIC_TITLE, footer=body), encoding="utf-8")
+    assert criteria(audit.check_page(tmp_path, page)) == ["SR-08"]
+
+
 def test_a_page_that_names_the_brand_needs_the_non_affiliation_notice(tmp_path: Path):
     page = tmp_path / "index.html"
     body = 'GPL-3. <a href="src">Corresponding Source</a>. A game like Squad Leader.'

@@ -1,0 +1,2291 @@
+{
+ "family": "The review of 2026-09-23: secrecy, rout, close combat, berserk, capture, and the rules with no case",
+ "cases": [
+  {
+   "id": "r7.5-a-multi-story-building-blocks-the-line",
+   "rule": "7.5",
+   "type": "invalid",
+   "citation": "Rule 7.5: a multi-story building obstructs each line of sight in Game Set I, whatever the elevation. C5 cannot fire through the building of E5 at G5.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C5"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "G5"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "G5"
+    }
+   ]
+  },
+  {
+   "id": "r7.6-ground-level-fires-over-an-obstacle-at-a-multi-story-building",
+   "rule": "7.6",
+   "type": "valid",
+   "citation": "Rule 7.6: a unit on ground level sees over an intervening obstacle to a multi-story building.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "G10"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "G6"
+    }
+   ],
+   "legal": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "G6"
+    }
+   ]
+  },
+  {
+   "id": "r7.6-no-fire-from-the-blind-hex",
+   "rule": "7.6",
+   "type": "boundary",
+   "citation": "Rule 7.6 and rule 7.4: fire from ground level at a multi-story building cannot come from the blind hex behind the obstacle.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "G9"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "G6"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "G6"
+    }
+   ]
+  },
+  {
+   "id": "r7.7-no-fire-inside-a-building-across-a-symbol",
+   "rule": "7.7",
+   "type": "invalid",
+   "citation": "Rule 7.7: units in the same building do not see each other when the line crosses a building symbol in an intervening hex.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C3"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C5"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "C5"
+    }
+   ]
+  },
+  {
+   "id": "r7.7-fire-inside-a-building-past-the-symbol",
+   "rule": "7.7",
+   "type": "interaction",
+   "citation": "Rule 7.7: units in the same building see each other when the line crosses no building symbol in an intervening hex.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C3"
+    },
+    {
+     "ref": "e",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "B5"
+    }
+   ],
+   "legal": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "B5"
+    }
+   ]
+  },
+  {
+   "id": "r13.2-a-broken-unit-next-to-a-broken-enemy-must-rout",
+   "rule": "13.2",
+   "type": "interaction",
+   "citation": "Rule 13.2: a broken unit adjacent to an enemy unit, even a broken one, must move away in the next Rout Phase. It may not stay in its woods hex.",
+   "phase": "rout",
+   "sub_step": "rout_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E3",
+     "broken": true
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E4",
+     "broken": true
+    }
+   ],
+   "legal": [
+    {
+     "action": "rout",
+     "units": [
+      "r"
+     ],
+     "hex": "E2"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "stay",
+     "units": [
+      "r"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r13.3-a-broken-squad-alone-routs-four-factors",
+   "rule": "13.3",
+   "type": "boundary",
+   "citation": "Rule 13.3: a broken squad alone has 4 movement factors. The nearest cover of B1 costs 5, so the squad stops short.",
+   "phase": "rout",
+   "sub_step": "rout_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B1",
+     "broken": true
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "J1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "rout",
+     "units": [
+      "r"
+     ],
+     "hex": "B5"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "13.43",
+     "kind": "rout",
+     "data": {
+      "reached": false
+     }
+    }
+   ]
+  },
+  {
+   "id": "r13.3-a-broken-squad-with-a-leader-routs-six-factors",
+   "rule": "13.3",
+   "type": "valid",
+   "citation": "Rule 13.3 and PR-42: a broken squad stacked with a leader, broken or not, has 6 movement factors, so it reaches the cover 5 factors away.",
+   "phase": "rout",
+   "sub_step": "rout_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B1",
+     "broken": true
+    },
+    {
+     "ref": "l",
+     "side": "russian",
+     "type": "8-0",
+     "hex": "B1",
+     "broken": true
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "J1"
+    }
+   ],
+   "apply": [
+    {
+     "action": "rout",
+     "units": [
+      "r"
+     ],
+     "hex": "B5"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "13.43",
+     "kind": "rout",
+     "data": {
+      "reached": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "r13.41-no-rout-toward-a-known-enemy",
+   "rule": "13.41",
+   "type": "invalid",
+   "citation": "Rule 13.41: a routing unit may not decrease the range to an enemy unit that sees it. D9 is nearer to the enemy in D10 than D7 is.",
+   "phase": "rout",
+   "sub_step": "rout_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D7",
+     "broken": true
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "D10"
+    }
+   ],
+   "legal": [
+    {
+     "action": "rout",
+     "units": [
+      "r"
+     ],
+     "hex": "E6"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "rout",
+     "units": [
+      "r"
+     ],
+     "hex": "D9"
+    }
+   ]
+  },
+  {
+   "id": "r13.41-a-concealed-unit-is-not-a-known-enemy",
+   "rule": "13.41",
+   "type": "interaction",
+   "citation": "QA-13.41 and PR-31: a concealed unit is not a known enemy position, so the rout toward it stays legal.",
+   "phase": "rout",
+   "sub_step": "rout_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D7",
+     "broken": true
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "D10"
+    }
+   ],
+   "concealment": [
+    {
+     "side": "german",
+     "hex": "D10"
+    }
+   ],
+   "legal": [
+    {
+     "action": "rout",
+     "units": [
+      "r"
+     ],
+     "hex": "D9"
+    }
+   ]
+  },
+  {
+   "id": "r13.42-no-rout-across-open-ground-in-enemy-sight",
+   "rule": "13.42",
+   "type": "invalid",
+   "citation": "Rule 13.42: a routing unit may not cross an open ground hex in the line of sight and normal range of an unbroken enemy unit.",
+   "phase": "rout",
+   "sub_step": "rout_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D7",
+     "broken": true
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A7"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "rout",
+     "units": [
+      "r"
+     ],
+     "hex": "E6"
+    }
+   ]
+  },
+  {
+   "id": "r13.43-the-rout-goes-to-the-nearest-cover",
+   "rule": "13.43",
+   "type": "valid",
+   "citation": "Rule 13.43: the routing unit takes the shortest route in movement factors to cover. C3 costs 2 factors, and C4 costs 3.",
+   "phase": "rout",
+   "sub_step": "rout_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B2",
+     "broken": true
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "F2"
+    }
+   ],
+   "legal": [
+    {
+     "action": "rout",
+     "units": [
+      "r"
+     ],
+     "hex": "C3"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "rout",
+     "units": [
+      "r"
+     ],
+     "hex": "C4"
+    }
+   ]
+  },
+  {
+   "id": "r13.44-a-routed-unit-stops-in-cover",
+   "rule": "13.44",
+   "type": "valid",
+   "citation": "Rule 13.44: on reaching a woods or building hex a routed unit must stop and make no further movement until rallied.",
+   "phase": "rout",
+   "sub_step": "rout_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B2",
+     "broken": true
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "F2"
+    }
+   ],
+   "apply": [
+    {
+     "action": "rout",
+     "units": [
+      "r"
+     ],
+     "hex": "C3"
+    }
+   ],
+   "expect_units": {
+    "r": {
+     "hex": "C3",
+     "stay": true,
+     "routed": true
+    }
+   }
+  },
+  {
+   "id": "r13.4-a-mandatory-rout-blocks-the-end-of-the-window",
+   "rule": "13.4",
+   "type": "invalid",
+   "citation": "Rule 13.4 and PR-36: a broken unit in the open must rout at once, so the side cannot end its rout window before it does.",
+   "phase": "rout",
+   "sub_step": "rout_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B7",
+     "broken": true
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "J10"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "end_phase"
+    }
+   ]
+  },
+  {
+   "id": "r13.47-the-end-of-the-window-eliminates-the-unit-left-with-no-rout",
+   "rule": "13.47",
+   "type": "interaction",
+   "citation": "Rule 13.47 and PR-36: when the side ends its rout window the core looks again, and a broken unit that must rout and cannot is eliminated.",
+   "phase": "rout",
+   "sub_step": "rout_window",
+   "actor": "phasing",
+   "phasing": "russian",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D2",
+     "broken": true
+    },
+    {
+     "ref": "b",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A8",
+     "broken": true
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A9"
+    }
+   ],
+   "apply": [
+    {
+     "action": "rout",
+     "units": [
+      "a"
+     ],
+     "hex": "E3"
+    },
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "13.47",
+     "kind": "eliminated"
+    }
+   ],
+   "expect_eliminated": [
+    "b"
+   ]
+  },
+  {
+   "id": "r15.2-no-leader-modifier-with-a-leaderless-hex-in-the-chain",
+   "rule": "15.2",
+   "type": "boundary",
+   "citation": "QA-15.2 and PR-40: a multi-hex group takes the modifier only when each hex holds a leader. The leader named first then gives nothing and does not count as directing.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B7"
+    },
+    {
+     "ref": "L",
+     "side": "russian",
+     "type": "9-2",
+     "hex": "B7"
+    },
+    {
+     "ref": "b",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B8"
+    },
+    {
+     "ref": "t",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "B10"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "B10"
+    },
+    {
+     "action": "group_leader",
+     "units": [
+      "L"
+     ]
+    },
+    {
+     "action": "group_add",
+     "units": [
+      "b"
+     ],
+     "hex": "B10"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_units": {
+    "L": {
+     "directed": false
+    }
+   }
+  },
+  {
+   "id": "r16.1-the-defender-returns-one-unit-of-a-track-hex",
+   "rule": "16.1",
+   "type": "valid",
+   "citation": "Rule 16.1 and PR-39: the defender may return any of the units that moved through a hex, one of them alone as well.",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B3",
+     "moved": true,
+     "track": [
+      "A3",
+      "B3"
+     ]
+    },
+    {
+     "ref": "b",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B3",
+     "moved": true,
+     "track": [
+      "A3",
+      "B3"
+     ]
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A6"
+    }
+   ],
+   "legal": [
+    {
+     "action": "track_return",
+     "units": [
+      "a"
+     ],
+     "hex": "A3"
+    },
+    {
+     "action": "track_return",
+     "units": [
+      "a",
+      "b"
+     ],
+     "hex": "A3"
+    }
+   ]
+  },
+  {
+   "id": "r17.4-a-manning-leader-does-not-direct-the-group",
+   "rule": "17.4",
+   "type": "invalid",
+   "citation": "Rule 17.4 and PR-40: a leader who mans a machine gun gives up the modifier over the other units that fire, so it cannot be the leader of their group.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "a",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B7"
+    },
+    {
+     "ref": "L",
+     "side": "russian",
+     "type": "9-2",
+     "hex": "B7"
+    },
+    {
+     "ref": "lmg",
+     "side": "russian",
+     "type": "LMG",
+     "carrier": "L"
+    },
+    {
+     "ref": "t",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "B10"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "a"
+     ],
+     "hex": "B10"
+    },
+    {
+     "action": "group_add_weapon",
+     "units": [
+      "L"
+     ],
+     "weapon": "lmg",
+     "hex": "B10"
+    }
+   ],
+   "expect_illegal_after": [
+    {
+     "action": "group_leader",
+     "units": [
+      "L"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r17.2-the-forfeit-counts-the-whole-turn",
+   "rule": "17.2",
+   "type": "interaction",
+   "citation": "Rule 17.2 and PR-41: the squad forfeits its inherent firepower for that turn. After its inherent fire and an MMG, it cannot add the LMG in a second group.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "rs",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B7"
+    },
+    {
+     "ref": "lmg",
+     "side": "russian",
+     "type": "LMG",
+     "carrier": "rs"
+    },
+    {
+     "ref": "mmg",
+     "side": "russian",
+     "type": "MMG",
+     "carrier": "rs"
+    },
+    {
+     "ref": "g1",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "B9"
+    },
+    {
+     "ref": "g2",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A9"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "rs"
+     ],
+     "hex": "B9"
+    },
+    {
+     "action": "group_add_weapon",
+     "units": [
+      "rs"
+     ],
+     "weapon": "mmg",
+     "hex": "B9"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_illegal_after": [
+    {
+     "action": "group_add_weapon",
+     "units": [
+      "rs"
+     ],
+     "weapon": "lmg",
+     "hex": "A9"
+    }
+   ]
+  },
+  {
+   "id": "r12.22-a-broken-leader-that-fails-gives-a-second-check",
+   "rule": "12.22",
+   "type": "interaction",
+   "citation": "Rule 12.22: a leader, whether previously broken or not, that fails its check gives the other units of the hex a normal check.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "check": "morale",
+   "dice": [
+    6,
+    6,
+    1,
+    2
+   ],
+   "units": [
+    {
+     "ref": "lead",
+     "side": "russian",
+     "type": "8-0",
+     "hex": "A1",
+     "broken": true
+    },
+    {
+     "ref": "s",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A1"
+    }
+   ],
+   "unit": "lead",
+   "expect_events": [
+    {
+     "rule_id": "13.6",
+     "kind": "eliminated"
+    },
+    {
+     "rule_id": "12.1",
+     "kind": "morale_pass",
+     "data": {
+      "cause": "leader_break"
+     }
+    }
+   ]
+  },
+  {
+   "id": "r13.5-a-captured-machine-gun-changes-owner",
+   "rule": "13.5",
+   "type": "valid",
+   "citation": "Rules 2.7 and 13.5 and PR-38: an abandoned machine gun is subject to capture and use by the opposing side.",
+   "phase": "advance",
+   "sub_step": "advance_window",
+   "phasing": "german",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "gs",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "B7"
+    },
+    {
+     "ref": "w",
+     "side": "russian",
+     "type": "LMG",
+     "hex": "B7"
+    },
+    {
+     "ref": "rs",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B9"
+    }
+   ],
+   "apply": [
+    {
+     "action": "pickup",
+     "units": [
+      "gs"
+     ],
+     "weapon": "w"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "13.5",
+     "kind": "captured"
+    }
+   ],
+   "expect_units": {
+    "w": {
+     "carrier": "gs"
+    }
+   }
+  },
+  {
+   "id": "r13.5-a-captured-charge-is-eliminated",
+   "rule": "13.5",
+   "type": "boundary",
+   "citation": "Rule 13.5 and PR-38: a support weapon that is not a machine gun is eliminated when the opposing side captures it.",
+   "phase": "advance",
+   "sub_step": "advance_window",
+   "phasing": "russian",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "rs",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B7"
+    },
+    {
+     "ref": "w",
+     "side": "german",
+     "type": "DC",
+     "hex": "B7"
+    },
+    {
+     "ref": "gs",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "B9"
+    }
+   ],
+   "apply": [
+    {
+     "action": "pickup",
+     "units": [
+      "rs"
+     ],
+     "weapon": "w"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "13.5",
+     "kind": "captured_eliminated"
+    }
+   ],
+   "expect_eliminated": [
+    "w"
+   ]
+  },
+  {
+   "id": "r18.2-no-repair-of-a-captured-weapon",
+   "rule": "18.2",
+   "type": "invalid",
+   "citation": "Rule 18.2: neither side may repair a captured broken support weapon.",
+   "phase": "rally",
+   "sub_step": "rally_window",
+   "actor": "phasing",
+   "phasing": "german",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "gs",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "B7"
+    },
+    {
+     "ref": "w",
+     "side": "german",
+     "type": "LMG",
+     "army": "russian",
+     "carrier": "gs",
+     "malfunction": true
+    },
+    {
+     "ref": "rs",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "B9"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "repair",
+     "weapon": "w"
+    }
+   ]
+  },
+  {
+   "id": "r18.4-a-broken-unit-that-rolls-two-goes-berserk",
+   "rule": "18.4",
+   "type": "boundary",
+   "citation": "Rule 18.4: a Russian unit, even if already broken, that rolls 2 on a morale check from enemy fire becomes berserk, and a berserk unit is not broken.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "german",
+   "check": "morale",
+   "dice": [
+    1,
+    1
+   ],
+   "modifier": 2,
+   "units": [
+    {
+     "ref": "b",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A7",
+     "broken": true
+    }
+   ],
+   "unit": "b",
+   "expect_events": [
+    {
+     "rule_id": "18.4",
+     "kind": "berserk"
+    }
+   ],
+   "expect_units": {
+    "b": {
+     "berserk": true,
+     "broken": false
+    }
+   }
+  },
+  {
+   "id": "r18.42-the-charge-is-the-only-move",
+   "rule": "18.42",
+   "type": "invalid",
+   "citation": "Rule 18.42 and PR-37: a berserk unit must charge the nearest enemy unit in its line of sight. While the charge has a step, no other command is legal and the phase does not end.",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "b",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A3",
+     "berserk": true
+    },
+    {
+     "ref": "o",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "C2"
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A8"
+    }
+   ],
+   "legal": [
+    {
+     "action": "move",
+     "units": [
+      "b"
+     ],
+     "hex": "A4"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "end_phase"
+    },
+    {
+     "action": "move",
+     "units": [
+      "b"
+     ],
+     "hex": "A2"
+    },
+    {
+     "action": "move",
+     "units": [
+      "o"
+     ],
+     "hex": "D2"
+    }
+   ]
+  },
+  {
+   "id": "r18.42-the-charge-advances-into-the-enemy",
+   "rule": "18.42",
+   "type": "valid",
+   "citation": "Rule 18.42: the berserk unit next to its target advances into the enemy hex in the Advance Phase.",
+   "phase": "advance",
+   "sub_step": "advance_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "b",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A7",
+     "berserk": true
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A8"
+    }
+   ],
+   "legal": [
+    {
+     "action": "advance",
+     "units": [
+      "b"
+     ],
+     "hex": "A8"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "end_phase"
+    },
+    {
+     "action": "advance",
+     "units": [
+      "b"
+     ],
+     "hex": "A6"
+    }
+   ]
+  },
+  {
+   "id": "r18.42-no-prep-fire-when-berserk",
+   "rule": "18.42",
+   "type": "boundary",
+   "citation": "Rule 18.42: a berserk unit may fire in the Defensive and Advancing Fire Phases but not in the Prep Fire Phase.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "b",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "A7",
+     "berserk": true
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "A8"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "group_add",
+     "units": [
+      "b"
+     ],
+     "hex": "A8"
+    }
+   ]
+  },
+  {
+   "id": "r20.1-no-terrain-modifier-in-close-combat",
+   "rule": "20.1",
+   "type": "valid",
+   "citation": "Rule 20.1: there are no terrain modifications to close combat dice rolls, so a roll of 6 in a woods hex is 6.",
+   "phase": "close_combat",
+   "sub_step": "cc_declare",
+   "actor": "phasing",
+   "phasing": "german",
+   "melee": [
+    "E3"
+   ],
+   "check": "effect",
+   "dice": [
+    3,
+    3
+   ],
+   "units": [
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E3"
+    },
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E3"
+    }
+   ],
+   "apply": [
+    {
+     "action": "cc_attack",
+     "units": [
+      "g"
+     ],
+     "targets": [
+      "r"
+     ]
+    },
+    {
+     "action": "end_phase"
+    },
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "20.3",
+     "data": {
+      "dice": [
+       3,
+       3
+      ],
+      "adjusted": 6
+     }
+    }
+   ]
+  },
+  {
+   "id": "r20.2-close-combat-is-simultaneous",
+   "rule": "20.2",
+   "type": "interaction",
+   "citation": "Rule 20.2: close combat is simultaneous, and both sides fire on the other even if one side is eliminated by the other's attack.",
+   "phase": "close_combat",
+   "sub_step": "cc_declare",
+   "actor": "phasing",
+   "phasing": "german",
+   "melee": [
+    "E3"
+   ],
+   "check": "effect",
+   "dice": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "units": [
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E3"
+    },
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E3"
+    }
+   ],
+   "apply": [
+    {
+     "action": "cc_attack",
+     "units": [
+      "g"
+     ],
+     "targets": [
+      "r"
+     ]
+    },
+    {
+     "action": "end_phase"
+    },
+    {
+     "action": "cc_attack",
+     "units": [
+      "r"
+     ],
+     "targets": [
+      "g"
+     ]
+    },
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_eliminated": [
+    "g",
+    "r"
+   ]
+  },
+  {
+   "id": "r20.3-an-attack-with-no-firepower-has-no-odds",
+   "rule": "20.3",
+   "type": "boundary",
+   "citation": "Rule 20.3 and PR-08: the odds compare the attack firepower with the defence. An attack of 0 has no odds and no roll can kill.",
+   "check": "cc_odds",
+   "attack": 0,
+   "defense": 4,
+   "expect_odds": "none",
+   "expect_kill": -100
+  },
+  {
+   "id": "r20.72-a-leader-with-a-squad-has-no-attack-of-its-own",
+   "rule": "20.72",
+   "type": "invalid",
+   "citation": "Rule 20.72 and rule 20.3: only a leader that began the phase alone has the nominal firepower of 1, so a leader with a squad cannot attack alone.",
+   "phase": "close_combat",
+   "sub_step": "cc_declare",
+   "actor": "phasing",
+   "phasing": "german",
+   "melee": [
+    "E7"
+   ],
+   "check": "legality",
+   "units": [
+    {
+     "ref": "gs",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E7"
+    },
+    {
+     "ref": "gl",
+     "side": "german",
+     "type": "9-2",
+     "hex": "E7"
+    },
+    {
+     "ref": "r1",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E7"
+    },
+    {
+     "ref": "r2",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E7"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "cc_attack",
+     "units": [
+      "gl"
+     ],
+     "targets": [
+      "r1"
+     ]
+    },
+    {
+     "action": "cc_attack",
+     "units": [
+      "gl"
+     ],
+     "targets": [
+      "r1",
+      "r2"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r20.4-three-squads-and-a-leader-attack-together",
+   "rule": "20.4",
+   "type": "valid",
+   "citation": "Rule 20.4 and PR-08: the attacks may be combined into one attack, so three squads and a leader, the limit of rule 6.1, attack together.",
+   "phase": "close_combat",
+   "sub_step": "cc_declare",
+   "actor": "phasing",
+   "phasing": "german",
+   "melee": [
+    "E7"
+   ],
+   "check": "legality",
+   "units": [
+    {
+     "ref": "g1",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E7"
+    },
+    {
+     "ref": "g2",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E7"
+    },
+    {
+     "ref": "g3",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E7"
+    },
+    {
+     "ref": "gl",
+     "side": "german",
+     "type": "9-2",
+     "hex": "E7"
+    },
+    {
+     "ref": "r1",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E7"
+    }
+   ],
+   "legal": [
+    {
+     "action": "cc_attack",
+     "units": [
+      "g1",
+      "g2",
+      "g3",
+      "gl"
+     ],
+     "targets": [
+      "r1"
+     ]
+    },
+    {
+     "action": "cc_attack",
+     "units": [
+      "g1",
+      "g2",
+      "g3",
+      "gl"
+     ],
+     "leader": "gl",
+     "targets": [
+      "r1"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r20.71-the-removed-leader-drops-its-weapon",
+   "rule": "20.71",
+   "type": "interaction",
+   "citation": "Rule 20.71 with rule 13.5: a leader removed with the last squad of its side leaves its weapon in the hex.",
+   "phase": "close_combat",
+   "sub_step": "cc_declare",
+   "actor": "phasing",
+   "phasing": "german",
+   "melee": [
+    "E7"
+   ],
+   "check": "effect",
+   "dice": [
+    1,
+    1
+   ],
+   "units": [
+    {
+     "ref": "gs",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E7"
+    },
+    {
+     "ref": "rs",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E7"
+    },
+    {
+     "ref": "rl",
+     "side": "russian",
+     "type": "8-0",
+     "hex": "E7"
+    },
+    {
+     "ref": "lmg",
+     "side": "russian",
+     "type": "LMG",
+     "carrier": "rl"
+    }
+   ],
+   "apply": [
+    {
+     "action": "cc_attack",
+     "units": [
+      "gs"
+     ],
+     "targets": [
+      "rs"
+     ]
+    },
+    {
+     "action": "end_phase"
+    },
+    {
+     "action": "end_phase"
+    }
+   ],
+   "expect_eliminated": [
+    "rs",
+    "rl"
+   ],
+   "expect_alive": [
+    "lmg"
+   ],
+   "expect_units": {
+    "lmg": {
+     "carrier": null,
+     "hex": "E7"
+    }
+   }
+  },
+  {
+   "id": "r25.1-a-counter-does-not-count-against-stacking",
+   "rule": "25.1",
+   "type": "valid",
+   "citation": "Rule 25.1: a concealment counter does not count against the stacking limits, so a leader joins three squads below their counter.",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "s1",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E3"
+    },
+    {
+     "ref": "s2",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E3"
+    },
+    {
+     "ref": "s3",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E3"
+    },
+    {
+     "ref": "l",
+     "side": "russian",
+     "type": "8-0",
+     "hex": "D2"
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "J9"
+    }
+   ],
+   "concealment": [
+    {
+     "side": "russian",
+     "hex": "E3"
+    }
+   ],
+   "legal": [
+    {
+     "action": "move",
+     "units": [
+      "l"
+     ],
+     "hex": "E3"
+    }
+   ]
+  },
+  {
+   "id": "r25.2-no-move-into-a-counter-hex",
+   "rule": "25.2",
+   "type": "invalid",
+   "citation": "Rule 25.2 and rule 5.6 with PR-31: the stack below a counter is treated as an opposing squad, so no unit moves into its hex in the Movement Phase.",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D2"
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E3"
+    }
+   ],
+   "concealment": [
+    {
+     "side": "german",
+     "hex": "E3"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "move",
+     "units": [
+      "r"
+     ],
+     "hex": "E3"
+    }
+   ]
+  },
+  {
+   "id": "r25.7-a-dummy-counter-is-a-fire-target",
+   "rule": "25.7",
+   "type": "valid",
+   "citation": "Rule 25.7 with rule 25.2 and PR-31: a counter with nothing below it looks like a stack, so its hex is a fire target as a real stack is.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D3"
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "J9"
+    }
+   ],
+   "concealment": [
+    {
+     "side": "german",
+     "hex": "E3"
+    }
+   ],
+   "legal": [
+    {
+     "action": "group_add",
+     "units": [
+      "r"
+     ],
+     "hex": "E3"
+    }
+   ]
+  },
+  {
+   "id": "r25.7-a-dummy-counter-blocks-a-move",
+   "rule": "25.7",
+   "type": "boundary",
+   "citation": "Rule 25.7 and PR-31: a counter with nothing below it closes its hex to a move, as a real stack does.",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D2"
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "J9"
+    }
+   ],
+   "concealment": [
+    {
+     "side": "german",
+     "hex": "E3"
+    }
+   ],
+   "illegal": [
+    {
+     "action": "move",
+     "units": [
+      "r"
+     ],
+     "hex": "E3"
+    }
+   ]
+  },
+  {
+   "id": "r25.9-fire-with-a-result-removes-a-dummy",
+   "rule": "25.9",
+   "type": "interaction",
+   "citation": "Rules 25.8 and 25.9 with PR-31: fire at a dummy reads the table at half firepower, and a result that is not No Effect removes the counter.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "effect",
+   "dice": [
+    1,
+    1
+   ],
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D3"
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "J9"
+    }
+   ],
+   "concealment": [
+    {
+     "side": "german",
+     "hex": "E3"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "r"
+     ],
+     "hex": "E3"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_concealment_count": 0
+  },
+  {
+   "id": "r25.9-no-effect-keeps-a-dummy",
+   "rule": "25.9",
+   "type": "boundary",
+   "citation": "Rule 25.9 and PR-31: a No Effect result leaves a dummy in place, as it leaves a real counter.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "effect",
+   "dice": [
+    6,
+    6
+   ],
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D3"
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "J9"
+    }
+   ],
+   "concealment": [
+    {
+     "side": "german",
+     "hex": "E3"
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "r"
+     ],
+     "hex": "E3"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_concealment_count": 1
+  },
+  {
+   "id": "r25.3-a-vehicle-is-not-concealed",
+   "rule": "25.3",
+   "type": "boundary",
+   "citation": "Rule 25.3 and PR-33: a counter goes on a squad or a leader. A tank that drives into the hex of its concealed infantry is not below the counter, and the counter stays.",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "T34",
+     "hex": "D3",
+     "facing": 0
+    },
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "E3"
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "H3"
+    }
+   ],
+   "concealment": [
+    {
+     "side": "russian",
+     "hex": "E3"
+    }
+   ],
+   "apply": [
+    {
+     "action": "vehicle_move",
+     "units": [
+      "t"
+     ],
+     "hex": "E3",
+     "facing": 0
+    }
+   ],
+   "expect_concealment_count": 1
+  },
+  {
+   "id": "r25.4-an-anti-tank-shot-removes-the-counter",
+   "rule": "25.4",
+   "type": "interaction",
+   "citation": "Rule 25.4 and PR-34: a unit below a counter that fires loses the counter, and a panzerfaust shot is fire.",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "T34",
+     "hex": "D3",
+     "facing": 1
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E3"
+    },
+    {
+     "ref": "pf",
+     "side": "german",
+     "type": "PF",
+     "carrier": "g"
+    }
+   ],
+   "concealment": [
+    {
+     "side": "german",
+     "hex": "E3"
+    }
+   ],
+   "apply": [
+    {
+     "action": "at_fire",
+     "units": [
+      "g"
+     ],
+     "weapon": "pf",
+     "hex": "D3"
+    }
+   ],
+   "expect_concealment_count": 0
+  },
+  {
+   "id": "r27.5-the-sewer-arrival-is-concealed-at-once",
+   "rule": "27.5",
+   "type": "valid",
+   "citation": "Rule 27.5 and PR-35: a stack that ends its sewer move with no enemy next to it in the building is covered by a counter, at the moment it arrives.",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "german",
+   "check": "effect",
+   "dice": [
+    3
+   ],
+   "single_dice": true,
+   "units": [
+    {
+     "ref": "s",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "C5"
+    },
+    {
+     "ref": "l",
+     "side": "german",
+     "type": "9-1",
+     "hex": "C5"
+    },
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "H3"
+    }
+   ],
+   "apply": [
+    {
+     "action": "sewer_move",
+     "units": [
+      "l",
+      "s"
+     ],
+     "hex": "E5"
+    }
+   ],
+   "expect_concealment_count": 1,
+   "expect_units": {
+    "s": {
+     "hex": "E5"
+    }
+   }
+  },
+  {
+   "id": "r42.1-a-hidden-unit-is-no-fire-target",
+   "rule": "42.1",
+   "type": "invalid",
+   "citation": "Rule 42.1: a hidden unit is on the record and not on the board, so its hex is no fire target.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "legality",
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D3"
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E3",
+     "hidden": true
+    }
+   ],
+   "illegal": [
+    {
+     "action": "group_add",
+     "units": [
+      "r"
+     ],
+     "hex": "E3"
+    }
+   ]
+  },
+  {
+   "id": "r42.2-a-hidden-unit-that-fires-comes-on-the-board",
+   "rule": "42.2",
+   "type": "valid",
+   "citation": "Rule 42.2: a hidden unit comes on the board when it fires.",
+   "phase": "defensive_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D3"
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E3",
+     "hidden": true
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "g"
+     ],
+     "hex": "D3"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "42.2",
+     "kind": "revealed"
+    }
+   ],
+   "expect_units": {
+    "g": {
+     "hidden": false
+    }
+   }
+  },
+  {
+   "id": "r42.3-a-revealed-unit-may-take-a-counter",
+   "rule": "42.3",
+   "type": "valid",
+   "citation": "Rule 42.3: a revealed unit does not regain hidden status, and it may acquire a concealment counter as in rule 25.3.",
+   "phase": "close_combat",
+   "sub_step": "cc_declare",
+   "actor": "phasing",
+   "phasing": "russian",
+   "check": "conceal",
+   "units": [
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E3"
+    },
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "J9"
+    }
+   ],
+   "unit": "g",
+   "expect_conceal": true
+  },
+  {
+   "id": "r42.4-a-result-reveals-the-hidden-unit",
+   "rule": "42.4",
+   "type": "interaction",
+   "citation": "Rule 42.4: the hidden units of a target hex are revealed when the attack on that hex results in other than No Effect.",
+   "phase": "prep_fire",
+   "sub_step": "fire_window",
+   "phasing": "russian",
+   "check": "effect",
+   "dice": [
+    1,
+    1
+   ],
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D3"
+    },
+    {
+     "ref": "v",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E3"
+    },
+    {
+     "ref": "h",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E3",
+     "hidden": true
+    }
+   ],
+   "apply": [
+    {
+     "action": "group_add",
+     "units": [
+      "r"
+     ],
+     "hex": "E3"
+    },
+    {
+     "action": "group_fire"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "42.4",
+     "kind": "revealed"
+    }
+   ]
+  },
+  {
+   "id": "r42.5-a-stack-move-stops-before-a-hidden-unit",
+   "rule": "42.5",
+   "type": "boundary",
+   "citation": "Rule 42.5 and PR-32: each unit of a stack that moves into the hex of a hidden unit stops in the hex it came from.",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D2"
+    },
+    {
+     "ref": "l",
+     "side": "russian",
+     "type": "8-1",
+     "hex": "D2"
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E3",
+     "hidden": true
+    }
+   ],
+   "apply": [
+    {
+     "action": "stack_move",
+     "units": [
+      "l",
+      "r"
+     ],
+     "hex": "E3"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "42.5",
+     "kind": "stopped"
+    },
+    {
+     "rule_id": "42.5",
+     "kind": "stopped"
+    }
+   ],
+   "expect_units": {
+    "r": {
+     "hex": "D2"
+    },
+    "l": {
+     "hex": "D2"
+    },
+    "g": {
+     "hidden": true
+    }
+   }
+  },
+  {
+   "id": "r42.5-an-advance-into-a-hidden-unit-reveals-it",
+   "rule": "42.5",
+   "type": "interaction",
+   "citation": "PR-32 with rules 42.2 and 42.6: an advance may enter an enemy hex, and the hidden unit there comes on the board at once.",
+   "phase": "advance",
+   "sub_step": "advance_window",
+   "phasing": "russian",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "r",
+     "side": "russian",
+     "type": "4-4-7",
+     "hex": "D3"
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E3",
+     "hidden": true
+    }
+   ],
+   "apply": [
+    {
+     "action": "advance",
+     "units": [
+      "r"
+     ],
+     "hex": "E3"
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "42.2",
+     "kind": "revealed"
+    }
+   ],
+   "expect_units": {
+    "g": {
+     "hidden": false
+    },
+    "r": {
+     "hex": "E3"
+    }
+   }
+  },
+  {
+   "id": "r42.6-an-afv-that-enters-reveals-the-hidden-unit",
+   "rule": "42.6",
+   "type": "valid",
+   "citation": "Rule 42.6: an AFV that moves into the hex of a hidden unit is told of it, and the unit loses its hidden status at once.",
+   "phase": "movement",
+   "sub_step": "move_window",
+   "phasing": "russian",
+   "check": "effect",
+   "units": [
+    {
+     "ref": "t",
+     "side": "russian",
+     "type": "T34",
+     "hex": "D3",
+     "facing": 0
+    },
+    {
+     "ref": "g",
+     "side": "german",
+     "type": "4-6-7",
+     "hex": "E3",
+     "hidden": true
+    }
+   ],
+   "apply": [
+    {
+     "action": "vehicle_move",
+     "units": [
+      "t"
+     ],
+     "hex": "E3",
+     "facing": 0
+    }
+   ],
+   "expect_events": [
+    {
+     "rule_id": "42.2",
+     "kind": "revealed"
+    }
+   ],
+   "expect_units": {
+    "g": {
+     "hidden": false
+    }
+   }
+  }
+ ]
+}

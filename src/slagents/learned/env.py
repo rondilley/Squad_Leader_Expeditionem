@@ -138,6 +138,7 @@ class SquadLeaderEnv(AECEnv):
         self.forced_applied = 0
         self.seen = {position_key(self.state_)}
         self.repeated = False
+        self.repeated_by: int | None = None
         self.progress = objective_progress(self.engine, self.state_)
         self._refresh()
         self._apply_forced()
@@ -259,10 +260,16 @@ class SquadLeaderEnv(AECEnv):
             # drop again, because a discount below one hid the cost of the command limit
             # twenty thousand commands away. So the cycle is a defeat for the side that
             # made it, on the spot, with no discount between the loop and its cost.
+            #
+            # The result says the same as the reward (L5): the side that made the cycle
+            # lost, so the league record and the win rate count a loss for it. The other
+            # side won nothing by the card, so its result is a draw. `repeated` and
+            # `repeated_by` keep the cause, for the separate count of the evaluation.
             self.repeated = True
+            self.repeated_by = acted
             self.rewards[self.agent_of(acted)] += self.weights[acted].loss
             for agent in self.agents:
-                self.results[agent] = DRAW
+                self.results[agent] = LOSS if self.player_of(agent) == acted else DRAW
                 self.truncations[agent] = True
             self._accumulate_rewards()
             return

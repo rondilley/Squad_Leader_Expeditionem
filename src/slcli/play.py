@@ -8,35 +8,25 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from slagents.base import Agent, RandomAgent
-from slagents.scripted.v0 import ScriptedV0
-from slagents.scripted.v1 import ScriptedV1
-from slagents.scripted.v2 import ScriptedV2
-from slagents.scripted.v3 import ScriptedV3
-from slagents.scripted.v4 import ScriptedV4, profile_for
-from slagents.scripted.v5 import ScriptedV5, profile_for as profile_for_v5
-from slagents.scripted.v6 import ScriptedV6, profile_for as profile_for_v6
-from slagents.scripted.v7 import ScriptedV7, parameters_from_text as parameters_v7
+from slagents.base import Agent, decide
+from slagents.registry import (  # noqa: F401  re-exported for the callers of slcli.play
+    LEARNED_PREFIX,
+    RANDOM_PREFIX,
+    LearnedNotInstalled,
+    build_engine,
+    build_engine_with_record,
+    make_agent,
+    make_learned_agent,
+    make_model_agent,
+    random_scenario,
+)
 from slagents.tuned.traces import TraceWriter, board_source
-from slcore.commands import Command
 from slcore.engine import Engine
 from slcore.events import Event
 from slcore.game import State
-from slboards.reference import source_of
-from sldata.loaders import DataError, board_and_parameters, load_all_counters, load_board, load_hexsides, load_scenario, load_tables, load_terrain
+from sldata.loaders import DataError
 
 MAX_COMMANDS = 20000
-
-LEARNED_PREFIX = "learned:"
-
-
-class LearnedNotInstalled(Exception):
-    """The learned agent needs torch, which is the `train` extra, and it is not installed."""
-
-    def __init__(self) -> None:
-        super().__init__(
-            "the learned agent needs torch. Install it with: pip install -e \".[train]\""
-        )
 
 
 @dataclass
@@ -68,157 +58,6 @@ class GameRecord:
         }
 
 
-def build_engine(scenario_name: str, board_name: str | None = None) -> Engine:
-    engine, _ = build_engine_with_record(scenario_name, board_name)
-    return engine
-
-
-RANDOM_PREFIX = "random:"
-
-
-def random_scenario(name: str):
-    """A scenario that the random construction of Game Set IV builds from a seed (FR-17).
-
-    `random:500` is a scenario the same way `s01_guards_counterattack` is one. It has no
-    file, because the seed is the whole record: the draws, the two forces, and the board
-    all come from it.
-    """
-    from slcampaign.build import build_scenario
-    from slcampaign.generator import draw_scenario
-    from slcampaign.run import counter_types, point_values
-
-    text = name[len(RANDOM_PREFIX) :]
-    try:
-        seed = int(text)
-    except ValueError as exc:
-        raise DataError(f"a random scenario needs a seed, and {text!r} is not one") from exc
-    types = counter_types()
-    draw, defending, attacking = draw_scenario(seed, types, point_values(types))
-    return build_scenario(seed, draw, defending, attacking, types)
-
-
-def build_engine_with_record(
-    scenario_name: str, board_name: str | None = None
-) -> tuple[Engine, dict[str, Any]]:
-    """The engine and the record of the board it plays on (FR-25).
-
-    The record goes in the run artifact, so that a later session builds the same board
-    from the same parameters. A board from the reference directory carries its source
-    tag and no parameters, because the project does not ship that layout (DR-06).
-
-    A name that starts with `random:` is a scenario of Game Set IV, built from the seed
-    that follows the prefix, and not a file in `sldata/scenarios`.
-    """
-    if scenario_name.startswith(RANDOM_PREFIX):
-        scenario = random_scenario(scenario_name)
-    else:
-        scenario = load_scenario(scenario_name)
-    terrain = load_terrain()
-    if board_name:
-        board = load_board(board_name, terrain)
-        params = None
-    else:
-        board, params = board_and_parameters(scenario, terrain)
-    record: dict[str, Any] = {
-        "board": board.name,
-        "board_source": source_of(board),
-        "board_columns": list(scenario.board_columns) if scenario.board_columns else None,
-        "generator": params.to_dict() if params is not None else None,
-    }
-    engine = Engine(scenario, board, terrain, load_hexsides(), load_all_counters(), load_tables())
-    return engine, record
-
-
-def make_agent(kind: str, engine: Engine, seed: int, player: int) -> Agent:
-    if kind == "random":
-        return RandomAgent(seed, player)
-    if kind == "v0":
-        return ScriptedV0(engine, player)
-    if kind == "v1":
-        return ScriptedV1(engine, player)
-    if kind == "v2":
-        return ScriptedV2(engine, player)
-    if kind == "v3":
-        return ScriptedV3(engine, player)
-    if kind == "v4":
-        return ScriptedV4(engine, player)
-    if kind.startswith("v4:"):
-        return ScriptedV4(engine, player, profile_for(kind.split(":", 1)[1]))
-    if kind == "v5":
-        return ScriptedV5(engine, player)
-    if kind.startswith("v5:"):
-        return ScriptedV5(engine, player, profile_for_v5(kind.split(":", 1)[1]))
-    if kind == "v6":
-        return ScriptedV6(engine, player)
-    if kind.startswith("v6:"):
-        return ScriptedV6(engine, player, profile_for_v6(kind.split(":", 1)[1]))
-    if kind.startswith("v7:"):
-        # A nation record, with a few values of its own in brackets when a study wants
-        # them. The role of the side picks the record: a side with a positional victory
-        # condition attacks, and the other side defends (`side_defends`).
-        from slagents.scripted.v7 import parameters_of_name, side_defends
-
-        return ScriptedV7(engine, player, parameters_of_name(kind, side_defends(engine, player)))
-    if kind == "v7":
-        return ScriptedV7(engine, player)
-    if kind.startswith("v7[") and kind.endswith("]"):
-        # The named parameters of FR-44 on the command line, as v7[loss_scale=8,route_loss=12],
-        # so a parameter study runs through the gauntlet with no code change.
-        return ScriptedV7(engine, player, parameters_v7(kind[3:-1]))
-    if kind.startswith("model:"):
-        return make_model_agent(kind.split(":", 1)[1], engine, seed, player)
-    if kind.startswith("tuned:"):
-        return make_model_agent(kind.split(":", 1)[1], engine, seed, player, tuned=True)
-    if kind.startswith(LEARNED_PREFIX):
-        return make_learned_agent(kind[len(LEARNED_PREFIX):], engine, seed, player)
-    raise ValueError(
-        f"unknown agent kind {kind!r}; use random, v0, v1, v2, v3, v4, v4:<nation>, v5, v5:<nation>, v6, v6:<nation>, v7, v7:<nation>, "
-        "model:<providers>, tuned:<providers>, or learned:<snapshot>"
-    )
-
-
-def make_learned_agent(snapshot_path: str, engine: Engine, seed: int, player: int) -> Agent:
-    """A trained PPO snapshot as a computer opponent (FR-51, FR-52).
-
-    The snapshot is a file that `sl-cli train` wrote. Torch is the `train` extra, so the
-    import is late and its absence gives the typed error of this boundary, the way the
-    desktop and finetune commands do.
-    """
-    if not snapshot_path:
-        raise ValueError("a learned agent needs a snapshot path, as learned:<path>")
-    try:
-        import torch  # noqa: F401  the boundary of an optional dependency
-    except ImportError as exc:
-        raise LearnedNotInstalled() from exc
-    from slagents.learned.agent import LearnedAgent
-
-    return LearnedAgent(engine, snapshot_path, seed=None)
-
-
-def make_model_agent(providers: str, engine: Engine, seed: int, player: int, tuned: bool = False) -> Agent:
-    """A model agent (FR-45). The name is a sequence, so `model:local+openai` fails over.
-
-    A name with a star is a pool: `model:local*` is each provider whose name starts with
-    `local`, and the seed of the game picks the first one, so the games of a gauntlet
-    spread across the hosts of the pool. The tuned family is the same harness with the
-    constraint of FR-62 on: the provider holds the model to the schema, whose command
-    field is the enum of the legal identities.
-    """
-    from slagents.prompted.harness import PromptedAgent
-    from slagents.prompted.providers import make_provider, pool_names
-    from slagents.prompted.router import Router
-
-    names = [name for part in providers.split("+") if part for name in pool_names(part, seed=seed)]
-    if not names:
-        raise ValueError("a model agent needs one provider name or more, as model:local+openai")
-    clients = [make_provider(name) for name in names]
-    client = clients[0] if len(clients) == 1 else Router(clients)
-    agent = PromptedAgent(engine, player, client, ScriptedV1(engine, player), constrained=tuned)
-    if tuned:
-        agent.name = "tuned"
-    return agent
-
-
 def play_game(
     engine: Engine,
     seed: int,
@@ -239,14 +78,14 @@ def play_game(
         frame = engine.legal_commands(state)
         if not frame.commands:
             raise RuntimeError(f"no legal command in {state.phase}/{frame.sub_step} for player {state.active}")
-        chosen = agents[state.active].select(state, frame)
+        chosen = decide(agents[state.active], state, frame)
         legal = frame.by_id(chosen)
         if legal is None:
             raise RuntimeError(f"agent {agents[state.active].name} gave an ID that is not in the frame")
         before = state
         state, events = engine.apply(state, legal.command, frame)
         if traces is not None:
-            traces.add(engine, before, frame, agents[frame.player], legal.id, events)
+            traces.add(engine, before, frame, agents[frame.player], legal.id, events, after=state)
         h = engine.hash_state(state)
         commands.append({"seq": state.seq, "player": frame.player, "phase": frame.phase, "frame_id": frame.frame_id, "command_id": legal.id, "payload": legal.payload, "hash": h})
         hashes.append(h)

@@ -26,7 +26,6 @@ REASON_FIELD = "reason"
 MAX_PLAN = 240
 MAX_REASON = 240
 FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.S)
-OBJECT = re.compile(r"\{.*\}", re.S)
 
 
 class SchemaError(Exception):
@@ -74,15 +73,48 @@ def describe(legal_ids: Sequence[str]) -> str:
     )
 
 
+def balanced_objects(text: str) -> list[str]:
+    """Each outer `{...}` span of the text with its braces in balance, in order.
+
+    A brace inside a JSON string does not count, and a backslash escapes the next
+    character of a string. The pattern `\\{.*\\}` that this replaces was greedy: it took
+    the text from the first brace of the analysis to the last brace of the answer, and an
+    analysis that named a set such as {A1, B2} made the whole answer fail to parse (L6).
+    """
+    spans: list[str] = []
+    depth = 0
+    start = -1
+    in_string = False
+    escaped = False
+    for i, ch in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"' and depth > 0:
+            in_string = True
+        elif ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}" and depth > 0:
+            depth -= 1
+            if depth == 0:
+                spans.append(text[start : i + 1])
+    return spans
+
+
 def extract(text: str) -> dict[str, Any]:
-    """The JSON object at the end of an answer, from a fence or from the raw text."""
+    """The last JSON object of an answer, from a fence or from the raw text."""
     if not text or not text.strip():
         raise SchemaError("the answer is empty")
     fences = FENCE.findall(text)
     candidates = list(reversed(fences)) if fences else []
-    match = OBJECT.search(text)
-    if match:
-        candidates.append(match.group(0))
+    candidates.extend(reversed(balanced_objects(text)))
     for candidate in candidates:
         try:
             document = json.loads(candidate)

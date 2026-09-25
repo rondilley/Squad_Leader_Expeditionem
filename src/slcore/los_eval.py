@@ -25,6 +25,11 @@ class LosContext:
     vehicles: frozenset[HexRef] = field(default_factory=frozenset)
 
 
+# The context with no smoke and no vehicle. A frozen record, so one instance serves each
+# call that gives no context, and no call makes two empty sets (NFR-01).
+NO_CONTEXT = LosContext()
+
+
 @dataclass(frozen=True)
 class LosResult:
     firer: HexRef
@@ -98,23 +103,47 @@ def evaluate(
     the hexes of that combination.
     """
     if ctx is None:
-        ctx = LosContext()
+        ctx = NO_CONTEXT
     static = choices is None and not ctx.smoke and not ctx.vehicles
     if static:
         found = table.static_results.get((firer, target))
         if found is not None:
             return found  # type: ignore[return-value]
-    thread = table.thread(firer, target)
-    traced, made = resolve_choices(board, thread, choices)
-    verdict = r07_los.evaluate_traced(board, firer, target, traced)
-    if not verdict.clear and choices is None and any(s.choice for s in thread.steps):
-        alt = _search_clear(board, thread, firer, target)
-        if alt is not None:
-            traced, made, verdict = alt
+    if choices is None:
+        # The traced hexes and the verdict of rule 7 read the board only. The smoke and
+        # the vehicles of the context change the result after them, in `_result`. So the
+        # trace of a pair is made one time, and a context with a vehicle in it does not
+        # search the choices of rule 17.7 again for each call (NFR-01).
+        key = (firer, target)
+        trace = table.static_traces.get(key)
+        if trace is None:
+            trace = table.static_traces[key] = _trace(board, table, firer, target)
+        thread, traced, made, verdict = trace
+    else:
+        thread = table.thread(firer, target)
+        traced, made = resolve_choices(board, thread, choices)
+        verdict = r07_los.evaluate_traced(board, firer, target, traced)
     result = _result(board, thread, firer, target, traced, made, verdict, ctx)
     if static:
         table.static_results[(firer, target)] = result
     return result
+
+
+def _trace(
+    board: Board, table: LosTable, firer: HexRef, target: HexRef
+) -> tuple[Thread, tuple[TracedHex, ...], tuple[HexRef, ...], LosVerdict]:
+    """The thread, the traced hexes, the choices, and the verdict of rule 7, with no choice given.
+
+    The result is clear when any combination of the rule 17.7 choices gives a clear LOS.
+    """
+    thread = table.thread(firer, target)
+    traced, made = resolve_choices(board, thread, None)
+    verdict = r07_los.evaluate_traced(board, firer, target, traced)
+    if not verdict.clear and any(s.choice for s in thread.steps):
+        alt = _search_clear(board, thread, firer, target)
+        if alt is not None:
+            traced, made, verdict = alt
+    return thread, tuple(traced), made, verdict
 
 
 def _search_clear(board: Board, thread: Thread, firer: HexRef, target: HexRef):
@@ -143,7 +172,9 @@ def _result(board: Board, thread: Thread, firer: HexRef, target: HexRef, traced:
     rule_id = r32_afv_cover.RULE_32_3 if blocked else verdict.rule_id
     blocking = verdict.blocking_hex
     if blocked:
-        blocking = next(r for r in reversed(refs) if r in ctx.vehicles and not board.adjacent(firer, r))
+        blocking = next(
+            r for r in refs if r in ctx.vehicles and not board.adjacent(firer, r) and not board.adjacent(r, target)
+        )
     return LosResult(
         firer=firer,
         target=target,

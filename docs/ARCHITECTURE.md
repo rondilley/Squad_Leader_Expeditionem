@@ -210,9 +210,11 @@ Dummy stacks (rule 25.7) are counters with no units below them, and the opponent
 
 The cost of a view has three cases. When no unit is concealed, the view is a copy of the unit list with the viewer's side identified. Its cost is linear in the unit count. Scenario 1 has no concealment, so the trainer in v0.1 pays this case only. When some stacks are concealed, the view replaces each concealed stack with its token. The cost is linear in the unit count plus the token map.
 
-When the scenario has hidden placement, the view drops the hidden units and the cost is the same as the second case. The benchmark of NFR-01 includes the view build, so TC-09 measures the cost. The view caches until a command changes the state.
+When the scenario has hidden placement, the view drops the hidden units and the cost is the same as the second case. The benchmark of NFR-01 includes the view build, so TC-09 measures the cost. The core does not keep a view between calls, because the core has no state of its own. The host keeps the last legal list of each seat and the last spectator view. It uses them again until a command changes the state.
 
-The host message is that view for one seat. An unjoined socket gets no frame. In a LAN room the legal list goes to the seat that acts. The idle seat gets an empty list. Hot seat keeps the list. The log tail omits a line that names a unit the viewer cannot see. A hidden unit is not in the other player's view.
+The host message is that view for one seat. An unjoined socket gets no frame. In a LAN room the legal list goes to the seat that acts. The idle seat gets an empty list. Hot seat keeps the list.
+
+The log tail omits a line that names a unit the viewer cannot see. A hidden unit is not in the other player's view. Each viewer has its own log stream, and `seq` counts the lines of that stream with no gap. Hot seat reads the stream of the side on the screen. So a side does not keep the lines of the other side in its history.
 
 <!-- AI review 20260907-163721: xai, the view cost model -->
 
@@ -455,14 +457,20 @@ The alternative: run the core in the browser through WebAssembly, so that hot se
 
 Why this is right: the host is the same code in hot seat and in LAN, so the per-player view (section 4) is built and tested one time. The trainer and the harness import the core and do not use the host, because they have no browser.
 
-The protocol is small. <!-- AI review 20260907-163721: gemini and openai, the frame ID replaces the list index. gemini, the los_request message. --> The client sends four messages:
+The protocol is small, and it is version 2 since 2026-09-23. `src/slhost/protocol.py` holds the fields of each message, and `tools/make_protocol_schema.py` writes the shared schema from it. <!-- AI review 20260907-163721: gemini and openai, the frame ID replaces the list index. gemini, the los_request message. --> The client sends six messages:
 
-- `join(room_code, display_name)`.
-- `intent(frame_id, command_id)`. The frame ID is the one the host issued with the frame, and the command ID is one of the IDs in that frame.
+- `join(room_code, display_name, seat_token)`. The seat token is optional. The host gives a token to each client that holds a player seat. A join with that token gets the seat back after a drop. A watcher gets no token.
+- `intent(frame_id, command_id)`. The frame ID is an opaque token of 32 hex digits. The host makes a new token for each connection and each frame, and the token has no relation to the state hash. The host refuses a token that is not the newest one it gave to that connection. The command ID is one of the IDs in that frame.
+- `undo()`. The host takes back the last command of the person at the screen when that command rolled no die and showed no hidden information. Hot seat and a game against the computer only.
+- `auto_setup()`. The host sets up the side of the person with the v7 agent.
 - `view_request()`.
-- `los_request(from_hex, to_hex)`. The host answers with the rule evaluator's result, because the client has no rule logic. In strict mode (FR-34) the host answers only at the times rule 19.3 lets a player use the tool. At other times it rejects the request with the rule ID. The welcome message carries `strict_los`. The client shows that flag as text and sends no mode.
+- `los_request(from_hex, to_hex)`. The host answers with the rule evaluator's result, because the client has no rule logic. In strict mode (FR-34) the host answers only at the times rule 19.3 lets a player use the tool. At other times it rejects the request with the rule ID. The welcome message has `strict_los`. The client shows that flag as text and sends no mode.
 
-The host sends `frame(player, view, legal_commands, frame_id, log_tail)` after each command, `error(rule_id, message)` for a rejected intent, and `los_result(from_hex, to_hex, result)`. The frame is the view of one seat. In a LAN room the idle seat gets an empty legal list. A stale client cannot apply a command against a state it has not seen. The host compares the frame ID in the intent with the frame ID of the current state. A mismatch is an error with a new frame. The client does not calculate and does not send a state hash (DR-04).
+The host sends `welcome` with the seat, the board, the scenario, `strict_los`, and the controller of each side. It sends `frame(player, view, legal_commands, frame_id, log_tail, status)` after each command, `error(rule_id, message, code)` for a rejected intent, `los_result(from_hex, to_hex, result)`, and `game_over` with the result and the casualties. A client does not connect again after a terminal error code.
+
+A computer turn runs in a thread. Thus the event loop keeps each socket open while an agent makes its decision.
+
+The frame is the view of one seat. In a LAN room the idle seat gets an empty legal list. A stale client cannot apply a command against a state it has not seen. The host compares the frame ID in the intent with the newest token of that connection. A mismatch is an error with a new frame. The client does not calculate, get, or send a state hash (DR-04).
 
 NFR-02 measures the time from the host's receipt of an intent to the client's receipt of the next frame. The measurement is on localhost, in the Playwright test (TC-11). That time includes the core's apply, the view build, the frame build, and the transport. It does not include the browser render.
 
@@ -494,7 +502,9 @@ The project ships three of them (FR-44).
 
 Why a third agent and not a third parameter set: the difference between v1 and v2 is which commands they answer, not how they weigh a move. A parameter cannot make an agent use a rule its code does not know.
 
-The later agents are v3 to v7. v3 is the tanker. v4 extends the threat map of v1. v5 adds vehicle fire. v6 keeps an attack schedule. v7 trades on the odds and reads only the enemy units the player can see. v7 does not place concealment, use a demolition charge, use a flamethrower, or use a sewer. Smoke of rule 24 is in v7. A name such as `v7:german` selects the nation record for the role of that side.
+The subsequent agents are v3 to v7. v3 is the tanker. v4 extends the threat map of v1. v5 adds vehicle fire. v6 keeps an attack schedule.
+
+v7 trades on the odds and reads only the enemy units the player can see. v7 does not place concealment, use a demolition charge, use a flamethrower, or use a sewer. Smoke of rule 24 is in v7. A name such as `v7:german` selects the nation record for the role of that side.
 
 ### 9.2 Learned agents
 
@@ -516,18 +526,21 @@ stack is a counter and not the units below it (rule 25.2).
 
 The command has four parts, so the policy has four heads: which unit, which action,
 which hex, and which option. Two weapons at one hex, and many close-combat attacks that
-start with one unit, share the first three parts. The option names the command. The
-option list holds 64 commands. The unit mask and the action mask are in the observation.
+start with one unit, share the first three parts. The option names the command.
+
+The option list holds 64 commands. The unit mask and the action mask are in the observation.
 The target mask and the option mask come from methods on the environment.
 
 The planes and the unit rows use the player view. A hidden enemy and a concealed enemy
-are absent. A dummy concealment counter and a full concealed stack pay the same sneak
+are not in them. A dummy concealment counter and a full concealed stack pay the same sneak
 term.
 
 The reward is the shaped reward of `slagents/learned/reward`. A win pays. A loss, a draw,
 and a truncation each cost the same large number. The step terms pay for a find, a shot,
 a break, a kill, cover, a sneak, and progress on a positional victory condition. A factory
-hex that each side counts pays one time. A snapshot written before 2026-09-23 does not
+hex that each side counts pays one time.
+
+A snapshot written before 2026-09-23 does not
 load. The load uses `weights_only=True`.
 
 The league of `league.py` keeps three kinds of opponent: the random agent, the versioned

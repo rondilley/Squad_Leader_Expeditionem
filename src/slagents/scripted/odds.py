@@ -16,6 +16,15 @@ is an integer count out of 1,296. A leader who breaks stops helping the units th
 checks after him, and that count is the nearest count out of 1,296. No rule is written here: a
 change to a rule module changes these odds with it.
 
+A leader who fails a check gives the other units of its hex one more check (rule 12.22,
+`r12_morale.leader_break_cascade`). A hex with a leader goes through an exact count of
+each outcome for that (`_leader_raw`), and a hex with no leader keeps the fast count.
+Before the exact count, in a stack of two 4-4-7 squads and an 8-0 leader in a stone
+building, a charge broke each squad 72 times in 100 in the core and 65 in the odds.
+
+`flame` and `charge` give the same result for a flamethrower (rules 22.1 and 22.2) and a
+demolition charge (rules 23.1, 23.5, and 23.8), which fire alone and not as a group.
+
 The smoke die of rule 24.6 is a third roll. It adds to the roll of a group whose line of
 sight goes into, out of, or through a smoke hex, so a shot through smoke is worse for the
 firer. `smoke=True` puts the mean of that die in the odds, and `group_meets_smoke` says
@@ -31,10 +40,11 @@ from typing import Any, Iterable, Mapping
 from slcore.game import PHASE_DEFENSIVE_FIRE, PHASE_PREP_FIRE, FireGroup, State
 from slcore.geometry import HexRef
 from slcore.los_eval import evaluate as evaluate_los
-from slcore.rules import r08_fire, r10_resolution, r11_terrain, r24_smoke, r25_concealment, r26_fanaticism
+from slcore.rules import r08_fire, r10_resolution, r11_terrain, r22_flamethrower, r23_demolition, r24_smoke, r25_concealment, r26_fanaticism
 from slcore.rules.r12_morale import BERSERK_ROLL, RUSSIAN, morale_value
 from slcore.tabledata import RESULT_KIA, RESULT_MC, RESULT_NONE
 from slcore.units import KIND_LEADER, KIND_SQUAD, KIND_SW, Unit, UnitType
+from slcore.view import visible_to
 
 # The 36 outcomes of two dice, as the count of each total.
 DICE_WAYS: dict[int, int] = {2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 5, 9: 4, 10: 3, 11: 2, 12: 1}
@@ -118,6 +128,7 @@ def shot(
     group: FireGroup,
     phase: str,
     smoke: bool = False,
+    viewer: int | None = None,
 ) -> Shot:
     """The expected result of a fire group at its target hex, in this phase.
 
@@ -125,6 +136,11 @@ def shot(
     the rules let it (range, long range, moved), the leader gives its rating, the terrain
     gives its modifier, and in the Defensive Fire Phase a unit that moved in the open
     takes the minus two of rule 16.5.
+
+    The odds count only the units in the target hex that `viewer` sees (S4). The viewer is
+    the firer when the caller gives none. A unit below a concealment counter of the other
+    side, or hidden by rule 42.1, is not in the count, so the odds of a shot never tell the
+    agent what is below a counter.
     """
     ctx = engine.fire_ctx
     types = engine.types
@@ -137,13 +153,79 @@ def shot(
         drm += 3
     firer_player = state.units[group.members[0][0]].player if group.members else -1
     moved_bonus = r11_terrain.moving_in_open_modifier(ctx.board, group.target) if phase == PHASE_DEFENSIVE_FIRE else 0
-    occupants = [u for u in state.infantry_in(group.target) if not u.eliminated and u.player != firer_player]
+    return _resolve(engine, state, group.target, halves, drm, moved_bonus, firer_player, viewer)
+
+
+def flame(
+    engine: Any, state: State, player: int, weapon: Unit, target: HexRef, viewer: int | None = None, halved: bool = False
+) -> Shot:
+    """The expected result of a flamethrower of `player` at `target` (rules 22.1 and 22.2).
+
+    The firepower is the printed one, and the attack has no modifier of any kind: no
+    terrain, no leader, and no minus two against a unit that moved in the open. `halved`
+    gives the half firepower of rule 22.1 against a concealed stand-in (see `charge`).
+    """
+    halves = r22_flamethrower.halves(engine.types, weapon)
+    return _resolve(engine, state, target, halves // 2 if halved else halves, 0, 0, player, viewer)
+
+
+def charge(
+    engine: Any,
+    state: State,
+    player: int,
+    weapon_key: str,
+    target: HexRef,
+    viewer: int | None = None,
+    halved: bool = False,
+) -> Shot:
+    """The expected result of a demolition charge of `player` that explodes at `target`.
+
+    Rules 23.1 and 23.5: 30 factors, and the protective cover of the hex is the one
+    modifier. Rule 23.8: a roll of 12 is a dud. The charge goes off in the Advancing Fire
+    Phase, so no unit takes the minus two of rule 16.5. The odds count the enemy units
+    only; a caller keeps a charge off a hex with its own units.
+
+    `halved` gives the half firepower of rule 23.5. A caller that values a hex below a
+    concealment counter puts a visible stand-in there and asks with `halved`, because the
+    odds never count a unit the player cannot see.
+    """
+    halves = r23_demolition.halves(engine.types, weapon_key)
+    if halved:
+        halves //= 2
+    drm = r11_terrain.target_hex_modifier(engine.board, target)
+    return _resolve(engine, state, target, halves, drm, 0, player, viewer, dud_roll=r23_demolition.MALFUNCTION_ROLL)
+
+
+def _resolve(
+    engine: Any,
+    state: State,
+    target: HexRef,
+    halves: int,
+    drm: int,
+    moved_bonus: int,
+    firer_player: int,
+    viewer: int | None,
+    dud_roll: int | None = None,
+) -> Shot:
+    """The chances of an attack of `halves` with `drm` at the enemy units of `target`.
+
+    `moved_bonus` is the modifier of rule 16.5 for a unit that moved, and a raw roll of
+    `dud_roll` gives no result at all.
+    """
+    ctx = engine.fire_ctx
+    types = engine.types
+    seer = firer_player if viewer is None else viewer
+    occupants = [
+        u
+        for u in state.infantry_in(target)
+        if not u.eliminated and u.player != firer_player and visible_to(state, u, seer)
+    ]
     effect = 0
     kia = 0
     breaks: dict[int, int] = {}
     value = 0
     if halves <= 0 or not occupants:
-        return Shot(group.target, halves, halves // 2, drm, 0, 0, {}, 0)
+        return Shot(target, halves, halves // 2, drm, 0, 0, {}, 0)
     # The core checks the units of one result group in leader-then-id order, and the
     # groups in order of the adjusted roll. A leader who breaks is not there for the
     # units that follow (rule 15.6).
@@ -156,9 +238,10 @@ def shot(
         fanatic = r26_fanaticism.modifier_for(state, u)
         prepared.append((u, own, extra, fanatic))
     for raw, ways in DICE_WAYS.items():
+        if raw == dud_roll:
+            continue
         grouped: dict[tuple[int, int], list[tuple[Unit, int, int]]] = {}
         for u, own, extra, fanatic in prepared:
-            result = ctx.ift.lookup(own // 2, raw + drm + extra)
             grouped.setdefault((raw + drm + extra, own), []).append((u, fanatic, unit_value(types, u)))
         order: list[tuple[Unit, str, int, int]] = []
         for key in sorted(grouped):
@@ -167,6 +250,18 @@ def shot(
             result = ctx.ift.lookup(own_halves // 2, adjusted)
             for u, fanatic, worth in rows:
                 order.append((u, result, fanatic, worth))
+        if any(u.kind == KIND_LEADER for u in occupants):
+            # Rule 12.22 needs the status of each unit, so a hex with a leader goes to the
+            # exact count (`_leader_raw`), and a hex with none keeps the fast count below.
+            raw_breaks, raw_value, any_effect, any_kia = _leader_raw(state, types, order, occupants, ways)
+            for uid, chance in raw_breaks.items():
+                breaks[uid] = breaks.get(uid, 0) + chance
+            value += raw_value
+            if any_effect:
+                effect += ways * WAYS
+            if any_kia:
+                kia += ways * WAYS
+            continue
         helpers = frozenset(
             u.id for u, _result, _fanatic, _worth in order if u.kind == KIND_LEADER and not u.broken and not u.manned_mg
         )
@@ -217,7 +312,154 @@ def shot(
             effect += ways * WAYS
         if any_kia:
             kia += ways * WAYS
-    return Shot(group.target, halves, halves // 2, drm, effect, kia, breaks, value)
+    return Shot(target, halves, halves // 2, drm, effect, kia, breaks, value)
+
+
+# The memo of `_leader_count`, and the type tables of its keys.
+LEADER_MEMO_LIMIT = 100_000
+_LEADER_MEMO: dict[tuple, tuple[dict[int, int], int]] = {}
+_LEADER_TABLES: dict[int, Any] = {}
+
+# The status of a unit in the exact count of `_leader_raw`.
+_OK = 0
+_BROKEN = 1
+_DEAD = 2
+_BERSERK = 3
+
+
+def _leader_raw(
+    state: State,
+    types: Mapping[str, UnitType],
+    order: list[tuple[Unit, str, int, int]],
+    occupants: list[Unit],
+    ways: int,
+) -> tuple[dict[int, int], int, bool, bool]:
+    """The break chances of one fire roll at a hex with a leader, with rule 12.22.
+
+    A leader who fails a check gives each other unit of its side in the hex one more
+    check with no modifier, at once (`r12_morale.leader_break_cascade`). A unit that
+    broke fails that check at its broken morale and dies, and a leader who fails it
+    gives the hex one more round. The core does the checks of a failed leader before
+    the next check of the fire, so a task list with those checks at the front gives
+    the same order. The count goes through each outcome of each check, and a chance is
+    the nearest count out of 1,296 for the `ways` of this roll.
+
+    A KIA takes its units with no check (rule 8.8), so it gives no second check.
+    """
+    results = [(u, result, fanatic) for u, result, fanatic, _worth in order if result != RESULT_NONE]
+    any_effect = bool(results)
+    any_kia = any(result == RESULT_KIA for _u, result, _f in results)
+    if not results:
+        return {}, 0, False, False
+    index = {u.id: i for i, u in enumerate(occupants)}
+    worth = [unit_value(types, u) for u in occupants]
+    # The count reads the result of each unit and not the roll or the firepower, and the
+    # table has few results, so a decision meets the same count many times. The types
+    # are in the key by identity, and `_LEADER_TABLES` holds them so that an identity is
+    # not used two times.
+    key = (
+        id(types),
+        tuple((u.id, result, fanatic) for u, result, fanatic in results),
+        tuple((u.id, u.type_key, u.kind, u.broken, u.berserk, u.manned_mg, fanatic) for u, _r, fanatic, _w in order),
+    )
+    found = _LEADER_MEMO.get(key)
+    if found is None:
+        found = _leader_count(state, types, order, occupants, results, index)
+        if len(_LEADER_MEMO) >= LEADER_MEMO_LIMIT:
+            _LEADER_MEMO.clear()
+        _LEADER_TABLES[id(types)] = types
+        _LEADER_MEMO[key] = found
+    weights, total = found
+    out: dict[int, int] = {}
+    value = 0
+    for uid, weight in weights.items():
+        count = (weight * ways * WAYS + total // 2) // total
+        if count:
+            out[uid] = count
+            value += count * worth[index[uid]]
+    return out, value, any_effect, any_kia
+
+
+def _leader_count(
+    state: State,
+    types: Mapping[str, UnitType],
+    order: list[tuple[Unit, str, int, int]],
+    occupants: list[Unit],
+    results: list[tuple[Unit, str, int]],
+    index: dict[int, int],
+) -> tuple[dict[int, int], int]:
+    """The weight of a break or a death of each unit, over one total (`_leader_raw`)."""
+    fanatic_of = {u.id: fanatic for u, _result, fanatic, _worth in order}
+    cascade_order = sorted(occupants, key=lambda u: (u.kind != KIND_LEADER, u.id))
+    start = tuple(_BERSERK if u.berserk else (_BROKEN if u.broken else _OK) for u in occupants)
+    helpers = frozenset(u.id for u in occupants if u.kind == KIND_LEADER and not u.broken and not u.manned_mg)
+    tasks: tuple[tuple[str, int, int], ...] = tuple(
+        ("kia" if result == RESULT_KIA else "fire", u.id, 0 if result in (RESULT_MC, RESULT_KIA) else int(result))
+        for u, result, _fanatic in results
+    )
+    # The count goes one check at a time, and each outcome of a check multiplies the
+    # weight by its ways out of 36. A state with no check at this level multiplies by
+    # 36, so each level has the one denominator 36 to the level, and equal states merge.
+    level: dict[tuple, int] = {(tasks, start, helpers): 1}
+    depth = 0
+    leaves: dict[tuple[int, ...], tuple[int, int]] = {}
+    ended: list[tuple[tuple[int, ...], int, int]] = []
+    while level:
+        following: dict[tuple, int] = {}
+
+        def add(key: tuple, weight: int) -> None:
+            following[key] = following.get(key, 0) + weight
+
+        for (todo, status, mask), weight in level.items():
+            if not todo:
+                ended.append((status, weight, depth))
+                continue
+            (kind, uid, modifier), rest = todo[0], todo[1:]
+            i = index[uid]
+            if kind == "kia":
+                if status[i] == _DEAD:
+                    add((rest, status, mask), weight * WAYS)
+                else:
+                    add((rest, status[:i] + (_DEAD,) + status[i + 1 :], mask - {uid}), weight * WAYS)
+                continue
+            unit = occupants[i]
+            if status[i] in (_DEAD, _BERSERK):
+                add((rest, status, mask), weight * WAYS)
+                continue
+            broken = status[i] == _BROKEN
+            morale = types[unit.type_key].broken_morale if broken else types[unit.type_key].morale
+            check_mod = modifier + _helper_rating(state, types, mask, uid) + fanatic_of[uid]
+            russian = kind == "fire" and types[unit.type_key].nationality == RUSSIAN
+            berserk = DICE_WAYS[BERSERK_ROLL] if russian else 0
+            fail = check_fail_ways(morale, check_mod)
+            if russian and BERSERK_ROLL + check_mod > morale:
+                fail -= DICE_WAYS[BERSERK_ROLL]
+            passed = WAYS - fail - berserk
+            if passed:
+                add((rest, status, mask), weight * passed)
+            if berserk:
+                add((rest, status[:i] + (_BERSERK,) + status[i + 1 :], mask), weight * berserk)
+            if fail:
+                failed = status[:i] + (_DEAD if broken else _BROKEN,) + status[i + 1 :]
+                if unit.kind == KIND_LEADER:
+                    second = tuple(("leader_break", v.id, 0) for v in cascade_order if v.id != uid)
+                    add((second + rest, failed, mask - {uid}), weight * fail)
+                else:
+                    add((rest, failed, mask), weight * fail)
+        level = following
+        depth += 1
+    deepest = max(d for _s, _w, d in ended)
+    total = WAYS**deepest
+    for status, weight, d in ended:
+        scaled = weight * WAYS ** (deepest - d)
+        old, _ = leaves.get(status, (0, 0))
+        leaves[status] = (old + scaled, 0)
+    breaks: dict[int, int] = {}
+    for status, (weight, _unused) in leaves.items():
+        for i, u in enumerate(occupants):
+            if status[i] in (_BROKEN, _DEAD) and status[i] != start[i]:
+                breaks[u.id] = breaks.get(u.id, 0) + weight
+    return breaks, total
 
 
 def _helper_rating(state: State, types: Mapping[str, UnitType], mask: frozenset[int], unit_id: int) -> int:
@@ -344,7 +586,7 @@ def loss(engine: Any, state: State, unit: Unit, dst: HexRef, moving: bool, group
     for members, leader in groups:
         group = FireGroup(dst, members, leader)
         smoke = group_meets_smoke(engine, hypothetical, group)
-        result = shot(engine, hypothetical, group, phase, smoke=smoke)
+        result = shot(engine, hypothetical, group, phase, smoke=smoke, viewer=unit.player)
         chance = max(chance, result.breaks.get(unit.id, 0))
     return chance
 

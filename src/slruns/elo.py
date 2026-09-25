@@ -99,6 +99,79 @@ def settled_ratings(results: list[tuple[str, str, float]], passes: int = 200) ->
     return table
 
 
+@dataclass
+class SidedFit:
+    """The Bradley-Terry fit with a side term: the table, and the advantage of the first side.
+
+    `side_advantage` holds, for each group of games (a scenario), the Elo points the first
+    side of that scenario gets from its side alone. A positive value favours the first
+    side, a negative value the second.
+    """
+
+    table: EloTable
+    side_advantage: dict[str, float]
+
+    def to_dict(self) -> dict[str, float]:
+        return {group: round(value, 1) for group, value in sorted(self.side_advantage.items())}
+
+
+def settled_ratings_by_side(results: list[tuple[str, str, float, str]], passes: int = 400) -> SidedFit:
+    """The Elo table of a finished round-robin with a term for the side (L7).
+
+    Each result is (the agent on the first side, the agent on the second side, the score
+    of the first side, the group). A group is a scenario, and each group has its own side
+    term, because the side one scenario favours is not the side another favours. The model
+    is the home advantage model of Hunter (2004), section 3: the first side of group g wins
+    with the probability theta_g * s_a / (theta_g * s_a + s_b). The fit is the same
+    minorization-maximization iteration as `settled_ratings`, with one more update for each
+    theta. Without the term, a scenario that one side wins from set up credits its wins to
+    the agent that held that side more often, and the rank reads the scenario and not the
+    agents.
+
+    The prior is one drawn game for each pair of agents in each group, played once from
+    each side, so an agent with every game won and a side with every game won both keep a
+    finite strength.
+    """
+    agents = sorted({name for first, second, _, _ in results for name in (first, second)})
+    if not agents:
+        return SidedFit(EloTable(), {})
+    groups = sorted({group for _, _, _, group in results})
+    # Each game as (first, second, first's score, group, weight).
+    games: list[tuple[str, str, float, str, float]] = [(a, b, float(s), g, 1.0) for a, b, s, g in results]
+    prior = 1.0 / max(1, len(agents) - 1)
+    for group in groups:
+        for i, a in enumerate(agents):
+            for b in agents[i + 1 :]:
+                games.append((a, b, 0.5, group, prior / 2.0))
+                games.append((b, a, 0.5, group, prior / 2.0))
+    wins = {a: 0.0 for a in agents}
+    first_wins = {g: 0.0 for g in groups}
+    for a, b, score, group, weight in games:
+        wins[a] += weight * score
+        wins[b] += weight * (1.0 - score)
+        first_wins[group] += weight * score
+    strength = {a: 1.0 for a in agents}
+    theta = {g: 1.0 for g in groups}
+    for _ in range(passes):
+        denominator = {a: 0.0 for a in agents}
+        for a, b, _score, group, weight in games:
+            total = theta[group] * strength[a] + strength[b]
+            denominator[a] += weight * theta[group] / total
+            denominator[b] += weight / total
+        new = {a: (wins[a] / denominator[a] if denominator[a] > 0 else strength[a]) for a in agents}
+        mean = math.exp(sum(math.log(v) for v in new.values()) / len(new))
+        strength = {a: v / mean for a, v in new.items()}
+        side_denominator = {g: 0.0 for g in groups}
+        for a, b, _score, group, weight in games:
+            side_denominator[group] += weight * strength[a] / (theta[group] * strength[a] + strength[b])
+        theta = {g: (first_wins[g] / side_denominator[g] if side_denominator[g] > 0 else theta[g]) for g in groups}
+    table = EloTable()
+    for a in agents:
+        table.ratings[a] = START_RATING + SCALE * math.log10(strength[a])
+        table.games[a] = sum(1 for first, second, _, _ in results if a in (first, second))
+    return SidedFit(table, {g: SCALE * math.log10(theta[g]) for g in groups})
+
+
 def wilson_interval(wins: float, total: int, z: float = Z_95) -> tuple[float, float]:
     """The Wilson score interval for a proportion. Draws count as half a win."""
     if total <= 0:

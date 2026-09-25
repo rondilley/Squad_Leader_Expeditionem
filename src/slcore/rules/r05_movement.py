@@ -8,12 +8,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
-from slcore import geometry
+from slcore import actions, geometry
 from slcore.commands import Command
 from slcore.events import Event
 from slcore.game import State
 from slcore.geometry import HexRef
-from slcore.rules import r06_stacking
+from slcore.rules import r06_stacking, r42_hidden
 from slcore.state import Board, HexsideRule, TerrainType
 from slcore.units import (
     KIND_LEADER,
@@ -36,12 +36,20 @@ RULE_5_7 = "5.7"
 RULE_5_71 = "5.71"
 RULE_5_73 = "5.73"
 RULE_4_7 = "4.7"
+RULE_13_5 = "13.5"
 
 LEADER_BONUS_HALVES = 4
 LEADER_MAX_PORTAGE = 3
 ADVANCE_SQUAD_PORTAGE = 5
 ADVANCE_LEADER_PORTAGE = 3
 MOVE_MODE_ADVANCED = "advanced"
+# Rule 18.43 in halves: a berserk squad has 6 movement factors, a berserk leader 8, and a
+# berserk squad in a stack with a berserk leader 8.
+BERSERK_SQUAD_HALVES = 12
+BERSERK_LEADER_HALVES = 16
+# PR-38: rule 50.4 lets an American unit operate each captured support weapon.
+NATION_OPERATES_ALL_CAPTURED = "american"
+WEAPON_CLASS_MG = "mg"
 
 
 @dataclass(frozen=True)
@@ -79,10 +87,20 @@ def in_stack_with_leader(state: State, unit: Unit) -> bool:
 
 
 def allowance_halves(ctx: MoveContext, state: State, unit: Unit, leader_bonus: bool) -> int:
-    """Rules 5.41, 5.42, 5.44, 5.7: base factors, the leader bonus, the portage penalty."""
+    """Rules 5.41, 5.42, 5.44, 5.7: base factors, the leader bonus, the portage penalty.
+
+    Rule 18.43 gives a berserk unit its own factors: 6 for a squad, 8 for a leader, and 8
+    for a squad that moves in a stack with a berserk leader. `leader_bonus` is that stack
+    for a berserk squad.
+    """
     t = ctx.types[unit.type_key]
     halves = t.mf_halves
-    if leader_bonus and unit.kind != KIND_LEADER:
+    if unit.berserk:
+        if unit.kind == KIND_LEADER or leader_bonus:
+            halves = BERSERK_LEADER_HALVES
+        else:
+            halves = BERSERK_SQUAD_HALVES
+    elif leader_bonus and unit.kind != KIND_LEADER:
         halves += LEADER_BONUS_HALVES
     excess = weapon_portage_halves(ctx, state, unit) - t.free_portage_halves
     if excess > 0:
@@ -90,8 +108,27 @@ def allowance_halves(ctx: MoveContext, state: State, unit: Unit, leader_bonus: b
     return halves
 
 
+# The name of the memo of entry costs that a MoveContext keeps. It is not a field.
+_COST_ATTRIBUTE = "_entry_costs"
+
+
 def entry_cost_halves(ctx: MoveContext, src: HexRef, dst: HexRef) -> tuple[int | None, tuple[str, ...]]:
-    """Rules 5.5 to 5.54: the cost to enter dst from src, and the rule IDs applied."""
+    """Rules 5.5 to 5.54: the cost to enter dst from src, and the rule IDs applied.
+
+    The cost reads the board and the two tables of the context only, and those do not
+    change, so each answer is kept on the context (NFR-01).
+    """
+    memo = ctx.__dict__.get(_COST_ATTRIBUTE)
+    if memo is None:
+        memo = ctx.__dict__[_COST_ATTRIBUTE] = {}
+    key = (src, dst)
+    found = memo.get(key)
+    if found is None:
+        found = memo[key] = _entry_cost(ctx, src, dst)
+    return found
+
+
+def _entry_cost(ctx: MoveContext, src: HexRef, dst: HexRef) -> tuple[int | None, tuple[str, ...]]:
     d = geometry.direction_to(src, dst)
     if d is None:
         return None, ()
@@ -124,7 +161,13 @@ def enemy_in_hex(state: State, player: int, hex_ref: HexRef) -> bool:
     Rule 42.1 keeps a hidden unit off the board that the other player sees, so a hidden
     unit does not make a hex illegal to enter. Rule 42.5 stops the move when it happens,
     and the moving player learns of the hidden unit at that moment and not before.
+
+    Rule 25.2 treats each concealment counter of the other side as an opposing squad,
+    whether a unit is below it or not (PR-31). So the counter makes the hex an enemy hex,
+    and a dummy of rule 25.7 gives the same answer as a real stack.
     """
+    if state.enemy_counter_in(hex_ref, player):
+        return True
     return any(
         u.player != player for u in state.units_in(hex_ref) if u.kind != KIND_SW and not u.hidden
     )
@@ -147,12 +190,13 @@ def movers(state: State, player: int) -> list[Unit]:
     """Rules 4.3 and 5.1: unbroken infantry of the phasing player that did not prep fire.
 
     Rule 15.2 also holds a leader in place when it directed a fire group in the Prep
-    Fire Phase, so the `directed` flag stops it here.
+    Fire Phase, so the `directed` flag stops it here. Rule 27.2 ends the Movement Phase
+    of a unit that made a sewer move at its entrance (PR-35).
     """
     return [
         u
         for u in state.player_units(player)
-        if u.is_infantry and u.hex is not None and u.carrier is None and not u.broken and not u.prep_fired and not u.directed and not state.in_melee(u.hex)
+        if u.is_infantry and u.hex is not None and u.carrier is None and not u.broken and not u.prep_fired and not u.directed and not u.sewer_move and not state.in_melee(u.hex)
     ]
 
 
@@ -167,6 +211,9 @@ def legal_moves(ctx: MoveContext, state: State) -> list[Command]:
     for u in movers(state, player):
         if u.hex is None:
             continue
+        if u.berserk:
+            # Rule 18.42: a berserk unit moves on its charge, which r18_berserk gives.
+            continue
         if u.move_mode.startswith(MOVE_MODE_STACK):
             if u.kind != KIND_LEADER:
                 continue
@@ -177,7 +224,7 @@ def legal_moves(ctx: MoveContext, state: State) -> list[Command]:
             candidates = [
                 s
                 for s in state.units_in(u.hex)
-                if s.player == player and s.is_infantry and s.kind != KIND_LEADER and not s.broken and not s.prep_fired and s.move_mode == MOVE_MODE_NONE
+                if s.player == player and s.is_infantry and s.kind != KIND_LEADER and not s.broken and not s.prep_fired and not s.berserk and not s.sewer_move and s.move_mode == MOVE_MODE_NONE
             ]
             for subset in _subsets(candidates):
                 out.extend(_stack_moves(ctx, state, u, subset))
@@ -286,13 +333,51 @@ def legal_pickups_and_drops(ctx: MoveContext, state: State, in_movement: bool) -
     return out
 
 
+def capture_allowed(state: State, unit: Unit, weapon: Unit) -> bool:
+    """PR-38: where a unit may take a support weapon of the other side.
+
+    Rule 20.84 forbids a capture in a melee hex. A weapon in a hex that holds a
+    concealment counter or a hidden unit of its owner is below the counter or on the
+    record with that unit, so the other side cannot take it and the legal list does not
+    name it (rules 25.2 and 42.1).
+    """
+    if weapon.player == unit.player:
+        return True
+    if weapon.hex is None or state.in_melee(weapon.hex):
+        return False
+    if any(c.hex == weapon.hex and c.player == weapon.player for c in state.concealment):
+        return False
+    return not any(u.hidden and u.player == weapon.player for u in state.units_in(weapon.hex))
+
+
+def captured_weapon_kept(ctx: MoveContext, unit: Unit, weapon: Unit) -> bool:
+    """PR-38: a captured machine gun changes owner, and other weapons are eliminated.
+
+    Rule 13.5 eliminates a captured weapon that is not a machine gun. Rule 50.4 lets an
+    American unit operate each captured weapon.
+    """
+    if ctx.types[weapon.type_key].weapon_class == WEAPON_CLASS_MG:
+        return True
+    return ctx.types[unit.type_key].nationality == NATION_OPERATES_ALL_CAPTURED
+
+
 def pickup_allowed(ctx: MoveContext, state: State, unit: Unit, weapon: Unit, in_movement: bool) -> bool:
     t = ctx.types[weapon.type_key]
+    if not capture_allowed(state, unit, weapon):
+        return False
+    if weapon.player != unit.player and not captured_weapon_kept(ctx, unit, weapon):
+        # The capture eliminates the weapon, so no portage test applies to it.
+        return True
     leader_cost = t.portage_leader_halves
     if unit.kind == KIND_LEADER:
         if leader_cost is None:
             return False
         if weapon_portage_halves(ctx, state, unit) + leader_cost > LEADER_MAX_PORTAGE * 2:
+            return False
+    if unit.berserk:
+        # Rule 18.43 and QA-18.42: a berserk unit carries only what costs it no factor.
+        cost = leader_cost if unit.kind == KIND_LEADER and leader_cost is not None else t.portage_squad_halves
+        if weapon_portage_halves(ctx, state, unit) + cost > ctx.types[unit.type_key].free_portage_halves:
             return False
     if in_movement:
         cost = leader_cost if unit.kind == KIND_LEADER and leader_cost is not None else t.portage_squad_halves
@@ -364,8 +449,20 @@ def apply_pickup(ctx: MoveContext, state: State, command: Command) -> tuple[Stat
     weapon = state.units[command.weapon] if command.weapon is not None else None
     if weapon is None:
         raise ValueError("pickup needs a weapon")
+    if weapon.player != unit.player:
+        return _capture(ctx, state, unit, weapon)
     picked = weapon.with_(carrier=unit.id, hex=unit.hex)
     return state.with_unit(picked), [Event(RULE_5_7, "pickup", {"unit": unit.id, "weapon": weapon.id})]
+
+
+def _capture(ctx: MoveContext, state: State, unit: Unit, weapon: Unit) -> tuple[State, list[Event]]:
+    """PR-38 with rules 2.7, 13.5, and 50.4: the weapon changes owner or is eliminated."""
+    data = {"unit": unit.id, "weapon": weapon.id, "from_player": weapon.player}
+    if captured_weapon_kept(ctx, unit, weapon):
+        taken = weapon.with_(carrier=unit.id, hex=unit.hex, player=unit.player)
+        return state.with_unit(taken), [Event(RULE_13_5, "captured", data)]
+    gone = weapon.with_(carrier=None, hex=None, eliminated=True)
+    return state.with_unit(gone), [Event(RULE_13_5, "captured_eliminated", data)]
 
 
 def apply_drop(ctx: MoveContext, state: State, command: Command) -> tuple[State, list[Event]]:
@@ -385,6 +482,9 @@ def legal_advances(ctx: MoveContext, state: State) -> list[Command]:
         if not u.is_infantry or u.hex is None or u.carrier is not None or u.broken or u.move_mode == MOVE_MODE_ADVANCED:
             continue
         if state.in_melee(u.hex):
+            continue
+        if u.berserk:
+            # Rule 18.42: a berserk unit advances on its charge, which r18_berserk gives.
             continue
         portage = weapon_portage(ctx, state, u)
         limit = ADVANCE_LEADER_PORTAGE if u.kind == KIND_LEADER else ADVANCE_SQUAD_PORTAGE
@@ -413,3 +513,78 @@ def apply_advance(ctx: MoveContext, state: State, command: Command) -> tuple[Sta
     for w in state.carried_by(unit.id):
         changed[w.id] = w.with_(hex=dst)
     return state.with_units(changed), [Event(RULE_4_7, "advance", {"unit": unit.id, "from": geometry.hex_id(*unit.hex), "to": geometry.hex_id(*dst)})]
+
+
+# ------------------------------------------------------------------ the command handlers (M3)
+
+
+def bump_into_hidden(ctx: MoveContext, before: State, state: State, command: Command) -> tuple[State, list[Event]]:
+    """Rule 42.5: a unit that walks into a hidden unit stops and ends its movement.
+
+    The unit goes back to the hex it came from, and it has no movement factors left. It
+    does not put the hidden unit on the board: rule 42.2 does that at the end of the
+    Defensive Fire Phase or the Advance Phase, because the unit is next to it now.
+
+    A stack move is the move of each unit of the stack, so each of them stops (PR-32).
+    """
+    if not command.units or command.hex is None:
+        return state, []
+    first = before.units[command.units[0]]
+    if first.hex is None or not r42_hidden.enemy_hidden_in(before, command.hex, first.player):
+        return state, []
+    stack = command.action == "stack_move"
+    changed: dict[int, Unit] = {}
+    events: list[Event] = []
+    for uid in command.units:
+        mover = before.units[uid]
+        if mover.hex is None:
+            continue
+        bonus = stack and mover.kind != KIND_LEADER
+        allowance = allowance_halves(ctx, before, mover, leader_bonus=bonus)
+        changed[uid] = state.units[uid].with_(hex=mover.hex, mf_used=allowance, track=mover.track)
+        for weapon in state.carried_by(uid):
+            changed[weapon.id] = weapon.with_(hex=mover.hex)
+        events.append(
+            Event(
+                r42_hidden.RULE_42_5,
+                "stopped",
+                {
+                    "unit": uid,
+                    "hex": geometry.hex_id(*mover.hex),
+                    "tried": geometry.hex_id(*command.hex),
+                },
+            )
+        )
+    return state.with_units(changed), events
+
+
+@actions.action("move", unconceals=actions.CAUSE_MOVED)
+def _on_move(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    after, events = apply_move(engine.move_ctx, state, command)
+    after, ev = bump_into_hidden(engine.move_ctx, state, after, command)
+    events.extend(ev)
+    return after, events
+
+
+@actions.action("stack_move", unconceals=actions.CAUSE_MOVED)
+def _on_stack_move(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    after, events = apply_stack_move(engine.move_ctx, state, command)
+    after, ev = bump_into_hidden(engine.move_ctx, state, after, command)
+    events.extend(ev)
+    return after, events
+
+
+# A pickup and a drop are not a move for rules 25.4 and 42.2.
+@actions.action("pickup")
+def _on_pickup(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    return apply_pickup(engine.move_ctx, state, command)
+
+
+@actions.action("drop")
+def _on_drop(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    return apply_drop(engine.move_ctx, state, command)
+
+
+@actions.action("advance", unconceals=actions.CAUSE_MOVED)
+def _on_advance(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    return apply_advance(engine.move_ctx, state, command)

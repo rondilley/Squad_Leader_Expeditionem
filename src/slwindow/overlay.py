@@ -224,6 +224,36 @@ def payload_of(command: dict[str, Any]) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else command
 
 
+def unit_ids(entry: dict[str, Any]) -> list[int]:
+    """The acting units of a legal entry.
+
+    Protocol version 2 gives `units` as a list of {"id", "name"} on the entry. Version 1
+    gives the unit ids in the payload.
+    """
+    listed = entry.get("units")
+    if isinstance(listed, list) and listed and isinstance(listed[0], dict):
+        return [int(u["id"]) for u in listed if isinstance(u, dict) and u.get("id") is not None]
+    out: list[int] = []
+    for unit in payload_of(entry).get("units", []) or []:
+        try:
+            out.append(int(unit))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def hexes_of(entry: dict[str, Any]) -> list[str]:
+    """The hexes a legal entry names (the destination, the target).
+
+    Protocol version 2 gives `hexes` on the entry. Version 1 has the hex of the payload.
+    """
+    listed = entry.get("hexes")
+    if isinstance(listed, list):
+        return [str(h) for h in listed if h is not None]
+    here = payload_of(entry).get("hex")
+    return [] if here is None else [str(here)]
+
+
 def fire_kind(phase: Any) -> str:
     return _FIRE_KIND_BY_PHASE.get(str(phase or ""), FIRE_OTHER)
 
@@ -369,16 +399,19 @@ class Tracker:
         unit_id = int(unit["id"])
         for hex_id in unit.get("track", []) or []:
             out.append((str(hex_id), TONE_TRACK))
+        here = position_of(unit)
         for command in legal:
             payload = payload_of(command)
             action = str(payload.get("action", ""))
-            target = payload.get("hex")
-            if target is None or unit_id not in {int(u) for u in payload.get("units", [])}:
+            if unit_id not in unit_ids(command):
                 continue
-            if action in _MOVE_ACTIONS:
-                out.append((str(target), TONE_MOVE))
-            elif action in _FIRE_ACTIONS:
-                out.append((str(target), TONE_TARGET))
+            for target in hexes_of(command):
+                if target == here:
+                    continue
+                if action in _MOVE_ACTIONS:
+                    out.append((target, TONE_MOVE))
+                elif action in _FIRE_ACTIONS:
+                    out.append((target, TONE_TARGET))
         group = view.get("fire_group")
         if isinstance(group, dict) and group.get("target"):
             members = {int(m[0]) if isinstance(m, (list, tuple)) else int(m) for m in group.get("members", []) or []}

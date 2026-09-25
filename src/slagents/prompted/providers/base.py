@@ -34,7 +34,32 @@ USER_AGENT = "squad-leader-ai/0.1 (+local research build)"
 
 
 class ProviderError(Exception):
-    """A provider call did not give an answer. The message never holds a key."""
+    """A provider call did not give an answer. The message never holds a key.
+
+    `status` is the HTTP status of the answer when the provider gave one, so the router
+    can tell a busy provider (408, 429, 5xx) from a request it will refuse each time (L6).
+    """
+
+    def __init__(self, message: str = "", status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+
+
+# The HTTP answers that say a provider is busy or down, and not that the request is wrong.
+TRANSIENT_STATUS = (408, 429)
+
+
+def is_transient(exc: ProviderError) -> bool:
+    """Whether a failure says the provider is busy or away, which a rest can cure.
+
+    A timeout, a network error, a closed connection, 408, 429, and each 5xx are. A 400,
+    a 401, a 404, a redirect, or an answer that is not JSON come again on each call, so a
+    rest cures none of them, and they must not take a host out of the sequence.
+    """
+    if isinstance(exc, ProviderUnavailable):
+        return True
+    status = exc.status
+    return status is not None and (status in TRANSIENT_STATUS or 500 <= status <= 599)
 
 
 class _RefuseRedirect(urllib.request.HTTPRedirectHandler):
@@ -216,7 +241,7 @@ class Provider:
                 raw = answer.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")[:300] if exc.fp else ""
-            raise ProviderError(f"{self.name} answered {exc.code}: {self._safe(detail)}") from exc
+            raise ProviderError(f"{self.name} answered {exc.code}: {self._safe(detail)}", status=exc.code) from exc
         except urllib.error.URLError as exc:
             raise ProviderUnavailable(f"{self.name} did not answer: {self._safe(str(exc.reason))}") from exc
         except TimeoutError as exc:
@@ -230,9 +255,18 @@ class Provider:
         except json.JSONDecodeError as exc:
             raise ProviderError(f"{self.name} gave an answer that is not JSON: {self._safe(raw[:200])}") from exc
 
+    def key_name(self) -> str | None:
+        """The name of the key file this adapter loads, or none for a provider with no key.
+
+        An adapter with a default name (`claude`, `gemini`) gives it here, so the redaction
+        takes out the key the adapter sent and not the key of a name it did not load (L6).
+        """
+        return self.config.key
+
     def _safe(self, text: str) -> str:
         """No message from this module holds a key (SR-01)."""
-        return keys.redact(text, self.config.key) if self.config.key else text
+        name = self.key_name()
+        return keys.redact(text, name) if name else text
 
 
 # The host of the pool this process starts with, when a worker pool set one. A worker

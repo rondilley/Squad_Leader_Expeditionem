@@ -41,8 +41,28 @@ def _load(name: str) -> dict[str, Any]:
     return data
 
 
+class CardsNotInstalled(Exception):
+    """The card renderer draws with pygame-ce, the `desktop` extra, and it is not installed."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "the cards command needs pygame-ce. Install it with: pip install -e \".[desktop]\""
+        )
+
+
+def load_card_renderer():
+    """Import the renderer late, so `sl-cli --help` and `sl-cli cards --help` need no pygame."""
+    try:
+        import pygame  # noqa: F401  the boundary of an optional dependency
+    except ImportError as exc:
+        raise CardsNotInstalled() from exc
+    from slcards.card import save_card
+
+    return save_card
+
+
 def run(args: Any) -> int:
-    from slcards.card import save_card  # imported here so pygame loads only for this command
+    save_card = load_card_renderer()
 
     out = Path(args.out)
     if args.all:

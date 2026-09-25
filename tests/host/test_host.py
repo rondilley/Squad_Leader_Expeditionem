@@ -8,6 +8,7 @@ the trust boundary.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -72,8 +73,14 @@ async def test_a_client_joins_with_the_room_code_and_gets_a_frame(engine):
             frame = await client.receive_until(protocol.HOST_FRAME)
             assert frame["phase"] == "setup"
             assert frame["legal_commands"], "the client gets the legal list"
-            assert frame["frame_id"] == host.engine.hash_state(host.game.state)
+            assert frame["frame_id"] != host.engine.hash_state(host.game.state), "S1: the frame ID is not the hash"
+            assert re.fullmatch(r"[0-9a-f]{32}", frame["frame_id"]), "the frame ID is an opaque token"
+            assert frame["status"] == protocol.STATUS_YOUR_TURN
             assert frame["view"]["units"], "the view holds the counters"
+            entry = frame["legal_commands"][0]
+            assert {"id", "action", "payload", "label", "units", "hexes"} <= set(entry)
+            assert welcome["seat_token"] and welcome["you"] == 0
+            assert set(welcome["sides"]) == {"0", "1"}
     finally:
         await manager.__aexit__(None, None, None)
 
@@ -102,7 +109,7 @@ async def test_an_intent_applies_a_command_and_the_frame_moves_on(engine):
             second = await client.receive_until(protocol.HOST_FRAME)
             assert second["frame_id"] != frame["frame_id"]
             assert host.game.commands[0]["payload"] == first["payload"]
-            assert host.game.commands[0]["hash"] == second["frame_id"]
+            assert host.game.commands[0]["hash"] != second["frame_id"], "S1: the host keeps the hash"
     finally:
         await manager.__aexit__(None, None, None)
 
@@ -120,6 +127,7 @@ async def test_a_stale_frame_id_is_refused(engine):
             await client.send({"type": "intent", "frame_id": frame["frame_id"], "command_id": command})
             error = await client.receive_until(protocol.HOST_ERROR)
             assert error["rule_id"] == "DR-04"
+            assert error["code"] == protocol.CODE_STALE_FRAME
     finally:
         await manager.__aexit__(None, None, None)
 
@@ -186,9 +194,15 @@ async def test_a_message_that_is_not_valid_leaves_the_host_up(engine):
             assert error["rule_id"] == "protocol"
             await socket.send(protocol.dump({"type": "intent"}))
             error = await client.receive()
-            assert error["rule_id"] == "protocol"
+            assert error["rule_id"] == "SR-03", "a socket that did not join gets no answer but this"
+            assert error["code"] == protocol.CODE_SEAT
             welcome = await client.join(host.room.code)
             assert welcome["type"] == protocol.HOST_WELCOME, "the host still works"
+            await client.receive_until(protocol.HOST_FRAME)
+            await socket.send(protocol.dump({"type": "intent"}))
+            error = await client.receive()
+            assert error["rule_id"] == "protocol"
+            assert error["code"] == protocol.CODE_PROTOCOL
     finally:
         await manager.__aexit__(None, None, None)
 
@@ -221,8 +235,12 @@ def test_a_room_code_has_the_entropy_the_requirement_asks_for():
     assert room.take("b", "two") == (1, "player")
     assert room.take("c", "three")[0] == -1, "the room is full"
     assert room.controls("a", 0) and not room.controls("a", 1)
+    token = room.token_of(0)
     room.release("a")
-    assert room.open_seat() == 0
+    assert room.open_seat() is None, "S9: the seat stays reserved for its token"
+    assert room.take("d", "someone")[0] == -1, "a join with no token does not get it"
+    assert room.take("e", "one again", token) == (0, "player"), "the token gets the seat back"
+    assert room.controls("e", 0)
 
 
 def test_hot_seat_gives_one_client_the_two_seats():
@@ -296,7 +314,8 @@ async def test_the_idle_seat_gets_an_empty_legal_list(engine):
             await second.join(host.room.code)
             one = await first.receive_until(protocol.HOST_FRAME)
             two = await second.receive_until(protocol.HOST_FRAME)
-            assert one["frame_id"] == two["frame_id"]
+            assert one["frame_id"] != two["frame_id"], "S1: each connection has its own token"
+            assert (one["turn"], one["phase"], one["active"]) == (two["turn"], two["phase"], two["active"])
             by_player = {one["player"]: one, two["player"]: two}
             active = one["view"]["active"]
             assert by_player[active]["legal_commands"], "the seat that acts gets its list"

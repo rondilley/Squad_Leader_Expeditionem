@@ -25,6 +25,19 @@ two rewards of one event differ, which is what a national doctrine is.
 Each step also costs `step_cost` to the side that acted. A loop of commands that changes
 nothing then bleeds, and a game of a thousand decisions costs a few points against a win
 of a hundred.
+
+Two corrections of the review of 2026-09-23 (L1, L2) change how two groups of terms pay.
+
+- The position terms (cover, sneak, exposed; RV-9 table A, P7 to P9) pay one time for each
+  unit, from the hex where it ends its Movement Phase, and not for each hex of its move.
+  Before this a walk of five hexes through woods paid five times the cover of one step into
+  them, so the reward taught a long walk and not a good arrival. An advance (rule 4.7) is
+  one hex, so it pays at the advance, which is also the end of that unit's advance.
+- The survive term pays for a rally (rule 14.2) and not for a passed morale check (rule
+  12.1). A shot that did not break its target paid the firer 0.1 for the shot and cost it
+  0.25 for each unit of the target that passed its check, so each suppressive shot was a
+  net loss and the reward taught the learner not to fire at a stack it could not break.
+  A rally is a decision of the side that pays; a passed check is a die of the defender.
 """
 
 from __future__ import annotations
@@ -36,7 +49,7 @@ from typing import Any, Mapping
 from slcore import geometry
 from slcore.engine import Engine
 from slcore.events import Event
-from slcore.game import State
+from slcore.game import PHASE_MOVEMENT, State
 from slcore.los_eval import evaluate as evaluate_los
 from slcore.rules import victory
 from slcore.rules.r13_rout import is_cover
@@ -76,11 +89,11 @@ class RewardWeights:
     kill_vehicle: float = 4.0  # an enemy vehicle becomes a wreck (rule 40.1)
     trap: float = 1.0  # P11: a broken enemy dies with no rout route (rule 13.47), added to the kill
     malfunction: float = 0.25  # an enemy weapon or gun malfunctions (rule 18.1)
-    cover: float = 0.2  # P7: an own unit ends a move or an advance in cover
-    sneak: float = 0.2  # P9: an own unit ends a move or an advance where no unbroken enemy sees it
-    exposed: float = 0.3  # P8: an own unit ends a move or an advance in the open, in an enemy's sight
+    cover: float = 0.2  # P7: an own unit ends its Movement Phase or its advance in cover
+    sneak: float = 0.2  # P9: an own unit ends its Movement Phase or its advance where no unbroken enemy sees it
+    exposed: float = 0.3  # P8: an own unit ends its Movement Phase or its advance in the open, in an enemy's sight
     hide: float = 0.5  # P10, P16: an own stack gains a concealment counter (rule 25.3)
-    survive: float = 0.25  # an own unit passes a morale check, or rallies (rules 12.1, 14.2)
+    survive: float = 0.25  # an own broken unit rallies (rule 14.2); a passed morale check pays nothing
     objective: float = 5.0  # P17: one unit of progress on a positional victory condition, each player turn
     step_cost: float = 0.01  # each command, charged to the side that gave it
     casualty_tolerance: float = 1.0  # table B: divides the cost of an own loss; above one is tolerant
@@ -235,6 +248,8 @@ def term_counts(engine: Engine, before: State, after: State, events: list[Event]
     """The signed count of each term for the two players, from the events of one command.
 
     A count is zero-sum: the side that gained has plus one and the other side minus one.
+    A `move` or a `stack_move` event pays no position term. The command that ends the
+    Movement Phase pays them, one time for each unit that moved (L1).
     """
     counts: tuple[Counter, Counter] = (Counter(), Counter())
 
@@ -280,7 +295,9 @@ def term_counts(engine: Engine, before: State, after: State, events: list[Event]
                 unit = _unit_of(before, {"unit": target})
                 if unit is not None and not unit.eliminated:
                     credit(1 - unit.player, "kill_leader" if unit.kind == KIND_LEADER else "kill")
-        elif kind in ("morale_pass", "rallied"):
+        elif kind == "rallied":
+            # L2: a passed morale check (rule 12.1) pays nothing, so a shot that does not
+            # break its target is not a net cost to the firer.
             unit = _unit_of(before, data)
             if unit is not None:
                 credit(unit.player, "survive")
@@ -296,20 +313,34 @@ def term_counts(engine: Engine, before: State, after: State, events: list[Event]
             unit = _unit_of(before, data)
             if unit is not None:
                 credit(1 - unit.player, "kill_vehicle")
-        elif kind in ("move", "stack_move", "advance"):
-            unit = _unit_of(before, data, "leader" if kind == "stack_move" else "unit")
+        elif kind == "advance":
+            # An advance is one hex (rule 4.7), so its hex is the end of the unit's advance.
+            unit = _unit_of(before, data)
             if unit is None or "to" not in data:
                 continue
-            dst = geometry.parse_hex_id(str(data["to"]))
-            count = len(data.get("units", [])) if kind == "stack_move" else 1
-            seen = _seen_by_enemy(engine, after, unit.player, dst)
-            if is_cover(engine.board, dst):
-                credit(unit.player, "cover", count)
-            elif seen:
-                credit(unit.player, "exposed", -count)
-            if not seen:
-                credit(unit.player, "sneak", count)
+            _credit_position(engine, after, unit.player, geometry.parse_hex_id(str(data["to"])), 1, credit)
+    if before.phase == PHASE_MOVEMENT and any(e.kind == "phase" for e in events):
+        # L1: the Movement Phase ended with this command. Each unit of the phasing side
+        # that moved in it (its track is not empty) pays one time, from the hex it ended on.
+        for unit in before.units:
+            if unit.player != before.phasing or not unit.track or not unit.is_infantry:
+                continue
+            final = after.units[unit.id]
+            if final.eliminated or final.hex is None or final.carrier is not None:
+                continue
+            _credit_position(engine, after, unit.player, final.hex, 1, credit)
     return counts
+
+
+def _credit_position(engine: Engine, after: State, player: int, hex_ref, count: float, credit) -> None:
+    """The cover, exposed, and sneak terms of one unit at the hex where it ended its move."""
+    seen = _seen_by_enemy(engine, after, player, hex_ref)
+    if is_cover(engine.board, hex_ref):
+        credit(player, "cover", count)
+    elif seen:
+        credit(player, "exposed", -count)
+    if not seen:
+        credit(player, "sneak", count)
 
 
 def event_rewards(engine: Engine, before: State, after: State, events: list[Event], weights: RewardWeights | tuple[RewardWeights, RewardWeights]) -> tuple[float, float]:

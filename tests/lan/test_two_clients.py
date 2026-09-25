@@ -124,7 +124,11 @@ async def both_at_the_newest(first: Client, second: Client) -> dict:
     """Read the two streams to the same state and give that frame."""
     frame_a = await first.newest_frame()
     frame_b = await second.newest_frame()
-    assert frame_a["frame_id"] == frame_b["frame_id"], "the two seats see the same state"
+    # S1: each connection has its own frame token, so the check is on what the frame says.
+    assert frame_a["frame_id"] != frame_b["frame_id"], "the host gives each connection its own token"
+    same = ("turn", "phase", "sub_step", "active")
+    assert [frame_a[k] for k in same] == [frame_b[k] for k in same], "the two seats see the same state"
+    assert frame_a["view"]["turn"] == frame_b["view"]["turn"]
     return frame_a
 
 
@@ -151,7 +155,10 @@ async def test_two_clients_take_one_seat_each_and_play_a_turn(engine):
                 commands += 1
             assert commands > 0, "the clients placed their counters"
             assert host.game.state.phase != "setup", "the two sides completed set up"
-            assert len(host.game.commands) == commands, "the host applied each intent one time"
+            sent = [c for c in host.game.commands if c["source"] == "human"]
+            assert len(sent) == commands, "the host applied each intent one time"
+            forced = [c for c in host.game.commands if c["source"] == "forced"]
+            assert len(sent) + len(forced) == len(host.game.commands), "the rest are forced commands"
             assert host.game.state.turn == 1, "the game reached the first player turn"
     finally:
         await manager.__aexit__(None, None, None)

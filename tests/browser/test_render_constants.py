@@ -21,7 +21,11 @@ from slwindow import theme
 
 RENDER = Path("client") / "src" / "board" / "render.ts"
 
-pytestmark = pytest.mark.skipif(not RENDER.is_file(), reason="the client sources are not here")
+
+
+def test_the_client_sources_are_here():
+    """A missing client is a defect, not a skip: each parity test below reads it."""
+    assert RENDER.is_file(), f"{RENDER} is not here, so the parity tests cannot compare the client"
 
 
 def pairs_of(name: str) -> list[tuple[int, int]]:
@@ -242,3 +246,14 @@ def test_the_browser_holds_the_counter_stock_colours_of_the_theme():
     assert const("OPEN_TOP") == rgb(theme.OPEN_TOP)
     assert const("TURRET_BAND") == rgb(theme.TURRET_BAND)
     assert const("WRECK") == rgb(theme.WRECK)
+
+
+def test_the_browser_and_the_window_draw_a_road_of_one_width():
+    """A road is the same share of the hex in each consumer (slwindow.render.ROAD_WIDTH_SHARE)."""
+    window = Path("src") / "slwindow" / "render.py"
+    # The window module imports pygame, so its source is read as text, as the client is.
+    found = re.search(r"^ROAD_WIDTH_SHARE = ([0-9.]+)$", window.read_text(encoding="utf-8"), re.M)
+    assert found, f"ROAD_WIDTH_SHARE is not in {window}"
+    match = re.search(r"const ROAD_WIDTH_SHARE = ([0-9.]+);", RENDER.read_text(encoding="utf-8"))
+    assert match, f"ROAD_WIDTH_SHARE is not in {RENDER}"
+    assert float(match.group(1)) == float(found.group(1))

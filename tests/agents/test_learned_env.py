@@ -135,14 +135,20 @@ def test_the_result_is_the_victory_condition_of_the_game(engine):
 
 def test_a_game_reaches_its_end_and_gives_a_reward(engine):
     """The environment plays a whole game with random legal commands."""
-    env = make_env(engine, seed=13)
-    rng = np.random.default_rng(0)
-    for _ in range(6000):
-        agent = env.agent_selection
-        if env.terminations[agent] or env.truncations[agent]:
+    # A random game can end in a repeat of a position (L5), which is a truncation. The test
+    # reads the first seed from 13 whose game ends; the board of generator version 8 and the
+    # core rules of 2026-09-23 moved seed 13 to a repeat.
+    for seed in range(13, 60):
+        env = make_env(engine, seed=seed)
+        rng = np.random.default_rng(0)
+        for _ in range(6000):
+            agent = env.agent_selection
+            if env.terminations[agent] or env.truncations[agent]:
+                break
+            triples = sorted(env.groups)
+            env.step(triples[int(rng.integers(len(triples)))])
+        if env.state_.game_over:
             break
-        triples = sorted(env.groups)
-        env.step(triples[int(rng.integers(len(triples)))])
     assert env.state_.game_over, "the game reached its end"
     results = [env.results[a] for a in env.possible_agents]
     assert sum(results) == 0.0, "one side wins what the other loses"

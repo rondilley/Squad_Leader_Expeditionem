@@ -1,7 +1,10 @@
-"""The agent interface and the random agent.
+"""The agent interface, the one call that gives an agent its decision, and the random agent.
 
-In v0.1 the view is the full state, because scenario 1 has no concealment.
-The per-player view (AR-09) arrives in v0.3, and the interface does not change.
+An agent never reads the authoritative state (S3 of the 2026-09-23 review). Each caller
+asks for a decision through `decide`, which gives the agent the state as the acting player
+may know it (`slcore.player_state.for_player`): no enemy unit that the view hides, and no
+true generator state. The frame is the true legal list of the acting seat, because the
+legal list does not tell a dummy from a real stack (PR-31).
 """
 
 from __future__ import annotations
@@ -10,6 +13,7 @@ from typing import Protocol
 
 from slcore.frame import DecisionFrame
 from slcore.game import State
+from slcore.player_state import for_player
 from slcore.rng import RngState, choice_index, seed_state
 
 
@@ -19,6 +23,11 @@ class Agent(Protocol):
 
     def select(self, state: State, frame: DecisionFrame) -> str:
         """Give the ID of one command from the frame."""
+
+
+def decide(agent: Agent, state: State, frame: DecisionFrame) -> str:
+    """The command ID that this agent selects, from the state its player may know."""
+    return agent.select(for_player(state, frame.player), frame)
 
 
 class RandomAgent:

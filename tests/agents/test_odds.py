@@ -268,3 +268,147 @@ def test_a_berserk_squad_does_not_share_a_loss_cache_entry():
     view.loss(squad, dst, False)
     view.loss(squad.with_(berserk=True), dst, False)
     assert len(view._loss) == 2
+
+
+# ------------------------------------------------------------------ the engineer tools
+
+
+def _tool_case(phase: str, target_hex: str, moved: bool):
+    """A German engineer with a flamethrower and a charge next to two Russian squads.
+
+    The stack has no leader: the odds do not hold the second check of rule 12.22 that a
+    broken leader gives the other units of its hex.
+    """
+    from conformance.harness import build_case
+
+    return build_case({
+        "phase": phase,
+        "sub_step": "fire_window",
+        "phasing": "german" if phase != PHASE_DEFENSIVE_FIRE else "russian",
+        "active": "german",
+        "units": [
+            {"ref": "e", "side": "german", "type": "8-3-8", "hex": "D2" if target_hex == "C2" else "D5"},
+            {"ref": "ft", "side": "german", "type": "FT", "carrier": "e"},
+            {"ref": "dc", "side": "german", "type": "DC", "carrier": "e"},
+            {"ref": "a", "side": "russian", "type": "4-4-7", "hex": target_hex, "moved": moved},
+            {"ref": "b", "side": "russian", "type": "4-4-7", "hex": target_hex, "moved": moved},
+        ],
+    })
+
+
+def _tool_frequencies(built, attack, samples: int) -> dict[int, int]:
+    """Run the core handler `attack(state)` under `samples` random number states."""
+    state = built.state
+    target_units = [built.unit(r) for r in ("a", "b")]
+    broke = {u.id: 0 for u in target_units}
+    for i in range(samples):
+        after, _ = attack(state.with_(rng=rng.seed_state(1_000_003 * (i + 1))))
+        for u in target_units:
+            now = after.units[u.id]
+            if now.eliminated or now.broken:
+                broke[u.id] += 1
+    return broke
+
+
+def test_the_flamethrower_odds_agree_with_the_core():
+    """Rules 22.1 and 22.2, with a mover in the open in the Defensive Fire Phase too."""
+    from slcore.commands import Command
+
+    for phase, target_hex, moved in ((PHASE_PREP_FIRE, "E5", False), (PHASE_DEFENSIVE_FIRE, "C2", True)):
+        built = _tool_case(phase, target_hex, moved)
+        engine = built.engine
+        e, ft = built.unit("e"), built.unit("ft")
+        target = built.unit("a").hex
+        command = Command("ft_fire", units=(e.id,), weapon=ft.id, hex=target)
+        result = odds.flame(engine, built.state, e.player, ft, target)
+        broke = _tool_frequencies(built, lambda s: r10_resolution._on_flamethrower(engine, s, command), SAMPLES)
+        assert result.halves == 40 and result.drm == 0
+        for uid, count in broke.items():
+            assert _close(count, result.breaks.get(uid, 0), SAMPLES), (phase, uid, count, result.p_break(uid))
+
+
+def test_the_charge_odds_agree_with_the_core():
+    """Rules 23.1, 23.5, and 23.8: 30 factors, the cover of the hex, and a dud on 12."""
+    from slcore.commands import Command
+    from slcore.game import PHASE_ADVANCING_FIRE, DemoCharge
+    from slcore.rules import r11_terrain, r23_demolition
+
+    built = _tool_case(PHASE_ADVANCING_FIRE, "E5", False)
+    engine = built.engine
+    e = built.unit("e")
+    target = built.unit("a").hex
+    state = built.state
+    weapon = built.unit("dc")
+    charge = DemoCharge(state.next_marker, e.player, target, e.id, e.hex, weapon.id, armed=True)
+    state = state.with_(demo=(charge,), next_marker=state.next_marker + 1)
+    state = state.with_units({weapon.id: weapon.with_(carrier=None, hex=None)})
+    built.state = state
+    command = Command("explode_demo", extra=(("charge", charge.id),))
+    result = odds.charge(engine, state, e.player, weapon.type_key, target)
+    assert result.halves == 60
+    assert result.drm == r11_terrain.target_hex_modifier(engine.board, target) > 0
+    broke = _tool_frequencies(built, lambda s: r23_demolition._on_explode_demo(engine, s, command), SAMPLES)
+    for uid, count in broke.items():
+        assert _close(count, result.breaks.get(uid, 0), SAMPLES), (uid, count, result.p_break(uid))
+    # The same charge against the same stack in the open does more.
+    open_hex = next(h for h in engine.board.order if r11_terrain.target_hex_modifier(engine.board, h) == 0)
+    moved_state = state.with_units({built.unit(r).id: built.unit(r).with_(hex=open_hex) for r in ("a", "b")})
+    assert odds.charge(engine, moved_state, e.player, weapon.type_key, open_hex).value > result.value
+
+
+def test_the_odds_hold_the_second_check_of_a_leader_who_breaks():
+    """Rule 12.22: a leader who fails a check gives the other units of the hex one more.
+
+    One stack has a leader, and one has two leaders and a squad that is already broken,
+    which dies when it fails the second check. A charge is the fire, so the modifier is
+    the building alone.
+    """
+    from slcore.commands import Command
+    from slcore.game import PHASE_ADVANCING_FIRE, DemoCharge
+    from conformance.harness import build_case
+    from slcore.rules import r23_demolition
+
+    engineer = [
+        {"ref": "e", "side": "german", "type": "8-3-8", "hex": "D5"},
+        {"ref": "dc", "side": "german", "type": "DC", "carrier": "e"},
+    ]
+    stacks = [
+        [
+            {"ref": "a", "side": "russian", "type": "4-4-7", "hex": "E5"},
+            {"ref": "b", "side": "russian", "type": "4-4-7", "hex": "E5"},
+            {"ref": "l", "side": "russian", "type": "8-0", "hex": "E5"},
+        ],
+        [
+            {"ref": "a", "side": "russian", "type": "4-4-7", "hex": "E5"},
+            {"ref": "l", "side": "russian", "type": "9-1", "hex": "E5"},
+            {"ref": "m", "side": "russian", "type": "8-0", "hex": "E5"},
+            {"ref": "b", "side": "russian", "type": "4-4-7", "hex": "E5", "broken": True},
+        ],
+    ]
+    for stack in stacks:
+        built = build_case({
+            "phase": PHASE_ADVANCING_FIRE,
+            "sub_step": "fire_window",
+            "phasing": "german",
+            "active": "german",
+            "units": engineer + stack,
+        })
+        engine = built.engine
+        e, weapon = built.unit("e"), built.unit("dc")
+        target = built.unit("a").hex
+        state = built.state
+        charge = DemoCharge(state.next_marker, e.player, target, e.id, e.hex, weapon.id, armed=True)
+        state = state.with_(demo=(charge,), next_marker=state.next_marker + 1)
+        state = state.with_units({weapon.id: weapon.with_(carrier=None, hex=None)})
+        command = Command("explode_demo", extra=(("charge", charge.id),))
+        result = odds.charge(engine, state, e.player, weapon.type_key, target)
+        before = {u.id: u for u in state.infantry_in(target) if u.player != e.player}
+        broke = {uid: 0 for uid in before}
+        for i in range(SAMPLES):
+            after, _ = r23_demolition._on_explode_demo(engine, state.with_(rng=rng.seed_state(1_000_003 * (i + 1))), command)
+            for uid, was in before.items():
+                now = after.units[uid]
+                if now.eliminated or (now.broken and not was.broken):
+                    broke[uid] += 1
+        for uid, count in broke.items():
+            assert _close(count, result.breaks.get(uid, 0), SAMPLES), (uid, count, result.p_break(uid))

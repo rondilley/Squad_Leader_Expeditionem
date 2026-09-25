@@ -17,6 +17,10 @@ class UnitEntry:
     name: str = ""
 
 
+# The name of the memo that `SetupArea.resolve` keeps. It is not a field of the record.
+_RESOLVED_ATTRIBUTE = "_resolved_memo"
+
+
 @dataclass(frozen=True)
 class SetupArea:
     """Where a group sets up: a hex list for reference mode, or a zone for generated mode (FR-21)."""
@@ -27,6 +31,20 @@ class SetupArea:
     params: tuple[tuple[str, Any], ...] = ()
 
     def resolve(self, board: Board) -> tuple[HexRef, ...]:
+        """The hexes of the area on this board.
+
+        The answer depends on the board and the area only, and the legal list of set up
+        asks for it at each placement, so it is kept on the area for the last board it
+        was asked for (NFR-01). The memo is not a field, so it is not in the equality.
+        """
+        found = self.__dict__.get(_RESOLVED_ATTRIBUTE)
+        if found is not None and found[0] is board:
+            return found[1]
+        hexes = self._resolve(board)
+        self.__dict__[_RESOLVED_ATTRIBUTE] = (board, hexes)
+        return hexes
+
+    def _resolve(self, board: Board) -> tuple[HexRef, ...]:
         if self.hexes:
             return tuple(h for h in self.hexes if h in board)
         if self.building is not None:

@@ -45,7 +45,9 @@ def game():
             break
         chosen = next((c for c in frame.commands if c.command.action == "place"), None)
         if chosen is None:
-            chosen = next(c for c in frame.commands if c.command.action == "end_setup")
+            # Scenario 4 has concealment counters (rule 25.3), so set up can offer
+            # place_concealment before end_setup.
+            chosen = next((c for c in frame.commands if c.command.action == "end_setup"), frame.commands[0])
         state, _ = engine.apply(state, chosen.command, frame)
     board = core_view.board_document(engine.board)
     document = core_view.build(state, engine.types, 0, spectator=True)

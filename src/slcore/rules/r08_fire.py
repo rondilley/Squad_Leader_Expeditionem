@@ -10,9 +10,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
-from slcore import geometry
+from slcore import actions, geometry
+from slcore.commands import Command
+from slcore.events import Event
 from slcore.game import FireGroup, State
 from slcore.geometry import HexRef
+from slcore.rules import r15_leadership
 from slcore.units import KIND_LEADER, KIND_SW, Unit, UnitType
 
 RULE_8_2 = "8.2"
@@ -56,10 +59,15 @@ def firing_units(state: State, player: int) -> list[Unit]:
 
 
 def can_fire_inherent(state: State, types: Mapping[str, UnitType], unit: Unit, phase_moved_rule: str) -> bool:
-    """Rule 8.2: the inherent firepower fires one time in a player turn."""
+    """Rule 8.2: the inherent firepower fires one time in a player turn.
+
+    Rule 18.42: a berserk unit does not fire in the Prep Fire Phase.
+    """
     if unit.fired or unit.broken or unit.hex is None or state.in_melee(unit.hex):
         return False
     if types[unit.type_key].firepower <= 0:
+        return False
+    if phase_moved_rule == "prep" and unit.berserk:
         return False
     if phase_moved_rule == "prep" and (unit.prep_fired or unit.moved):
         return False
@@ -76,7 +84,7 @@ def can_fire_weapon(state: State, types: Mapping[str, UnitType], unit: Unit, wea
         return False
     if unit.broken or unit.hex is None or state.in_melee(unit.hex):
         return False
-    if phase_moved_rule == "prep" and (unit.prep_fired or unit.moved):
+    if phase_moved_rule == "prep" and (unit.prep_fired or unit.moved or unit.berserk):
         return False
     if phase_moved_rule == "advancing" and unit.prep_fired:
         return False
@@ -161,20 +169,14 @@ def group_firepower(state: State, types: Mapping[str, UnitType], group: FireGrou
     """Total half factors of the group and the record for each member.
 
     Rules 17.1 and 17.2: a squad fires one machine gun, or two whose combined firepower
-    is 4 or less, at no cost. Above that the squad forfeits its inherent firepower.
+    is 4 or less, at no cost. Two machine guns above that cost the squad its inherent
+    firepower for the player turn, so the count reads the machine guns the squad fired
+    in an earlier group of the turn as well (PR-41).
     """
     members: list[MemberFire] = []
     forfeit: set[int] = set()
     for uid in {u for u, _ in group.members}:
-        unit = state.units[uid]
-        if unit.kind == KIND_LEADER:
-            continue
-        mg_fp = sum(
-            types[state.units[wid].type_key].firepower
-            for u2, wid in group.members
-            if u2 == uid and wid is not None and types[state.units[wid].type_key].weapon_class == "mg"
-        )
-        if mg_fp > MG_FREE_FIREPOWER:
+        if mg_forfeit(state, types, state.units[uid], group):
             forfeit.add(uid)
     for uid, wid in group.members:
         unit = state.units[uid]
@@ -189,5 +191,75 @@ def group_firepower(state: State, types: Mapping[str, UnitType], group: FireGrou
     return total, members
 
 
+def turn_machine_guns(state: State, types: Mapping[str, UnitType], unit: Unit, group: FireGroup | None, extra: Unit | None = None) -> list[Unit]:
+    """Rule 17.2: the machine guns this unit fires in this player turn.
+
+    They are the machine guns it carries that already fired this turn, the ones it holds
+    in the open group, and `extra`, a machine gun it is about to add.
+    """
+    found: dict[int, Unit] = {}
+    for weapon in state.carried_by(unit.id):
+        if weapon.fired and types[weapon.type_key].weapon_class == "mg":
+            found[weapon.id] = weapon
+    if group is not None:
+        for uid, wid in group.members:
+            if uid == unit.id and wid is not None and types[state.units[wid].type_key].weapon_class == "mg":
+                found[wid] = state.units[wid]
+    if extra is not None and types[extra.type_key].weapon_class == "mg":
+        found[extra.id] = extra
+    return [found[k] for k in sorted(found)]
+
+
+def mg_forfeit(state: State, types: Mapping[str, UnitType], unit: Unit, group: FireGroup | None, extra: Unit | None = None) -> bool:
+    """Rules 17.1 and 17.2 (PR-41): the squad forfeits its inherent firepower this turn.
+
+    One machine gun never costs it. Two cost it when their firepower is more than 4.
+    A leader has no inherent firepower to forfeit.
+    """
+    if unit.kind == KIND_LEADER:
+        return False
+    guns = turn_machine_guns(state, types, unit, group, extra)
+    if len(guns) < 2:
+        return False
+    return sum(types[w.type_key].firepower for w in guns) > MG_FREE_FIREPOWER
+
+
+def mg_add_allowed(state: State, types: Mapping[str, UnitType], unit: Unit, weapon: Unit, group: FireGroup | None) -> bool:
+    """PR-41: a squad that used its inherent firepower cannot add the machine gun that forfeits it."""
+    if not unit.fired:
+        return True
+    return not mg_forfeit(state, types, unit, group, weapon)
+
+
 def moving_members(state: State, group: FireGroup) -> bool:
     return any(state.units[uid].moved for uid, _ in group.members)
+
+
+# ------------------------------------------------------------------ the command handlers (M3)
+# A command that only builds the group does not fire, so it is no act of rule 25.4.
+
+
+def _on_group_add(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    target = command.hex
+    if target is None:
+        raise ValueError("a fire group command needs a target hex")
+    group = state.fire_group or FireGroup(target)
+    member = (command.units[0], command.weapon)
+    group = FireGroup(group.target, group.members + (member,), group.leader)
+    rule = RULE_8_6 if len(group.members) > 1 else RULE_8_2
+    return state.with_(fire_group=group), [Event(rule, "group_add", {"unit": member[0], "weapon": member[1], "target": geometry.hex_id(*target)})]
+
+
+actions.action("group_add")(_on_group_add)
+actions.action("group_add_weapon")(_on_group_add)
+
+
+@actions.action("group_leader")
+def _on_group_leader(engine, state: State, command: Command) -> tuple[State, list[Event]]:
+    group = state.fire_group
+    if group is None:
+        raise ValueError("no fire group is open")
+    leader = command.units[0]
+    return state.with_(fire_group=FireGroup(group.target, group.members, leader)), [
+        Event(r15_leadership.RULE_15_2, "group_leader", {"leader": leader})
+    ]

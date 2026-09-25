@@ -1,4 +1,12 @@
-"""The tournament command (FR-58): N games between two agents with the sides balanced."""
+"""The tournament command (FR-58): N games between two agents with the sides balanced.
+
+With the sides balanced, the two games of each side order share one seed (a paired
+design, L7), so the same dice decide the game with each agent on each side. The seeds are
+in the tournament range of `slruns.seeds`, so a tournament does not replay the seeds of a
+training run, a gauntlet, or an evolution. A rate of 20 games has a 95 percent interval
+about 40 points wide; a baseline needs 200 games or more, and each rate prints with its
+Wilson interval.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +16,8 @@ from typing import Any
 
 from slcli.play import build_engine_with_record, make_agent, play_game, trace_writer
 from slruns import artifact
-from slruns.elo import EloTable, Record
+from slruns.elo import EloTable, Record, settled_ratings_by_side
+from slruns.seeds import MINIMUM_BASELINE_GAMES, family_seed, rate_text, sample_warning
 from slruns.index import connect, upsert
 
 
@@ -40,6 +49,8 @@ def run_tournament(
             "agent_b": agent_b,
             "games": games,
             "first_seed": seed,
+            "first_game_seed": family_seed("tournament", seed),
+            "paired_seeds": balance,
             "balance_sides": balance,
         },
     )
@@ -51,15 +62,17 @@ def run_tournament(
     # each game, so a run of the prompted family carries its own measurement (OR-02).
     harness: list[dict[str, Any]] = []
     started = time.perf_counter()
+    sided: list[tuple[str, str, float, str]] = []
     for i in range(games):
-        game_seed = seed + i
+        game_seed = family_seed("tournament", seed, i // 2 if balance else i)
         swap = balance and i % 2 == 1
         kind_for_player = (agent_b, agent_a) if swap else (agent_a, agent_b)
         agents = (factory(kind_for_player[0], engine, game_seed, 0), factory(kind_for_player[1], engine, game_seed, 1))
         writer = trace_writer(engine, game_seed, agents) if traces_root else None
         record = play_game(engine, game_seed, agents, traces=writer)
         if writer is not None:
-            writer.write(traces_root, f"traces_{game_seed}.json")
+            # Two games of a pair share a seed, so the file name holds the game index too.
+            writer.write(traces_root, f"traces_{game_seed}_{i}.json")
         art.seeds.append(game_seed)
         art.commands.extend({"game": i, **c} for c in record.commands)
         art.events.extend({"game": i, **e} for e in record.events)
@@ -76,6 +89,8 @@ def run_tournament(
             }
         )
         _score(records, elo, kind_for_player, sides, winner_side)
+        first_score = 1.0 if winner_side == sides[0] else (0.0 if winner_side == sides[1] else 0.5)
+        sided.append((kind_for_player[0], kind_for_player[1], first_score, scenario))
         for player, agent in enumerate(agents):
             counters = getattr(agent, "counters", None)
             if counters is not None and hasattr(counters, "to_dict"):
@@ -85,6 +100,9 @@ def run_tournament(
         "seconds": round(time.perf_counter() - started, 1),
         "agents": {name: rec.to_dict() for name, rec in records.items()},
         "elo": elo.to_dict(),
+        # The Elo points the first side gets from its side alone, from the fit with the
+        # side term (L7). It needs two distinct agents.
+        "side_advantage": settled_ratings_by_side(sided).to_dict() if agent_a != agent_b else {},
         "results": rows,
         "sides": list(sides),
     }
@@ -174,11 +192,15 @@ def run(args: Any) -> int:
         conn.close()
     print(f"run {art.id} in {directory}")
     for name, rec in art.stats["agents"].items():
-        low = rec["confidence_low"] * 100
-        high = rec["confidence_high"] * 100
-        print(f"{name}: {rec['wins']} wins, {rec['losses']} losses, {rec['draws']} draws, win rate {rec['win_rate'] * 100:.1f} percent, 95 percent interval {low:.1f} to {high:.1f}")
+        score = rec["wins"] + 0.5 * rec["draws"]
+        print(f"{name}: {rec['wins']} wins, {rec['losses']} losses, {rec['draws']} draws, {rate_text(score, rec['games'])}")
     for name, entry in art.stats["elo"].items():
         print(f"elo {name}: {entry['rating']} after {entry['games']} games")
+    for group, value in art.stats.get("side_advantage", {}).items():
+        print(f"side term of {group}: {value:+.1f} Elo points for {art.stats['sides'][0]}")
+    warning = sample_warning(art.stats["games"])
+    if warning:
+        print(warning)
     return 0
 
 
@@ -188,8 +210,13 @@ def add_parser(subparsers: Any) -> None:
     p.add_argument("--board", default=None)
     p.add_argument("--agent-a", default="v1", help="an agent name: random, v0, v1, v2, v3, model:<providers>, or learned:<snapshot>")
     p.add_argument("--agent-b", default="v0", help="an agent name: random, v0, v1, v2, v3, model:<providers>, or learned:<snapshot>")
-    p.add_argument("--games", type=int, default=10)
-    p.add_argument("--seed", type=int, default=1)
+    p.add_argument(
+        "--games",
+        type=int,
+        default=10,
+        help=f"games of the pair, two for each seed when the sides are balanced; a baseline needs {MINIMUM_BASELINE_GAMES} or more",
+    )
+    p.add_argument("--seed", type=int, default=1, help="the first seed, inside the tournament range of seeds (slruns.seeds)")
     p.add_argument("--no-balance", action="store_true", help="keep each agent on one side")
     p.add_argument("--runs", default="runs", help="the run directory")
     p.add_argument("--traces", default=None, help="directory for the trace records of each game (FR-60)")
