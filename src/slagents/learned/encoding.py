@@ -22,6 +22,8 @@ payload and not a position (TC-38).
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from typing import Mapping, Sequence
 
@@ -296,3 +298,17 @@ def scalar_vector(state: State, frame: DecisionFrame, player: int) -> np.ndarray
     out[base + 6] = len(frame.commands) / 200.0
     out[base + 7] = 1.0 if state.game_over else 0.0
     return out
+
+
+def position_key(state: State) -> str:
+    """The state without its command count, so a cycle of commands shows as a repeat.
+
+    The core's hash counts the commands (`seq`), so no two states of a game share it. A
+    pickup and a drop give the position before them with a count two higher. This key is
+    that position. The environment reads it to stop a cycle, and the learned agent reads it
+    to keep out of one.
+    """
+    record = state.to_dict()
+    record.pop("seq", None)
+    text = json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(text.encode("ascii")).hexdigest()

@@ -24,12 +24,12 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 from slboards import edges, polygons
 from slboards import tiles as tile_rules
 from slboards.wfc import FillFailed, collapse
-from slcore import geometry
+from slcore import geometry, scenario
 from slcore.geometry import HexRef
 from slcore.rng import RngState, choice_index, seed_state
 from slcore.state import Board, Building, Hex, TerrainType
@@ -43,6 +43,8 @@ BOARD_TYPES = (TYPE_CITY, TYPE_HILLS, TYPE_VILLAGE, TYPE_RURAL)
 
 MIN_BUILDING = 2
 MAX_BUILDING = 6
+# How many start hexes the zone pass tries for one zone before it gives the seed up.
+ZONE_ATTEMPTS = 40
 MAX_FILL_TRIES = 12
 SEWER_RANGE = 3
 MAX_LEVEL = 3
@@ -101,7 +103,14 @@ class ZoneConstraint:
 
     A scenario that plays on part of a board gives the column range too. A building that
     crosses the edge of that range does not count, because the column subset cuts it and
-    its hex count changes.
+    its hex count changes. A row range is the same test on the other axis, for a card
+    whose front runs along the rows.
+
+    `near` puts the buildings of this zone next to the buildings of another band: it holds
+    the band keys and a `max_distance`, and a building counts only when a stone building
+    of that band is within the distance. The predicates are `slcore.scenario.in_band` and
+    `near_band`, the ones the set up areas resolve with, so the board the generator passes
+    is a board the scenario sets up on.
     """
 
     count: int
@@ -109,40 +118,67 @@ class ZoneConstraint:
     max_hexes: int = MAX_BUILDING
     min_col: int | None = None
     max_col: int | None = None
+    min_row: int | None = None
+    max_row: int | None = None
+    near: tuple[tuple[str, int], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out: dict[str, Any] = {
             "count": self.count,
             "min_hexes": self.min_hexes,
             "max_hexes": self.max_hexes,
             "min_col": self.min_col,
             "max_col": self.max_col,
         }
+        if self.min_row is not None:
+            out["min_row"] = self.min_row
+        if self.max_row is not None:
+            out["max_row"] = self.max_row
+        if self.near:
+            out["near"] = dict(self.near)
+        return out
 
     @staticmethod
     def from_dict(d: Mapping[str, Any]) -> "ZoneConstraint":
+        near = d.get("near") or {}
         return ZoneConstraint(
             int(d["count"]),
             int(d.get("min_hexes", 2)),
             int(d.get("max_hexes", MAX_BUILDING)),
             None if d.get("min_col") is None else int(d["min_col"]),
             None if d.get("max_col") is None else int(d["max_col"]),
+            None if d.get("min_row") is None else int(d["min_row"]),
+            None if d.get("max_row") is None else int(d["max_row"]),
+            tuple(sorted((str(k), int(v)) for k, v in dict(near).items())),
         )
 
-    def holds(self, shape: list[HexRef]) -> bool:
-        """True when this building counts against the constraint."""
+    def band(self) -> dict[str, int]:
+        """The band keys, in the form the scenario predicates read."""
+        out: dict[str, int] = {}
+        for key in ("min_col", "max_col", "min_row", "max_row"):
+            value = getattr(self, key)
+            if value is not None:
+                out[key] = value
+        return out
+
+    def holds(self, shape: list[HexRef], shapes: Sequence[Sequence[HexRef]] = ()) -> bool:
+        """True when this building counts against the constraint.
+
+        `shapes` is each stone building of the board, for the `near` test.
+        """
         if not self.min_hexes <= len(shape) <= self.max_hexes:
             return False
-        if self.min_col is not None and any(ref[0] < self.min_col for ref in shape):
+        if not scenario.in_band(shape, self.band()):
             return False
-        if self.max_col is not None and any(ref[0] > self.max_col for ref in shape):
+        if self.near and not scenario.near_band(shape, shapes, dict(self.near)):
             return False
         return True
 
     def where(self) -> str:
-        if self.min_col is None and self.max_col is None:
-            return "on the board"
-        return f"in columns {self.min_col} to {self.max_col}"
+        params: dict[str, Any] = self.band()
+        if self.near:
+            params["near"] = dict(self.near)
+        return scenario.band_text(params)
 
 
 @dataclass(frozen=True)
@@ -680,6 +716,18 @@ def place_buildings(
             rng, index = choice_index(rng, len(found))
             centre = found[index]
     shapes: list[list[HexRef]] = []
+    seeded: set[HexRef] = set()
+    if any(z.near for z in params.zones):
+        # The zones go on the board first, and the free pass fills around them. A near
+        # zone needs the buildings of the other band before its own, and a board the free
+        # pass has filled has no room for a building of the size the zone asks for. A
+        # record with no near zone does not take this path, so it builds the same board
+        # as before.
+        rng = fill_zones(rng, kinds, roads, params, structure, blocks, shapes, fixed)
+        for shape in shapes:
+            seeded.update(shape)
+            for h in shape:
+                seeded.update(geometry.neighbors(*h))
     for lo, hi in blocks:
         keep_out = fixed or set()
         free = [
@@ -689,7 +737,7 @@ def place_buildings(
             if (c, r) not in roads and (c, r) not in keep_out and kinds.get((c, r)) == tile_rules.OPEN
         ]
         free.sort()
-        taken: set[HexRef] = set()
+        taken: set[HexRef] = {h for h in seeded if lo <= h[0] <= hi}
         wanted = max(1, len(free) // (style["buildings"] * MIN_BUILDING * 2))
         for _ in range(wanted):
             candidates = [f for f in free if f not in taken and not touches(f, taken)]
@@ -763,10 +811,134 @@ def sewer_pass(shapes: list[list[HexRef]]) -> set[HexRef]:
     }
 
 
+def fill_zones(
+    rng: RngState,
+    kinds: dict[HexRef, str],
+    roads: set[HexRef],
+    params: GeneratorParameters,
+    structure: "Structure",
+    blocks: list[tuple[int, int]],
+    shapes: list[list[HexRef]],
+    fixed: set[HexRef] | None = None,
+) -> RngState:
+    """The buildings the zones ask for, placed before the free pass (FR-21).
+
+    The free placement scatters the buildings over the board, and a zone that asks for
+    buildings within a few hexes of another band is then satisfied by one seed in fifty,
+    and a zone that asks for a building of four hexes in a band of three rows almost never.
+    The card of scenario 1 puts each Russian building on top of a German one, and the
+    guards building holds twelve squads. So this pass places what each zone asks for, in
+    the order of the zones: a start hex inside the zone's band, and within the distance of
+    a building of the other band when the zone has `near`, then a shape of the size the
+    zone asks for. A zone with `near` comes after the zone that holds its anchors, which is
+    the order the scenario writes them in.
+    """
+    keep_out = fixed or set()
+    taken: set[HexRef] = set()
+    for shape in shapes:
+        taken.update(shape)
+        for h in shape:
+            taken.update(geometry.neighbors(*h))
+    free_by_block = []
+    for lo, hi in blocks:
+        free = [
+            (c, r)
+            for c in range(lo, hi + 1)
+            for r in range(0 if c & 1 else 1, params.rows + 1)
+            if (c, r) not in roads and (c, r) not in keep_out and kinds.get((c, r)) == tile_rules.OPEN
+        ]
+        free.sort()
+        free_by_block.append(((lo, hi), free))
+    for zone in params.zones:
+        band = zone.band()
+        near = dict(zone.near)
+        limit = int(near.get("max_distance", 2))
+        front = anchor_front(zone, params.zones, free_by_block)
+        attempts = 0
+        while sum(1 for s in shapes if zone.holds(s, shapes)) < zone.count and attempts < ZONE_ATTEMPTS:
+            attempts += 1
+            anchors: set[HexRef] = set()
+            if near:
+                anchors = {h for s in shapes if scenario.in_band(s, near) for h in s}
+                if not anchors:
+                    break
+            candidates = []
+            for (lo, hi), free in free_by_block:
+                for f in free:
+                    # The free pass keeps two open hexes between blocks. The card puts
+                    # the two sides one hexside apart, so this pass keeps one.
+                    if f in taken:
+                        continue
+                    if not scenario.in_band([f], band):
+                        continue
+                    if near and not any(geometry.distance(f, a) <= limit for a in anchors):
+                        continue
+                    if front is not None and f not in front:
+                        continue
+                    candidates.append((f, free))
+            if not candidates:
+                break
+            rng, i = choice_index(rng, len(candidates))
+            start, free = candidates[i]
+            rng, extra = choice_index(rng, zone.max_hexes - zone.min_hexes + 1)
+            level = structure.level(start)
+            on_one_level = [f for f in free if structure.level(f) == level]
+            rng, which = choice_index(rng, len(SILHOUETTES))
+            rng, heading = choice_index(rng, 6)
+            shape = grow(
+                start, zone.min_hexes + extra, on_one_level, taken, roads, SILHOUETTES[which], heading
+            )
+            if len(shape) < zone.min_hexes or not zone.holds(shape, shapes + [shape]):
+                taken.add(start)
+                continue
+            taken.update(shape)
+            for h in shape:
+                taken.update(geometry.neighbors(*h))
+            shapes.append(shape)
+    return rng
+
+
+def anchor_front(
+    zone: ZoneConstraint,
+    zones: Sequence[ZoneConstraint],
+    free_by_block: Sequence[tuple[tuple[int, int], Sequence[HexRef]]],
+) -> set[HexRef] | None:
+    """The start hexes of a zone that a later `near` zone anchors on, or None.
+
+    A near zone puts its buildings within a distance of the buildings of this zone. A
+    building of this zone that is deeper in its band than that distance anchors nothing,
+    and the near zone then runs out of room. So the starts of an anchor zone stay within
+    the distance of the near zone's band, which is the front of the card: the German
+    buildings of scenario 1 stand along the street the Russians attack across.
+    """
+    if zone.near:
+        return None
+    own = zone.band()
+    front: set[HexRef] = set()
+    found = False
+    for other in zones:
+        if not other.near:
+            continue
+        other_near = {k: v for k, v in dict(other.near).items() if k != "max_distance"}
+        if other_near != own:
+            continue
+        found = True
+        limit = int(dict(other.near).get("max_distance", 2))
+        other_band = other.band()
+        band_hexes = [f for _, free in free_by_block for f in free if scenario.in_band([f], other_band)]
+        for _, free in free_by_block:
+            for f in free:
+                if scenario.in_band([f], own) and any(
+                    geometry.distance(f, g) <= limit for g in band_hexes
+                ):
+                    front.add(f)
+    return front if found else None
+
+
 def check_zones(shapes: list[list[HexRef]], params: GeneratorParameters) -> None:
     """FR-21: the board must hold the buildings that the scenario zones ask for."""
     for zone in params.zones:
-        matching = [s for s in shapes if zone.holds(s)]
+        matching = [s for s in shapes if zone.holds(s, shapes)]
         if len(matching) < zone.count:
             raise GeneratorError(
                 f"seed {params.seed} gives {len(matching)} stone buildings of {zone.min_hexes} to "

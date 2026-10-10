@@ -43,6 +43,10 @@ CREST_WIDTH = 3
 # The six directions of the lattice, in the order the core numbers them.
 STEPS = ((0, -2), (3, -1), (3, 1), (0, 2), (-3, 1), (-3, -1))
 MULTI_STORY = 3
+# A building block pulls in to this share of the step to a neighbour hex on a side that
+# faces open ground, so the footprint is about two thirds of the hex and the ground shows
+# around it. A side that a block of the same building covers reaches the full step.
+BUILDING_INSET = 0.64
 # Below this the crowns of a wood are too small for the light on top of them.
 CROWN_LIGHT_SCALE = 12.0
 # How many points a road curve is sampled at.
@@ -210,16 +214,19 @@ def _woods(surface: pygame.Surface, hexagon: dict[str, Any], camera: Camera) -> 
 def _buildings(surface: pygame.Surface, board: dict[str, Any], camera: Camera) -> None:
     """Rules 7.4 and 7.5: a building is the plan of a structure and not a hexagon.
 
-    Each hex of the building is one block of the plan. A block is as wide as the distance
-    between two hex centres, so the blocks of one building touch and the plan is one mass.
-    Four hexes then read as one structure with panel lines, and one hex reads as a house.
+    Each hex of the building is one small block of the plan. The block sits inside the hex,
+    so the ground shows around it and it stays within the hex boundary. The block reaches
+    out to a neighbour hex only when that hex holds the same building. So a block that faces
+    open ground pulls in from the hex edge, and a block that faces another block of the same
+    building reaches to the shared line. Several hexes of one building then read as one
+    connected mass, and one hex reads as a small house.
 
-    The wall line goes on the sides of a block that no block of the same building covers.
-    So the line follows the outside of one building. Two buildings that touch each keep a
-    line, and a hexside inside one building carries none.
+    The outline goes on the sides of a block that no block of the same building covers. So
+    the line follows the outside of one building. Two buildings that touch each keep a line,
+    and a shared side inside one building carries none.
 
-    Rule 7.5: a building of three hexes or more has a second story, which is a smaller
-    block on the roof.
+    Rule 7.5: a building of three hexes or more has a second story, which is a smaller block
+    on the roof.
     """
     index = _by_centre(board)
     plans = []
@@ -234,68 +241,74 @@ def _buildings(surface: pygame.Surface, board: dict[str, Any], camera: Camera) -
     if not plans:
         return
     size = camera.scale
-    # Two hex centres are three units apart across and two short radii apart down, so a
-    # block of this size touches the block of each neighbour hex and no more.
-    half_x, half_y = size * 1.5, size * ROOT_THREE
+    # The full step from a hex centre to a neighbour centre is 1.5 units across and one
+    # short radius down. The block reaches this far on a side that a neighbour block covers.
+    reach_x, reach_y = size * 1.5, size * ROOT_THREE
+    # A side that faces open ground pulls in to this share of the step, so the footprint is
+    # about two thirds of the hex and the ground shows around it.
+    inset = BUILDING_INSET
     edge = max(1, int(size * 0.10))
-    lift = max(2.0, size * 0.22)
-
-    def block(centre, shift: float = 0.0) -> pygame.Rect:
-        cx, cy = camera.to_screen(*centre)
-        return pygame.Rect(
-            round(cx - half_x + shift), round(cy - half_y + shift), round(2 * half_x), round(2 * half_y)
-        )
+    lift = max(2.0, size * 0.20)
 
     def joined(hexagon, building, dx: int, dy: int) -> bool:
         cx, cy = hexagon["center"]
         other = index.get((cx + dx, cy + dy))
         return other is not None and (other.get("building") or {}).get("id") == building.get("id")
 
-    for hexagon, _building, _tones in plans:
-        pygame.draw.rect(surface, theme.GROUND_SHADE, block(hexagon["center"], shift=lift))
-    for hexagon, _building, tones in plans:
-        pygame.draw.rect(surface, tones["roof"], block(hexagon["center"]))
+    def block(hexagon, building, shift: float = 0.0) -> pygame.Rect:
+        """The rectangle of one hex, pulled in on each open side and full on a joined side."""
+        cx, cy = camera.to_screen(*hexagon["center"])
+        north = reach_y if joined(hexagon, building, 0, -2) else reach_y * inset
+        south = reach_y if joined(hexagon, building, 0, 2) else reach_y * inset
+        west = reach_x if joined(hexagon, building, -3, -1) or joined(hexagon, building, -3, 1) else reach_x * inset
+        east = reach_x if joined(hexagon, building, 3, -1) or joined(hexagon, building, 3, 1) else reach_x * inset
+        left = round(cx - west + shift)
+        top = round(cy - north + shift)
+        return pygame.Rect(left, top, round(cx + east + shift) - left, round(cy + south + shift) - top)
+
+    for hexagon, building, _tones in plans:
+        pygame.draw.rect(surface, theme.GROUND_SHADE, block(hexagon, building, shift=lift))
+    for hexagon, building, tones in plans:
+        pygame.draw.rect(surface, tones["roof"], block(hexagon, building))
     # The wall that the light does not reach is on the south of the mass, which is the block
     # that has no block of the same building below it.
-    band = max(2, int(size * 0.44))
     for hexagon, building, tones in plans:
         if joined(hexagon, building, 0, 2):
             continue
-        rect = block(hexagon["center"])
+        rect = block(hexagon, building)
+        band = max(2, int(rect.height * 0.30))
         pygame.draw.rect(surface, tones["body"], pygame.Rect(rect.left, rect.bottom - band, rect.width, band))
     # A panel line where two blocks of one plan meet, so the eye reads the roof as sections.
-    for hexagon, _building, tones in plans:
-        pygame.draw.rect(surface, tones["body"], block(hexagon["center"]), 1)
+    for hexagon, building, tones in plans:
+        pygame.draw.rect(surface, tones["body"], block(hexagon, building), 1)
     if size >= DETAIL_SCALE:
-        upper = max(2, int(size * 0.24))
         for hexagon, building, tones in plans:
             if int(building.get("size", 1)) < MULTI_STORY:
                 continue
-            rect = block(hexagon["center"]).inflate(-half_x * 0.5, -half_y)
+            rect = block(hexagon, building)
+            rect = rect.inflate(-rect.width * 0.5, -rect.height * 0.5)
+            upper = max(2, int(rect.height * 0.30))
             pygame.draw.rect(surface, tones["roof"], rect)
             pygame.draw.rect(surface, tones["shade"], pygame.Rect(rect.left, rect.bottom - upper, rect.width, upper))
             pygame.draw.rect(surface, tones["line"], rect, 1)
     for hexagon, building, tones in plans:
-        _wall_line(surface, block(hexagon["center"]), hexagon, building, tones["line"], edge, joined)
+        _wall_line(surface, block(hexagon, building), hexagon, building, tones["line"], edge, joined)
 
 
 def _wall_line(surface: pygame.Surface, rect, hexagon, building, colour, width: int, joined) -> None:
     """The sides of one block that face out of the building.
 
-    A block of a neighbour hex covers a full side across the top or the bottom, and half a
-    side on the left or the right. So each side of the block asks about the one or two
-    neighbour hexes that cover it.
+    A block draws a line on each side that faces open ground, and no line on a side that a
+    block of the same building covers. So the line follows the outside of one building.
     """
-    middle = (rect.top + rect.bottom) // 2
     if not joined(hexagon, building, 0, -2):
         pygame.draw.line(surface, colour, (rect.left, rect.top), (rect.right, rect.top), width)
     if not joined(hexagon, building, 0, 2):
         pygame.draw.line(surface, colour, (rect.left, rect.bottom), (rect.right, rect.bottom), width)
-    for dx, side in ((3, rect.right), (-3, rect.left)):
-        if not joined(hexagon, building, dx, -1):
-            pygame.draw.line(surface, colour, (side, rect.top), (side, middle), width)
-        if not joined(hexagon, building, dx, 1):
-            pygame.draw.line(surface, colour, (side, middle), (side, rect.bottom), width)
+    if not (joined(hexagon, building, -3, -1) or joined(hexagon, building, -3, 1)):
+        pygame.draw.line(surface, colour, (rect.left, rect.top), (rect.left, rect.bottom), width)
+    if not (joined(hexagon, building, 3, -1) or joined(hexagon, building, 3, 1)):
+        pygame.draw.line(surface, colour, (rect.right, rect.top), (rect.right, rect.bottom), width)
 
 
 # ------------------------------------------------------------------------- the roads

@@ -19,6 +19,7 @@ from typing import Any
 import torch
 
 from slagents.learned import ppo
+from slagents.learned.agent import LearnedAgent
 from slagents.learned.encoding import command_triple
 from slagents.learned.env import make_env
 from slagents.learned.league import League, Member, load_snapshot
@@ -29,36 +30,49 @@ from slruns.elo import wilson_interval
 from slruns.index import connect, upsert
 
 LEARNER = "learner"
-SCRIPTED_KINDS = ("v0", "v1", "v2", "v3")
+SCRIPTED_KINDS = ("v0", "v1", "v2", "v3", "v4", "v5", "v6")
 SECONDS_IN_HOUR = 3600.0
 RATE_INTERVAL_SECONDS = 60.0
 
 
-def scripted_member(engine, kind: str, seed: int, player: int) -> Member:
-    """A versioned scripted agent as a constant opponent (FR-52, TC-18)."""
-    agent = make_agent(kind, engine, seed, player)
+def scripted_member(engine, kind: str, seed: int) -> Member:
+    """A versioned scripted agent as a constant opponent (FR-52, TC-18).
+
+    The member holds one agent for each side and plays the one whose side the frame names.
+    A scripted agent plans for the side it was built for, so an agent built for the German
+    side that is handed the Russian frame moves the Russians with the German plan. The
+    evaluation of the third 1 million step run did that in each odd game, because the
+    member was built for the opponent of the learner and the sides then changed.
+    """
+    agents = {player: make_agent(kind, engine, seed, player) for player in (0, 1)}
 
     def act(env, observation):
-        chosen = agent.select(env.state_, env.frame)
-        legal = env.frame.by_id(chosen)
-        if legal is None:
-            raise RuntimeError(f"the scripted agent {kind} gave an ID that is not in the frame")
-        return command_triple(legal.command, env.hexes)
+        return agent_triple(agents[env.frame.player], env)
 
-    return Member(name=f"scripted-{agent.name}-v{agent.version}", kind="scripted", act=act)
+    first = agents[0]
+    return Member(name=f"scripted-{first.name}-v{first.version}", kind="scripted", act=act)
 
 
-def build_league(engine, seed: int, opponent_player: int) -> League:
+def agent_triple(agent, env) -> tuple[int, int, int]:
+    """The command an Agent selects in the environment's state, as the environment's triple."""
+    chosen = agent.select(env.state_, env.frame)
+    legal = env.frame.by_id(chosen)
+    if legal is None:
+        raise RuntimeError(f"the agent {agent.name} gave an ID that is not in the frame")
+    return command_triple(legal.command, env.hexes)
+
+
+def build_league(engine, seed: int) -> League:
     league = League()
     league.add(Member(name="random", kind="random", act=ppo.random_opponent))
     for kind in SCRIPTED_KINDS:
-        league.add(scripted_member(engine, kind, seed, opponent_player))
+        league.add(scripted_member(engine, kind, seed))
     return league
 
 
 def snapshot_member(path: Path, policy_shape: Policy, generator: torch.Generator, step: int) -> Member:
-    """A snapshot of the learner as an opponent."""
-    copy = Policy(policy_shape.spaces, policy_shape.config)
+    """A snapshot of the learner as an opponent, on the same device as the learner."""
+    copy = Policy(policy_shape.spaces, policy_shape.config).to(ppo.policy_device(policy_shape))
     load_snapshot(path, copy)
     return Member(name=f"snapshot-{step}", kind="snapshot", act=ppo.policy_opponent(copy, generator))
 
@@ -75,14 +89,29 @@ def run_training(
     out: Path,
     log_dir: Path | None,
     eval_games: int = 0,
+    device: str = "auto",
+    alternate_sides: bool = False,
+    start_from: Path | None = None,
 ) -> artifact.RunArtifact:
-    """The training loop. It gives a run artifact, whether it finished or stopped early."""
+    """The training loop. It gives a run artifact, whether it finished or stopped early.
+
+    `learner_player` is the side the learner holds first. With `alternate_sides` it takes
+    the other side at each new game (`--player both`). `start_from` is a snapshot whose
+    weights the policy starts with, as the one `sl-cli imitate` writes; its shape replaces
+    `net`, because the weights fit one shape.
+    """
     engine, board_record = build_engine_with_record(scenario)
     env = make_env(engine, seed=seed)
-    policy = Policy(env.spaces_record, net)
+    compute = ppo.resolve_device(device)
+    if start_from is not None:
+        net = snapshot_net(start_from, env.spaces_record)
+    policy = Policy(env.spaces_record, net).to(compute)
+    if start_from is not None:
+        load_snapshot(start_from, policy)
+        policy.train()
     optimizer = torch.optim.Adam(policy.parameters(), lr=config.learning_rate)
     generator = torch.Generator().manual_seed(seed)
-    league = build_league(engine, seed, 1 - learner_player)
+    league = build_league(engine, seed)
     writer = _tensorboard(log_dir)
     art = artifact.RunArtifact(
         kind="train",
@@ -92,13 +121,17 @@ def run_training(
             **board_record,
             "agent_a": "learner",
             "agent_b": "league",
-            "learner_player": learner_player,
+            "learner_player": "both" if alternate_sides else learner_player,
+            "start_from": None if start_from is None else str(start_from),
+            "first_learner_player": learner_player,
             "steps": steps,
             "hours": hours,
             "first_seed": seed,
             "snapshot_every": snapshot_every,
             "ppo": config.to_dict(),
+            "reward": {"player_0": env.weights[0].to_dict(), "player_1": env.weights[1].to_dict()},
             "net": net.to_dict(),
+            "device": str(compute),
             "parameters": sum(p.numel() for p in policy.parameters()),
             "opponents": [m.name for m in league.members],
             "criteria": ["TC-13", "TC-18", "TC-19", "IR-07"],
@@ -113,6 +146,7 @@ def run_training(
     last_rate_report = started
     rates: list[dict[str, float]] = []
     stopped = "the step count is complete"
+    side = learner_player
     try:
         while done < steps and (deadline is None or time.perf_counter() < deadline):
             member = league.sample(generator)
@@ -120,12 +154,14 @@ def run_training(
             rollout = ppo.collect(
                 env,
                 policy,
-                learner_player,
+                side,
                 member.act,
                 min(config.steps_per_update, steps - done),
                 generator,
                 results.append,
+                alternate_sides=alternate_sides,
             )
+            side = rollout.next_learner
             for reward in results:
                 league.record(member, reward, LEARNER)
             stats = ppo.update(policy, optimizer, rollout, config, env.spaces_record)
@@ -146,7 +182,7 @@ def run_training(
     seconds = time.perf_counter() - started
     if not rates:
         rates.append({"step": done, "seconds": round(seconds, 1), "steps_per_second": round(done / max(1e-9, seconds), 1)})
-    evaluation = evaluate(env, policy, league, learner_player, eval_games, generator) if eval_games else []
+    evaluation = evaluate(env, policy, league, learner_player, eval_games) if eval_games else []
     art.stats = {
         "steps": done,
         "updates": updates,
@@ -174,33 +210,51 @@ def evaluate(
     league: League,
     learner_player: int,
     games: int,
-    generator: torch.Generator,
 ) -> list[dict[str, Any]]:
     """TC-18: the win rate of the learner against each constant opponent.
 
     The sides change on each odd game, so a scenario that favours one side does not decide
-    the number. The policy plays its best command and does not sample, because the measure
-    is what the policy learned and not what it explores.
+    the number. The policy plays through `LearnedAgent`, the wrapper a tournament and a
+    real game use: the argmax of the composed score, with the repeat guard, and no
+    sampling, because the measure is what the policy learned and not what it explores.
     """
     rows: list[dict[str, Any]] = []
+    learner = LearnedAgent.from_policy(env.engine, policy)
     for member in league.members:
         if member.kind == "snapshot":
             continue
         wins = 0.0
         played = 0
-        results = {"win": 0, "loss": 0, "draw": 0}
+        results = {"win": 0, "loss": 0, "draw": 0, "truncated": 0, "repeated": 0}
+        # The same counts for each side the learner held. A policy that trained on one
+        # side plays the other side cold, and the sum hides which side each result came
+        # from: the third 1 million step run read 10 lost and 10 repeated against each
+        # scripted agent, and that was every game lost as the Russian and every game
+        # cycled as the German.
+        by_side = {f"player_{player}": dict(results) for player in (0, 1)}
         for game in range(games):
             player = learner_player if game % 2 == 0 else 1 - learner_player
-            reward = _play_one(env, policy, member, player, generator)
+            result, truncated = _play_one(env, learner, member, player)
             played += 1
-            if reward > 0:
+            if truncated and env.repeated:
+                # A cycle: a command undid the one before it, and the environment stopped
+                # the game there as a defeat of the side that made the cycle.
+                outcome = "repeated"
+            elif truncated:
+                # A game that hit the command limit is not a draw and not half a win. The
+                # first rung's evaluation counted 153 of them as half a win each, and the
+                # score column read 50 percent (docs/reports/2026-09-12_training_run_1m.md).
+                outcome = "truncated"
+            elif result > 0:
                 wins += 1.0
-                results["win"] += 1
-            elif reward < 0:
-                results["loss"] += 1
+                outcome = "win"
+            elif result < 0:
+                outcome = "loss"
             else:
                 wins += 0.5
-                results["draw"] += 1
+                outcome = "draw"
+            results[outcome] += 1
+            by_side[f"player_{player}"][outcome] += 1
         low, high = wilson_interval(wins, played)
         rows.append(
             {
@@ -211,25 +265,41 @@ def evaluate(
                 "confidence_low": round(low, 4),
                 "confidence_high": round(high, 4),
                 "results": results,
+                "by_side": by_side,
                 "beats_opponent": low > 0.5,
             }
         )
     return rows
 
 
-def _play_one(env, policy: Policy, member: Member, learner_player: int, generator: torch.Generator) -> float:
-    """One whole game of the policy against one member. Gives the learner's reward."""
+def _play_one(env, learner: LearnedAgent, member: Member, learner_player: int) -> tuple[float, bool]:
+    """One whole game of the learner against one member. Gives the result and whether it was truncated."""
     env.reset(seed=env.seed_value + 1)
     while True:
         agent = env.agent_selection
         if env.terminations[agent] or env.truncations[agent]:
-            return float(env._cumulative_rewards[env.agent_of(learner_player)])
-        observation = env.observe(agent)
+            learner_agent = env.agent_of(learner_player)
+            return float(env.results[learner_agent]), bool(env.truncations[learner_agent])
         if env.player_of(agent) == learner_player:
-            triple, _, _, _ = ppo.choose(policy, observation, env, generator, greedy=True)
-            env.step(triple)
+            env.step(agent_triple(learner, env))
         else:
-            env.step(member.act(env, observation))
+            env.step(member.act(env, env.observe(agent)))
+
+
+def snapshot_net(path: Path, spaces) -> NetConfig:
+    """The shape of a snapshot, checked against the spaces of this scenario."""
+    saved = torch.load(path, map_location="cpu", weights_only=False)
+    if "spaces" not in saved or "net" not in saved:
+        raise ValueError(f"the snapshot {path} has no spaces or net record; it is not a training snapshot")
+    s = saved["spaces"]
+    theirs = (int(s["units"]), int(s["actions"]), int(s["targets"]), int(s["cols"]), int(s["rows"]))
+    ours = (spaces.units, spaces.actions, spaces.targets, spaces.cols, spaces.rows)
+    if theirs != ours:
+        raise ValueError(
+            f"the snapshot {path} has the spaces {theirs} and this scenario has {ours}; "
+            "a start needs a snapshot of the same scenario and board"
+        )
+    return NetConfig(**{k: int(v) for k, v in saved["net"].items()})
 
 
 def _elo_complete(league: League) -> bool:
@@ -273,30 +343,38 @@ def run(args: Any) -> int:
         epochs=args.epochs,
         learning_rate=args.learning_rate,
         entropy_coefficient=args.entropy,
+        discount=args.discount,
     )
-    net = NetConfig()
+    net = NetConfig(channels=args.channels, hidden=args.hidden)
     art = run_training(
         scenario=args.scenario,
         steps=args.steps,
         hours=args.hours,
         seed=args.seed,
-        learner_player=args.player,
+        learner_player=0 if args.player == "both" else int(args.player),
+        alternate_sides=args.player == "both",
         snapshot_every=args.snapshot_every,
         config=config,
         net=net,
         out=out,
         log_dir=Path(args.tensorboard) if args.tensorboard else None,
         eval_games=args.eval_games,
+        device=args.device,
+        start_from=Path(args.start_from) if args.start_from else None,
     )
     stats = art.stats
+    print(f"device {art.config['device']}")
     print(f"{stats['steps']} steps in {stats['seconds']} s = {stats['steps_per_second']} steps/s, {stats['updates']} updates")
     print(f"stopped because of {stats['stopped_because']}")
     print("elo " + json.dumps({k: v["rating"] for k, v in sorted(stats["elo"].items())}, sort_keys=True))
     for row in stats["evaluation"]:
         print(
-            f"against {row['opponent']}: win rate {row['win_rate'] * 100:.1f} percent in {row['games']} games, "
+            f"against {row['opponent']}: win rate {row['win_rate'] * 100:.1f} percent in {row['games']} games "
+            f"({_counts(row['results'])}), "
             f"95 percent interval {row['confidence_low'] * 100:.1f} to {row['confidence_high'] * 100:.1f}"
         )
+        for side, counts in row["by_side"].items():
+            print(f"    as {side}: {_counts(counts)}")
     directory = art.write(args.runs)
     conn = connect(Path(args.runs) / "runs.sqlite")
     try:
@@ -307,18 +385,35 @@ def run(args: Any) -> int:
     return 0
 
 
+def _counts(results: dict[str, int]) -> str:
+    return (
+        f"{results['win']} won, {results['loss']} lost, {results['draw']} drawn, "
+        f"{results['truncated']} truncated, {results['repeated']} repeated"
+    )
+
+
 def add_parser(subparsers: Any) -> None:
     p = subparsers.add_parser("train", help="train the learned agent with PPO against the league")
     p.add_argument("--scenario", default="s01_guards_counterattack")
     p.add_argument("--steps", type=int, default=10000, help="how many decisions of the learner")
     p.add_argument("--hours", type=float, default=0.0, help="stop after this many hours, 0 for no limit")
     p.add_argument("--seed", type=int, default=1)
-    p.add_argument("--player", type=int, default=0, choices=(0, 1), help="which side the learner holds")
+    p.add_argument(
+        "--player",
+        default="0",
+        choices=("0", "1", "both"),
+        help="which side the learner holds; both changes the side at each new game",
+    )
     p.add_argument("--rollout", type=int, default=512, help="decisions in one rollout")
     p.add_argument("--minibatch", type=int, default=128)
     p.add_argument("--epochs", type=int, default=4)
     p.add_argument("--learning-rate", type=float, default=3e-4)
     p.add_argument("--entropy", type=float, default=0.01)
+    p.add_argument("--discount", type=float, default=1.0, help="the discount of a later reward, 1.0 for none")
+    p.add_argument("--device", default="auto", help="auto, cpu, cuda, or cuda:0 (auto takes the GPU when there is one)")
+    p.add_argument("--channels", type=int, default=32, help="convolution channels of the board encoder")
+    p.add_argument("--hidden", type=int, default=256, help="width of the trunk and the heads")
+    p.add_argument("--start-from", default=None, help="a snapshot the policy starts from, as sl-cli imitate writes")
     p.add_argument("--snapshot-every", type=int, default=20000, help="0 for no snapshot")
     p.add_argument("--out", default="runs/train", help="directory for the snapshots")
     p.add_argument("--tensorboard", default=None, help="directory for the TensorBoard scalars (IR-07)")

@@ -148,3 +148,22 @@ def test_a_tournament_writes_a_run_that_the_index_lists(tmp_path: Path):
         conn.close()
     assert len(art.commands) > 20
     assert all("game" in c for c in art.commands)
+
+
+def test_settled_ratings_do_not_depend_on_the_order_of_the_games():
+    """The first gauntlet ranked the best win rate fourth because its pair played first."""
+    from slruns.elo import settled_ratings
+
+    results = [("a", "b", 1.0)] * 6 + [("a", "b", 0.0)] * 2 + [("b", "c", 1.0)] * 5 + [("b", "c", 0.0)] * 3 + [("a", "c", 1.0)] * 7 + [("a", "c", 0.0)]
+    forward = settled_ratings(results).to_dict()
+    backward = settled_ratings(list(reversed(results))).to_dict()
+    for agent in ("a", "b", "c"):
+        assert abs(forward[agent]["rating"] - backward[agent]["rating"]) < 2.0, agent
+        assert forward[agent]["games"] == sum(1 for r in results if agent in r[:2])
+    assert forward["a"]["rating"] > forward["b"]["rating"] > forward["c"]["rating"]
+    one_pass = EloTable()
+    for first, second, score in results:
+        one_pass.update(first, second, score)
+    # The one pass rates the pair that played first by the games at the end of the list
+    # as much as by its own, so the two tables differ. The settled one is the record.
+    assert one_pass.to_dict() != forward

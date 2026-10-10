@@ -165,12 +165,12 @@ def smoke_model(profile: Profile):
 
 def run_smoke(samples: Sequence[dict[str, Any]], out: Path, profile: Profile | None = None) -> dict[str, Any]:
     """TR-12, first half: fifty LoRA steps on ten traces with a finite loss."""
-    import torch
-
     settings = profile or SMOKE_PROFILE
     chosen = list(samples)[:SMOKE_SAMPLES]
     if not chosen:
         raise FinetuneError("the smoke run needs one sample or more")
+    import torch
+
     model = smoke_model(settings)
     trainable = [p for p in model.parameters() if p.requires_grad]
     if not trainable:

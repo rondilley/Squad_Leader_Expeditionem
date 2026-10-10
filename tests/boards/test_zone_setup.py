@@ -15,6 +15,7 @@ import pytest
 
 from slboards.generator import GeneratorParameters, generate
 from slcore.engine import Engine
+from slcore.geometry import distance
 from slcore.scenario import resolve_zone
 from sldata.loaders import (
     board_and_parameters,
@@ -75,14 +76,30 @@ def test_the_largest_russian_group_always_gets_a_building_it_can_stack_in():
         assert len(hexes) >= 4, f"seed {seed}: twelve squads do not stack in {len(hexes)} hexes"
 
 
-def test_the_two_sides_set_up_in_their_own_band_of_columns():
+def test_the_two_sides_set_up_in_their_own_band_of_rows_and_close_together():
+    """The card puts the Germans in rows 5 to 9 and each Russian building on top of them.
+
+    The front runs along the rows, and the two sides are two to five hexes apart. The
+    earlier column bands put the sides six to twelve hexes apart, and then no attacker
+    reached a German building in five turns against a German who fired at range six.
+    """
     for seed in range(1, 61):
         engine, board, _ = build(seed)
+        german: list[tuple[int, int]] = []
+        russian: dict[str, tuple[tuple[int, int], ...]] = {}
         for side in engine.scenario.sides:
-            low, high = (0, 7) if side.side == "russian" else (8, 15)
             for group in side.groups:
-                for col, _row in group.area.resolve(board):
-                    assert low <= col <= high, f"seed {seed}: {group.id} is outside its band"
+                hexes = group.area.resolve(board)
+                north = min(row for _col, row in hexes)
+                if side.side == "german":
+                    assert 5 <= north <= 9, f"seed {seed}: {group.id} is outside rows 5 to 9"
+                    german.extend(hexes)
+                else:
+                    assert 1 <= north <= 4, f"seed {seed}: {group.id} is outside rows 1 to 4"
+                    russian[group.id] = hexes
+        for group_id, hexes in russian.items():
+            nearest = min(distance(a, b) for a in hexes for b in german)
+            assert nearest <= 5, f"seed {seed}: {group_id} is {nearest} hexes from the nearest German group"
 
 
 def test_a_band_with_no_building_large_enough_names_the_building_and_the_need():

@@ -89,80 +89,22 @@ def test_a_zone_constraint_counts_only_the_buildings_the_scenario_can_use():
     assert zone.holds([(3, 4)]) is False, "one hex is below the minimum"
     assert zone.holds([(3, 4), (4, 4), (5, 4), (6, 4), (7, 4)]) is False, "five hexes is above the maximum"
     assert zone.holds([(15, 4), (16, 4)]) is False, "the column subset cuts this building"
-    assert "columns 0 to 15" in zone.where()
+    assert "columns A to P" in zone.where()
     assert ZoneConstraint(count=1).where() == "on the board"
 
 
-DENSE = 2
-
-
-def first_seed_that_misses(zones, first=100, last=400):
-    """A seed the zones refuse. The generator changes, so the test finds one at run time.
-
-    The density is the one that makes the count vary from seed to seed. At the default the
-    count is the same on each board, so no demand separates a seed that misses from a seed
-    that holds, and the retry has nothing to prove.
-    """
-    for seed in range(first, last):
-        try:
-            generate(GeneratorParameters(seed=seed, building_density=DENSE, zones=zones), TERRAIN)
-        except GeneratorError:
-            return seed
-    return None
-
-
-def test_a_seed_that_misses_the_zones_gives_the_next_seed_that_holds():
-    zones = (ZoneConstraint(count=13, min_hexes=2, max_hexes=6, min_col=0, max_col=15),)
-    seed = first_seed_that_misses(zones)
-    assert seed is not None, "no seed in the range refuses thirteen buildings, so widen the test"
-    asked = GeneratorParameters(seed=seed, building_density=DENSE, zones=zones)
-    with pytest.raises(GeneratorError) as exc:
-        generate(asked, TERRAIN)
-    assert "stone buildings" in str(exc.value) and "columns 0 to 15" in str(exc.value)
-    board, used = generate_with_retry(asked, TERRAIN, tries=40)
-    assert used.seed > seed, "the retry moves to a later seed"
-    assert board.name.endswith(f"-{used.seed}-v{GENERATOR_VERSION}"), board.name
-
-
-def test_a_zone_no_seed_can_satisfy_names_the_seed_range():
-    zones = (ZoneConstraint(count=99, min_hexes=2, max_hexes=6),)
-    with pytest.raises(GeneratorError) as exc:
-        generate_with_retry(GeneratorParameters(seed=200, zones=zones), TERRAIN, tries=3)
-    message = str(exc.value)
-    assert "from 200 to 202" in message
-    assert "another seed or another board type" in message
-
-
-def test_the_zone_record_round_trips_with_its_columns():
-    zone = ZoneConstraint(count=4, min_hexes=3, max_hexes=5, min_col=1, max_col=9)
-    assert ZoneConstraint.from_dict(zone.to_dict()) == zone
-    params = GeneratorParameters(seed=3, zones=(zone,))
-    assert GeneratorParameters.from_dict(params.to_dict()) == params
-
-
-def test_scenario_one_gives_every_group_its_own_stone_building():
-    scenario = load_scenario("s01_guards_counterattack")
-    board, params = board_and_parameters(scenario, TERRAIN)
-    assert params is not None
-    bands = {(z.min_col, z.max_col): z for z in params.zones if z.min_hexes == 2}
-    assert bands[(0, 7)].count == 5, "the Russians need five buildings in the west band"
-    assert bands[(8, 15)].count == 5, "the Germans need five buildings in the east band"
-    room = [z for z in params.zones if z.min_hexes == 4]
-    assert len(room) == 1 and room[0].max_col == 7, "the guards need a building of four hexes" 
-    seen: dict[str, str] = {}
-    for side in scenario.sides:
-        for group in side.groups:
-            building = group.area.building_id(board)
-            assert building is not None, f"{group.id} has no building"
-            assert building not in seen, f"{group.id} and {seen[building]} share building {building}"
-            seen[building] = group.id
-    assert len(seen) == 10
-
-
-def test_the_board_record_of_a_run_builds_the_same_board_again():
-    engine, record = build_engine_with_record("s01_guards_counterattack")
-    assert record["board_source"] == "generated"
-    assert record["board"] == engine.board.name
-    again = generate(GeneratorParameters.from_dict(record["generator"]), TERRAIN)
-    low, high = record["board_columns"]
-    assert again.subset_columns(low, high).to_dict() == engine.board.to_dict()
+def test_a_zone_constraint_reads_a_row_band_and_a_near_band():
+    """Scenario 1 puts the Russians in rows 1 to 4 next to the Germans in rows 5 to 9."""
+    german = ZoneConstraint(count=1, min_row=5, max_row=9)
+    assert german.holds([(6, 5), (6, 6)]) is True
+    assert german.holds([(6, 4), (6, 5)]) is False, "the building crosses the row line"
+    assert "rows 5 to 9" in german.where()
+    russian = ZoneConstraint.from_dict(
+        {"count": 1, "min_row": 1, "max_row": 4, "near": {"min_row": 5, "max_row": 9, "max_distance": 2}}
+    )
+    shapes = [[(6, 5), (6, 6)], [(6, 3), (6, 4)], [(12, 1), (12, 2)]]
+    assert russian.holds(shapes[1], shapes) is True, "one hex from the German building"
+    assert russian.holds(shapes[2], shapes) is False, "six columns from the German building"
+    assert russian.holds(shapes[0], shapes) is False, "the German building is not in rows 1 to 4"
+    assert "within 2 hexes of a stone building in rows 5 to 9" in russian.where()
+    assert ZoneConstraint.from_dict(russian.to_dict()) == russian

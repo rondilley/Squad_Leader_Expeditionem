@@ -60,8 +60,8 @@ TERRAIN = {
     "wheat": GRAIN,
     "shellhole": SHELLHOLE,
     "woods": (92, 128, 68),
-    "wooden_building": (140, 74, 62),
-    "stone_building": (132, 132, 128),
+    "wooden_building": (128, 66, 48),
+    "stone_building": (176, 130, 92),
 }
 
 # ------------------------------------------------------------------------ the woods
@@ -75,20 +75,22 @@ WOODS_LINE = (38, 62, 36)
 
 # --------------------------------------------------------------------- the buildings
 
-# Rules 7.4 and 7.5: a building is the plan of a structure. The roof takes the light, the
-# body is the tone below it, and the line is the wall.
+# Rules 7.4 and 7.5: a building is the plan of a structure. It is small and it sits inside
+# its hex, so the ground shows around it. The roof takes the light, the body is the wall in
+# the shade, and the line is the outline. The stone building is a light tan-brown and the
+# wooden building is a darker red-brown, so both read as brown and not as grey.
 BUILDING = {
     "stone_building": {
-        "roof": (156, 156, 150),
+        "roof": (198, 154, 112),
         "body": TERRAIN["stone_building"],
-        "shade": (100, 100, 96),
-        "line": (52, 54, 52),
+        "shade": (146, 104, 70),
+        "line": (96, 62, 40),
     },
     "wooden_building": {
-        "roof": (168, 96, 78),
+        "roof": (152, 84, 62),
         "body": TERRAIN["wooden_building"],
-        "shade": (104, 54, 46),
-        "line": (48, 26, 22),
+        "shade": (98, 48, 34),
+        "line": (58, 28, 18),
     },
 }
 
@@ -153,3 +155,31 @@ ARC_ALPHA = 56
 WRECK = (86, 80, 70)
 IMMOBILE = (196, 104, 48)
 CREW_EXPOSED = (232, 190, 74)
+
+# The physical look of a counter. A counter is a die-cut cardboard chit, so it has rounded
+# corners, a thin cut edge that shows the pale cardboard core, a bevel from its thickness
+# (the light is at the top of the screen), and wear at the corners where the printed layer
+# has chipped. A broken unit is a counter turned to its reverse, so it shows a plainer back
+# with a colour band and its reduced numbers. Each wear mark comes from the unit id and not
+# from a generator, so a counter draws the same in each session (SR-07, DR-01).
+CHIT_RADIUS = 0.16           # the corner radius as a fraction of the counter size
+CHIT_EDGE = (208, 200, 178)  # the pale cardboard core at the cut edge
+CHIT_SHADOW = (26, 24, 18)   # the shadow the thickness throws, drawn with an alpha
+CHIT_SHADOW_ALPHA = 96
+CHIT_BEVEL_LIGHT = 46        # how much to lighten the face on the lit top-left edge
+CHIT_BEVEL_DARK = 42         # how much to darken the face on the shaded bottom-right edge
+CHIT_WEAR = (216, 208, 188)  # a corner nick that shows the cardboard core
+BACK = (150, 142, 120)       # the base tone of a flipped (broken) counter reverse
+
+# ---------------------------------------------------------------------- the card
+#
+# A scenario card is a paper document and not the green board, so it has its own small
+# palette: a cream paper, a dark ink, a red accent for the scenario number and the counts,
+# and two grey tones for a rule line and a diagram fill. The 1977 card is cream paper with
+# black text and a red spot colour. These values are the project's own (SR-07, DR-01).
+CARD_PAPER = (238, 231, 210)   # the cream stock of the card
+CARD_PAPER_EDGE = (214, 205, 180)  # the darker edge of the paper, for a diagram fill
+CARD_INK = (34, 30, 24)        # the printed black text
+CARD_RED = (168, 44, 36)       # the red spot colour: the scenario number and the counts
+CARD_RULE = (120, 112, 96)     # a thin rule line between the blocks
+CARD_SHADE = (198, 190, 168)   # a shaded half of the board configuration diagram

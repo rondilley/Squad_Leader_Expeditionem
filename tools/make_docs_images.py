@@ -11,9 +11,9 @@ not name is a finding, and an image anywhere outside `background/` is a finding 
 `tests/docs/test_documentation_images.py` makes each picture again and compares it with the
 one in the tree, so a picture that a person put there by hand does not pass.
 
-Run it with:
+Run it with the venv active:
 
-    .venv/Scripts/python tools/make_docs_images.py
+    python tools/make_docs_images.py
 """
 
 from __future__ import annotations

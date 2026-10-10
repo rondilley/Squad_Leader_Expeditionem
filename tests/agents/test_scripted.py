@@ -21,6 +21,9 @@ from slagents.scripted.v1 import ScriptedV1
 from slagents.scripted.v2 import Parameters as V2Parameters
 from slagents.scripted.v2 import ScriptedV2
 from slagents.scripted.v3 import ScriptedV3
+from slagents.scripted.v4 import ScriptedV4
+from slagents.scripted.v5 import ScriptedV5
+from slagents.scripted.v6 import ScriptedV6
 from slcli.agents_cmd import AGENTS, SCENARIOS, parameter_record, run_gate
 from slcli.play import build_engine, make_agent, play_game
 from slcore import geometry
@@ -28,15 +31,18 @@ from slcore import geometry
 NAMED = ("aggression", "cover_preference", "fire_priority")
 
 
-def test_the_project_ships_four_scripted_agents_with_versions():
+def test_the_project_ships_seven_scripted_agents_with_versions():
     engine = build_engine("s01_guards_counterattack")
     agents = [make_agent(kind, engine, 1, 0) for kind in AGENTS]
-    assert [a.version for a in agents] == ["0", "1", "2", "3"]
+    assert [a.version for a in agents] == ["0", "1", "2", "3", "4", "5", "6"]
     assert len({(a.name, a.version) for a in agents}) == len(AGENTS)
     assert isinstance(agents[0], ScriptedV0)
     assert isinstance(agents[1], ScriptedV1)
     assert isinstance(agents[2], ScriptedV2)
     assert isinstance(agents[3], ScriptedV3)
+    assert isinstance(agents[4], ScriptedV4)
+    assert isinstance(agents[5], ScriptedV5)
+    assert isinstance(agents[6], ScriptedV6)
 
 
 def test_the_parameters_have_the_names_the_requirement_gives():

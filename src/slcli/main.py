@@ -10,25 +10,31 @@ from slcli import (
     bench,
     boards_cmd,
     campaign_cmd,
+    cards_cmd,
     gates,
+    gauntlet,
     host_cmd,
     play,
     runs_cmd,
     tournament,
     traces_cmd,
     window_cmd,
+    window3d_cmd,
 )
 
 try:  # the trainer needs the `train` extra, and the other commands do not
+    from slcli import imitate_cmd
     from slcli import train as train_cmd
 except ImportError:  # pragma: no cover - exercised on a machine with no torch
     train_cmd = None
+    imitate_cmd = None
 
 try:  # the fine-tune needs the `finetune` extra
     from slcli import finetune_cmd
 except ImportError:  # pragma: no cover - exercised on a machine with no transformers
     finetune_cmd = None
 from slcli.window_cmd import DesktopNotInstalled
+from slcli.window3d_cmd import View3DNotInstalled
 from slruns.artifact import ArtifactError
 from slruns.index import IndexError_
 from sldata.loaders import DataError
@@ -41,15 +47,19 @@ def build_parser() -> argparse.ArgumentParser:
     bench.add_parser(sub)
     tournament.add_parser(sub)
     gates.add_parser(sub)
+    gauntlet.add_parser(sub)
     host_cmd.add_parser(sub)
     runs_cmd.add_parser(sub)
     boards_cmd.add_parser(sub)
+    cards_cmd.add_parser(sub)
     agents_cmd.add_parser(sub)
     traces_cmd.add_parser(sub)
     campaign_cmd.add_parser(sub)
     window_cmd.add_parser(sub)
+    window3d_cmd.add_parser(sub)
     if train_cmd is not None:
         train_cmd.add_parser(sub)
+        imitate_cmd.add_parser(sub)
     if finetune_cmd is not None:
         finetune_cmd.add_parser(sub)
     return parser
@@ -66,6 +76,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR run artifact: {exc}", file=sys.stderr)
         return 3
     except DesktopNotInstalled as exc:
+        print(f"ERROR {exc}", file=sys.stderr)
+        return 4
+    except View3DNotInstalled as exc:
         print(f"ERROR {exc}", file=sys.stderr)
         return 4
     except (RuntimeError, ValueError, NotImplementedError) as exc:

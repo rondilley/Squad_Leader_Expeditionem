@@ -1,6 +1,6 @@
 {
   "table": "project_rulings",
-  "version": 9,
+  "version": 10,
   "note": "Project rulings fill gaps that the rules text leaves open. Each names the rule it extends and its cause. The official Q and A rulings live in qa.json (slice 3). The owner can change a ruling here, and the change is a data change with a new version.",
   "rulings": [
     {
@@ -205,6 +205,13 @@
       "ruling": "A main gun shot names its aim and its shell in the command payload. A hex that holds a vehicle and infantry gives two commands. The shell is armour piercing at a vehicle where the gun has it and high explosive at infantry.",
       "cause": "Rule 33.3 and rule 34.2 are two different shots at one hex, and the firing player chooses between them at the table. A command log has no player at a table, so the choice is in the payload. Armour piercing has the lower kill number against every armour facing where the gun has both columns, so a command that offers high explosive at a vehicle as well would repeat a worse version of the same shot and make the decision frame larger for nothing.",
       "decided": "2026-09-08"
+    },
+    {
+      "id": "PR-30",
+      "extends": "30.5",
+      "ruling": "A vehicle makes at most one free pivot in a movement phase. After it has pivoted, the decision frame gives it no more pivot commands until the next player turn resets its movement.",
+      "cause": "Rule 30.5 gives a pivot inside the hex, and rule 33.32 charges the pivot to fire and not to movement, so a pivot costs no movement point. With no cost, a vehicle can turn to a facing and back again without end, and a game never terminates. The eval gauntlet found it: v5 against v3 on s04 reached 20000 commands with one vehicle turning between facing 4 and facing 1. One pivot command reads a facing straight from the payload and reaches any of the six facings, so more than one pivot in a hex is never necessary. The single-pivot limit removes the cycle from the action space, so the learned environment and every agent terminate.",
+      "decided": "2026-09-12"
     }
   ]
 }

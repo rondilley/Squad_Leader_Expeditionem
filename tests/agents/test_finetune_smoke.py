@@ -47,6 +47,9 @@ def a_dataset(tmp_path: Path, count: int = 12) -> list[dict]:
 
 def test_fifty_lora_steps_on_ten_traces_give_a_finite_loss(tmp_path: Path):
     """TR-12, first half. The loop, the weights, and the adapter."""
+    pytest.importorskip("torch")
+    pytest.importorskip("transformers")
+    pytest.importorskip("peft")
     samples = a_dataset(tmp_path)
     record = finetune.run_smoke(samples, tmp_path / "out")
     assert record["steps"] == finetune.SMOKE_STEPS
@@ -85,6 +88,8 @@ def test_the_full_run_says_where_it_belongs(tmp_path: Path):
 
 def test_the_export_says_what_is_missing(tmp_path: Path):
     """IR-08: each step of the export names what it needs."""
+    pytest.importorskip("transformers")
+    pytest.importorskip("peft")
     result = export.run_export(tmp_path / "no-adapter", "some/base", tmp_path)
     assert result.merged is None
     assert result.gguf is None
