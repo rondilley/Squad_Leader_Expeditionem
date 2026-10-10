@@ -73,7 +73,8 @@ The commands:
 
 ```
 python -m venv .venv
-.venv/Scripts/activate
+# Linux or macOS:     source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
 python -m pytest tests/
 
@@ -91,12 +92,14 @@ sl-cli play --scenario s01_guards_counterattack --games 3 --verify
 sl-cli gate --scenario s01_guards_counterattack --games 100
 sl-cli bench --scenario s01_guards_counterattack --workers 1,8,16 --minutes 10 --out runs/bench/stats.json
 sl-cli tournament --agent-a v1 --agent-b v0 --games 20
+sl-cli gauntlet --candidate v6 --panel random,v0,v1,v4,v5 --games 20
 sl-cli runs --rebuild
 sl-cli boards --count 1000
 sl-cli boards --write runs/boards --count 12
 sl-cli agents --list
 sl-cli agents --games 100
-sl-cli train --steps 100000 --eval-games 50 --tensorboard runs/tb
+sl-cli imitate --teachers v5,v6 --games 400 --epochs 10 --eval-games 20 --out runs/imitate/snapshot-0.pt
+sl-cli train --steps 100000 --player both --start-from runs/imitate/snapshot-0.pt --eval-games 50 --device cuda --tensorboard runs/tb
 sl-cli window --scenario s04_armor_probe --agents v1,v2
 ```
 
@@ -145,7 +148,7 @@ API keys for SaaS providers go in `claude.key.txt`, `openai.key.txt`, `gemini.ke
 | Rural terrain | Rule 44: a wheatfield that stops sight through it, a seasonal crop, the shellhole modifier, and cliff hexsides on a hill |
 | Hidden placement | Rule 42: a side the scenario names records a unit in a woods hex or a building hex, and the other player sees nothing of it |
 | Design your own | Game Set IV: a force point scale, random scenario construction from a seed, and the campaign game. A personal leader holds a rank, and the rank follows the record |
-| Agents | Four scripted agents with named parameters, and a learned agent with PPO, a league, and an Elo table. Agent v3, the tanker, is the one that plays rules 28 to 41 |
+| Agents | Seven scripted agents with named parameters, and a learned agent with PPO on the GPU, a league, and an Elo table. Agent v3 is the tanker and v4 the doctrine agent. Agent v5 adds vehicle fire to the threat map and suppression fire. Agent v6 is the tempo agent: the attacker keeps a schedule and moves on a path that the threat weights. `sl-cli gauntlet` ranks an agent against a panel across scenarios |
 
 What works: `sl-cli play --scenario s01_guards_counterattack` plays scenario 1 headless with two scripted agents and replays it. `sl-cli tournament` plays N games with the sides balanced and writes a run artifact. `sl-cli bench` measures the environment step rate. `sl-cli boards` makes boards and checks them.
 

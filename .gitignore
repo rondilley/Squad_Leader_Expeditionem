@@ -25,3 +25,4 @@ Thumbs.db
 # The whole directory stays off git, and not the reference subdirectory alone.
 background/
 
+.claude/projects/

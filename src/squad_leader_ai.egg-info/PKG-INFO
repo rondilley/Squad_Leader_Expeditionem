@@ -35,6 +35,30 @@ An edition of the 1977 Avalon Hill board game Squad Leader, with the 4th edition
 
 This project is not affiliated with, sponsored by, or endorsed by Hasbro or Multi-Man Publishing. It ships no Avalon Hill art, scans, board layouts, or rulebook text. The game gets a different public title before a release. The repository name is a working name.
 
+## What it looks like
+
+![The desktop window in turn 4 of scenario 4. The board, the counters of the two sides with
+their vehicles, and the panel with the legal commands and the action log.](docs/images/window_armor_probe.png)
+
+The desktop window in turn 4 of the armor scenario. The panel gives the turn, the phase,
+the legal command list, and the action log with the rule ID of each result.
+
+Three boards from the generator, drawn by the same code:
+
+| A village | A city | Hills |
+|---|---|---|
+| ![A village board with woods, buildings, roads, a hill, and grain fields.](docs/images/board_village.png) | ![A city board with blocks of stone buildings.](docs/images/board_city.png) | ![A hills board with three levels of brown and cliff hexsides.](docs/images/board_hills.png) |
+
+Each terrain is a shape on the ground and not a hexagon of colour. A wood is a mass of
+crowns. A building is the plan of a structure that can cover more than one hex. A road is a
+ribbon that turns. A hill is a flat brown area with a crest line where the level changes.
+
+`tools/make_docs_images.py` makes these pictures from the generator and the window code.
+`docs/images/MANIFEST.json` gives the seed of each one, the release audit reads that
+manifest, and `tests/docs/test_documentation_images.py` makes each picture again and
+compares it. So each picture in this repository is the output of the code in it. A scan
+that gets into that directory stops a test, and the audit reports it (SR-07).
+
 ## What it is
 
 One rules core with no input or output plays rules 1 to 44 of the 4th edition text. That is the infantry game, the armor game, hills, hidden placement, and the rural terrain. The core keeps the rule ID of each rule it applies. The action log shows the rule, the dice, and the modifiers for each result, for the two sides. A local host owns each game and gives each player only that player's view, so concealment works in the browser. The boards come from a generator in the 1977 look, and the counters are new art from the 1977 values.
@@ -80,7 +104,8 @@ The commands:
 
 ```
 python -m venv .venv
-.venv/Scripts/activate
+# Linux or macOS:     source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
 python -m pytest tests/
 
@@ -115,6 +140,10 @@ a host that operates at this time.
 In the window: a click picks a hex. The arrow keys and the wheel move the board and change
 its dimension. `f` fits the board in the window, `s` writes a picture, and `q` stops.
 
+`python tools/make_docs_images.py` makes the pictures that this file shows. Run it after a
+change to the board drawing. The test in `tests/docs/` compares what the tool makes with
+what the tree holds.
+
 `sl-cli boards --count 1000` is the board gate. It makes the boards, checks the geomorphic edges, connects each board to the next, sets scenario 1 up on it, and writes a run artifact. `--write` puts the board documents in a directory for the owner's scoring session.
 
 A run artifact goes in `runs/<ISO8601-Z>-<slug>/` with a manifest, the command log, the action log, and the statistics. `runs/runs.sqlite` indexes them. Git does not record the run directory or the index.
@@ -144,6 +173,7 @@ API keys for SaaS providers go in `claude.key.txt`, `openai.key.txt`, `gemini.ke
 | Armor game, the fight | Rule 33 to rule 41. The to-hit table, the kill table, overruns, infantry against armour, the panzerfaust, the bazooka, malfunctions, immobilization, and wrecks |
 | Armor scenario | `s04_armor_probe` is the first game that plays rules 28 to 41 |
 | Desktop window | `sl-cli window` opens a window of its own on Windows and on Unix, with no browser. It shows the buildings, the trees, the walls, the hedges, the cliffs, the roads, the hills, the wheat, and the shellholes. It also shows a vehicle with its covered arc |
+| Terrain drawing | Each terrain is a shape on the ground and not a coloured hexagon. The style is flat shading: a lit face, a body, a shaded face, and a line. The window and the browser hold one set of colours, and a test compares the two files |
 | Rural terrain | Rule 44: a wheatfield that stops sight through it, a seasonal crop, the shellhole modifier, and cliff hexsides on a hill |
 | Hidden placement | Rule 42: a side the scenario names records a unit in a woods hex or a building hex, and the other player sees nothing of it |
 | Design your own | Game Set IV: a force point scale, random scenario construction from a seed, and the campaign game. A personal leader holds a rank, and the rank follows the record |

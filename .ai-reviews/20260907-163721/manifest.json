@@ -1,0 +1,2169 @@
+{
+  "generated": "2026-09-07T16:39:34.320093",
+  "project_root": "G:\\git\\Squad_Leader_AI",
+  "mode": "architecture",
+  "review_type": "independent",
+  "artifacts": [],
+  "has_code": false,
+  "code_files": [],
+  "context_chars": 232925,
+  "files_sent": [
+    "README.md",
+    ".gitignore",
+    ".ste-allow",
+    "CLAUDE.md",
+    "LICENSE",
+    "docs\\2026-09-07_Squad_Leader_Digital_Edition_Research.md",
+    "docs\\ARCHITECTURE.md",
+    "docs\\REQUIREMENTS.md",
+    "docs\\SUCCESS_CRITERIA.md",
+    "docs\\VISION.md",
+    "tasks\\discovery_notes.md",
+    "tasks\\lessons.md",
+    "tasks\\todo.md"
+  ],
+  "files_skipped": [
+    {
+      "file": ".claude\\claude-base.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": ".claude\\claude-code-rules.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": ".claude\\hooks\\api_error_handling.py",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": ".claude\\hooks\\check_success_claims.py",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": ".claude\\hooks\\no_emoji.py",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": ".claude\\hooks\\no_secrets_git.py",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": ".claude\\hooks\\no_stubs.py",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": ".claude\\hooks\\protect_rules.py",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": ".claude\\hooks\\remind_docs.py",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": ".claude\\projects\\C--Users-rondi-git-QC-QInsights-AI\\memory\\MEMORY.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": ".claude\\projects\\C--Users-rondi-git-QC-QInsights-AI\\memory\\project_sprint1_data.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": ".claude\\projects\\C--Users-rondi-git-QC-QInsights-AI\\memory\\user_role.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": ".claude\\settings.json",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": ".claude\\settings.local.json",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\Allied_Pieces.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\Axis_Pieces.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\Map_Photo.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\Squad_Leader_4th_Edition_Rules.pdf",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\README.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\.ste-allow",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\RV-1_counters_charts.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\RV-2_boards_scenarios.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\RV-3_digital_prior_art.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\RV-4_legal_ip.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\RV-5_rl_evolution.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\RV-6_llm_agents.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\RV-6_ste_allow.txt",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\RV-7_browser_engine.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\RV-8_community.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ab.csv",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\aslp_geo.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bd1.zip",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bd2.zip",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bd3.zip",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bd4.zip",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bgg_additional-scenarios.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bgg_map-pdf.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bgg_scenario-4-hedgehog-piepsk.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bgg_squad-leader-series-map-boards.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bggxml_1118061.xml",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bggxml_1169390.xml",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bggxml_1209316.xml",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bggxml_1305067.xml",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bggxml_1382685.xml",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bggxml_1576075.xml",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bggxml_165880.xml",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bggxml_2035159.xml",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bggxml_225408.xml",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\bggxml_861156.xml",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\c.csv",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card01_a.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card01_b.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card02_a.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card02_b.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card03_a.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card03_b.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card04_a.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card04_b.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card05_a.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card05_b.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card05_c.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card06_a.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card06_b.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card07_a.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card07_b.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card08_a.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card08_b.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card09_a.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card09_b.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card10_a.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card10_b.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card11_a.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card11_b.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card12_a.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\card12_b.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\cfg04.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\cfg05.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\cfg06.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\cfg07.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\cfg08.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\cfg09.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\cfg10.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\cfg11.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\cfg12.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\fix1.py",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\fix_ste.py",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_Map1-A.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_Map1-A_thumb.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_Map1-B.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_Map1-B_thumb.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_Map2-A.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_Map2-A_thumb.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_Map2-B.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_Map2-B_thumb.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_Map3-A.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_Map3-A_thumb.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_Map3-B.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_Map3-B_thumb.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_Map4-A.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_Map4-A_thumb.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_Map4-B.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_Map4-B_thumb.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_Scenario1_thumb.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ia_meta.json",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\bgg_filepage_162322.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\bgg_files.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\bgg_thing.xml",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\bgg_thread_1484346.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\bgg_thread_2421628.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\bgg_thread_357300.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\codex99.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\desperation_sl.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\dm_cat.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\embed_167277427.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\embed_366611513.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\scribd_inv.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\scribd_qrdc.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\sqla_conv.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\sqla_doc.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\sqla_index.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\sqla_inv.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\sqla_res.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\vassal_lib.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\pages\\vassal_wiki.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\agpl.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\ah_search.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\ah_tm.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\asl_search.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\asl_tm.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\asl_usptoreport.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\aslrules1986.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\bgg1552676.xml",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\bgg2456949.xml",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\bgg407279.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\bgg407279.xml",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\dm_mmp.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\freejs.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\gamespot_mmp.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\gplfaq.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\mmp_asl.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\mmp_faq.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\mmp_home.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\newkids.json",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\pyramid590.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\sl1978.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\sl_tm_search.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\spryfox.pdf",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\spryfox.txt",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\sqla_status.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\techraptor_gw.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\vasl_home.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\raw\\vassal_asl.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\readme.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\rules_text.txt",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scans\\AlliedInfantryBack.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scans\\AlliedInfantryFront.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scans\\GermanInfantryBack.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scans\\GermanInfantryFront.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scans\\VehiclesAndFortificationsBack1.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scans\\VehiclesAndFortificationsBack2.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scans\\VehiclesAndFortificationsFront1.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scans\\VehiclesAndFortificationsFront2.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_components_text.txt",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_inv_p1.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\10-e8580c9ef0.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\11-f8d41a71fb.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\12-5cec53ff81.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\13-37b08e5035.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\14-3ba167be8a.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\15-c40232d165.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\16-a8ae73284e.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\17-01c4e30d3f.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\18-233046062d.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\19-717560a080.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\20-c19eba2d70.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\21-eff8be8b3e.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\22-4d1570fb5e.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\4-01e509a68f.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\5-87416abb7c.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\6-85b9100037.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\7-8b6502dd84.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\8-5845571bff.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\9-4c54440b2c.jsonp",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_pages\\urls.txt",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_qrdc_p1.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\scribd_qrdc_text.txt",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sl01.pdf",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sl02.pdf",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sl03.pdf",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sl04.pdf",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sl05.pdf",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sl06.pdf",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sl07.pdf",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sl08.pdf",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sl09.pdf",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sl10.pdf",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sl11.pdf",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sl12.pdf",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\small_Map1-A.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\small_Map1-B.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\small_Map2-A.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\small_Map2-B.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\small_Map3-A.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\small_Map3-B.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\small_Map4-A.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\small_Map4-B.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sqla\\SqlSeriesArtilleryB.xls",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sqla\\SqlSeriesVehiclesG.xls",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sqla\\art.zip",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sqla\\inventory_cod.txt",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sqla\\inventory_coi.txt",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sqla\\inventory_gia.txt",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sqla\\inventory_sql.txt",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sqla\\veh.zip",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sqla_corr.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sqla_index.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sqla_tahgc_dir.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\sqla_tahgc_index.html",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ste.json",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\ste_out.txt",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_Mkr_2.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_US_2-4-6.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_art_105.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_art_105_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_art_50.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_art_57.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_art_75.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_art_76.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_art_ge_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_art_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_5.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_6_ge.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_6_us.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_7_ge.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_7_su.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_7_us.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_8.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_8_ge.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_8_su.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_10.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_6.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_7.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_8.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_9_crouch.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_ge.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_ge_10.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_ge_6.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_ge_8.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_ge_9.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_su.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_su_10.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_su_8.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_su_9.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_us.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_us_7.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_us_8.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_broke_ldr_us_9.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_dc.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_dc_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_flamethrower.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_flamethrower_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_ge_hmg.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_ge_hmg_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_ge_lmg.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_ge_lmg_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_ge_mmg.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_ge_mmg_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_ge_panzerfaust.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_ge_panzerfaust_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_mortar_81.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_mortar_82.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_radio_5-7.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_radio_7.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_radio_9.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_radio_ge_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_radio_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_radio_us_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_su_hmg.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_su_hmg_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_su_lmg.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_su_lmg_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_su_mmg.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_su_mmg_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_su_mtr_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_us_baz.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_us_baz_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_us_hmg_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_us_mmg.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_us_mmg_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_eq_us_mtr_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_2-4-7.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_4-6-7.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_8-3-8.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_1st_lt.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_1st_sgt.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_2nd_lt.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_blank.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_cpl.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_cpt.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_greup.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_hamblen.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_hieken.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_kelso.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_maj.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_pitz.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_pollack.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_rosenberger.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_sgt.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_slites.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_stahler.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_szkely.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_tienham.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_uhl.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_ge_ldr_wetzelberge.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_1.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_1st_level.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_2nd_level.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_3.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_3rd_level.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_4.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_6_7.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_CE.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_DM.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_TI.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_art-request.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_bunker_135.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_bunker_157.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_bunker_235.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_bunker_257.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_bunker_335.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_bunker_357.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_dot.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_entrench.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_ffe.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_ffe_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_fire.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_fire2.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_gun_dis.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_gun_mal.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_hex_dice.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_mc_immob.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_mg_dis.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_mg_mal.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_prep_fire.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_qmark.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_roadblock.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_ruin.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_smoke.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_sr.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_sr_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_starburst.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_track.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_turn_al.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_turn_ge.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_type_mod.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_mkr_wire.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_2-3-7.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_4-4-7.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_6-2-8.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_ldr_1st_lt.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_ldr_1st_sgt.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_ldr_2nd_lt.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_ldr_berki.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_ldr_blank.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_ldr_burnski.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_ldr_cohenov-150.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_ldr_cohenov.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_ldr_cpl.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_ldr_cpt.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_ldr_dobovich.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_ldr_dottski.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_ldr_eastonov.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_ldr_kirken.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_ldr_kirkov.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_ldr_maj.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_su_ldr_sgt.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_6-6-6.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_8-4-7.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_1st_lt.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_1st_sgt.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_2nd_lt.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_allan.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_blank.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_blumberg.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_cpl.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_cpt.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_greene.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_greenwood.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_hill.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_jackson.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_jones.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_maj.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_may.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_medrow.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_miller.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_robinson.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_sgt.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_shaw.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_us_ldr_thornton.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_ge_brummbar.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_ge_brummbar_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_ge_pzivf1.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_ge_pzivf1_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_ge_pzivf2.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_ge_pzivf2_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_ge_sdkfz251-4.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_ge_sdkfz251-4_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_ge_sdkfz251.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_ge_sdkfz251_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_ge_stg_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_ge_stgiii.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_ge_stgiii_105.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_ge_truck.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_ge_truck_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_jeep.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_m3.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_m3_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_su_m3.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_su_su122.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_su_su122_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_su_su122_redux.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_su_su152.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_su_su152_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_su_t34.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_su_t34_coi.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_su_t34_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_su_truck.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_su_truck_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_truck.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_truck_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_us_m10.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_us_m10_coi.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_us_m10_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_us_m16.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_us_m16_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_us_m3.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_us_m3_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_us_m4_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_us_m4a4.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_us_m4a4_coi.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_us_m4m52.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_us_m4m52_coi.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_us_priest.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_us_priest_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg\\c_veh_us_truck_r.svg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svg_text.txt",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\svgdir.json",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\texas_vasl.pdf",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\AlliedInfantryBack_overview.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\AlliedInfantryFront_overview.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\AlliedInfantryFront_r0c0.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\AlliedInfantryFront_r0c1.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\AlliedInfantryFront_r0c2.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\AlliedInfantryFront_r1c0.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\AlliedInfantryFront_r1c1.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\AlliedInfantryFront_r1c2.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\GermanInfantryBack_overview.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\GermanInfantryFront_overview.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\GermanInfantryFront_r0c0.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\GermanInfantryFront_r0c1.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\GermanInfantryFront_r0c2.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\GermanInfantryFront_r1c0.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\GermanInfantryFront_r1c1.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\GermanInfantryFront_r1c2.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\VehiclesAndFortificationsBack1_overview.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\VehiclesAndFortificationsBack2_overview.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\VehiclesAndFortificationsFront1_overview.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\VehiclesAndFortificationsFront1_r0c0.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\VehiclesAndFortificationsFront1_r0c1.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\VehiclesAndFortificationsFront1_r1c0.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\VehiclesAndFortificationsFront1_r1c1.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\VehiclesAndFortificationsFront2_overview.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\VehiclesAndFortificationsFront2_r0c0.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\VehiclesAndFortificationsFront2_r0c1.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\VehiclesAndFortificationsFront2_r1c0.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\VehiclesAndFortificationsFront2_r1c1.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\ge_back_dcft.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\ge_back_mkr.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\ge_back_sw.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\ge_leaders.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\ge_pf_back.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\ge_sheet_us_leaders.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\ge_sw1.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\ge_sw2.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\qrdc_bottom.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\qrdc_cc_sw.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\qrdc_ift.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\qrdc_right.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\su_back_radio.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\su_leaders.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\su_sw.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\us_back_sw.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\us_baz_back.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\us_leaders.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\us_sw1.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\us_sw2.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\veh_back_hexdice.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\tiles\\veh_back_typemod.jpg",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\vc03.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\vc04.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\vc05.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\vc06.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\vc07.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\vc08.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\vc09.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\vc10.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\vc11.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\vc12.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\x01.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\x02.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\x03.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\x03a.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\x03b.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\x04.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "background\\reference\\research_downloads_2026-09-07\\x06.png",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "claude.key.txt",
+      "reason": "secret file (never sent)"
+    },
+    {
+      "file": "docs\\research\\2026-09-07_RV-1_counters_charts.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "docs\\research\\2026-09-07_RV-2_boards_scenarios.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "docs\\research\\2026-09-07_RV-3_digital_prior_art.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "docs\\research\\2026-09-07_RV-4_legal_ip.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "docs\\research\\2026-09-07_RV-5_rl_evolution.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "docs\\research\\2026-09-07_RV-6_llm_agents.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "docs\\research\\2026-09-07_RV-7_browser_engine.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "docs\\research\\2026-09-07_RV-8_community.md",
+      "reason": "matched --exclude-glob"
+    },
+    {
+      "file": "gemini.key.txt",
+      "reason": "secret file (never sent)"
+    },
+    {
+      "file": "mistral.key.txt",
+      "reason": "secret file (never sent)"
+    },
+    {
+      "file": "openai.key.txt",
+      "reason": "secret file (never sent)"
+    },
+    {
+      "file": "xai.key.txt",
+      "reason": "secret file (never sent)"
+    }
+  ],
+  "secrets_redacted": 0,
+  "truncated_files": [],
+  "redaction_enabled": true,
+  "operator_note": "Second pass. Review docs/ARCHITECTURE.md against docs/REQUIREMENTS.md v0.2, docs/VISION.md v0.2, and docs/SUCCESS_CRITERIA.md v0.2. The first pass (three reviewers) was applied: tiers v0.1 to v0.4 plus RC, local Python host topology, integer lattice LOS with a cache, per-player views, two scenario modes, the learning ladder, and a fourth agent family (a locally fine-tuned language model) per the owner directive. Owner decisions not up for re-litigation: GPL-3, base game only, Python core first with the 3,500 steps/s gate before any Rust port, generator ships and original layouts stay private, repo name stays. Questions: Does the architecture satisfy every MUST in REQUIREMENTS.md? List any MUST not addressed. Are the strategic bets in VISION.md reflected or contradicted? What is the load-bearing dependency and is it on the critical path? What seam between the core, the host, the client, and the trainer is most likely to fail integration testing? Where would a hostile reviewer say the document is hand-waving? What is the highest-leverage refactor that would simplify this design by 30 percent without losing capability? Is the command model in section 3.1 complete for rules 1 to 21? Is the integer lattice LOS sound? Is the tuned-model pipeline in 9.4 realistic on one GPU?",
+  "reviewers": [
+    {
+      "prefix": "gemini",
+      "adapter": "gemini",
+      "model": "gemini-3.1-pro-preview",
+      "ok": true,
+      "error": null,
+      "output": "2026-09-07_1637_gemini_review.md"
+    },
+    {
+      "prefix": "openai",
+      "adapter": "openai",
+      "model": "gpt-5.5",
+      "ok": true,
+      "error": null,
+      "output": "2026-09-07_1637_openai_review.md"
+    },
+    {
+      "prefix": "xai",
+      "adapter": "openai",
+      "model": "grok-4.3",
+      "ok": true,
+      "error": null,
+      "output": "2026-09-07_1637_xai_review.md"
+    }
+  ]
+}
