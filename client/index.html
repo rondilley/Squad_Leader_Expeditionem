@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hex Infantry Combat, working title</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header id="topbar">
+        <span id="scenario">connecting</span>
+        <span id="turn"></span>
+        <span id="phase"></span>
+        <span class="spacer"></span>
+        <label><input type="checkbox" id="tabletop" /> tabletop</label>
+        <label><input type="checkbox" id="strict" /> strict line of sight</label>
+        <button id="los-tool" type="button">line of sight</button>
+      </header>
+      <main>
+        <canvas id="board" width="1200" height="700"></canvas>
+        <div id="notice-panel" hidden>
+          <h2 id="notice-title"></h2>
+          <p id="notice-body"></p>
+        </div>
+        <aside id="side">
+          <section id="commands">
+            <h2>Legal commands</h2>
+            <div id="command-filter"></div>
+            <ul id="command-list"></ul>
+          </section>
+          <section id="log">
+            <h2>Action log</h2>
+            <ol id="log-list"></ol>
+          </section>
+        </aside>
+      </main>
+      <footer id="statusbar">
+        <span id="status">no connection</span>
+        <span id="selection"></span>
+        <span class="spacer"></span>
+        <span id="notice">
+          <a href="https://www.gnu.org/licenses/gpl-3.0.html" rel="jslicense">GPL-3 or later</a>.
+          The <a id="source-link" href="https://github.com/rondilley/Squad_Leader_AI">Corresponding Source</a>
+          of this page is available under section 6 of that licence.
+          This project is not affiliated with, sponsored by, or endorsed by Hasbro or Multi-Man Publishing.
+        </span>
+      </footer>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
