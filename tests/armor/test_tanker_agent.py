@@ -42,7 +42,7 @@ def test_the_tanker_is_a_named_agent():
     engine = build_engine(SCENARIO)
     agent = make_agent("v3", engine, 3, 0)
     assert isinstance(agent, ScriptedV3)
-    assert agent.name == "tanker" and agent.version == "3.1"
+    assert agent.name == "tanker" and agent.version == "3.2"
 
 
 def test_the_engineer_leaves_the_tanks_where_they_stand():

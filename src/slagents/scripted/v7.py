@@ -71,7 +71,9 @@ panel of three German records on paired seeds:
    rollouts on the player state. Off by default for its cost; the report has its measure.
 
 What v7 does not do yet: it has no reserve (P19). Its vehicles drive and fire with the
-armor policy that it takes from v6 (`armor.py`, 2026-10-10).
+armor policy of `armor.py` (2026-10-10), and since the combined-arms pass (2026-10-11, v7.1)
+the parameters of that policy are v7 parameters (`tank_*`), so the evolution searches them,
+and its squads escort the tanks (`escort_bonus`, P13).
 """
 
 from __future__ import annotations
@@ -93,6 +95,7 @@ from slcore.view import visible_to
 from typing import Any
 
 from slagents.scripted import odds
+from slagents.scripted.armor import ArmorParameters, ArmorPolicy
 from slagents.scripted.v6 import ENEMY_HEX_HALVES, POSITIONAL_KINDS
 from slagents.scripted.v6 import Parameters as V6Parameters
 from slagents.scripted.v6 import ScriptedV6
@@ -169,6 +172,25 @@ class Parameters:
     engineer: bool = True  # the flamethrower, the demolition charge, and the sewer; false plays as before
     sewer_gain: int = 3  # hexes nearer its target that a sewer exit must be, or the stack stays up
     tool_weight: int = 0  # score points of one half of expected enemy loss from a charge or a flamethrower in reach of a move; zero is off, because 2 lost on the measure
+    # The combined-arms pass (2026-10-11, RV-9 P4, P6, P7, P13). The names are those of
+    # `armor.ArmorParameters` with `tank_` in front; `armor_parameters` maps them.
+    escort_bonus: int = 6  # score points of a squad's step next to a tank of ours in contact with no escort
+    tank_standoff: int = 4  # hexes a tank keeps from enemy infantry
+    tank_escort: bool = True  # P13: the tanks stay with the infantry, and a screened tank may close in
+    tank_leash: int = 3  # hexes from the own infantry a firing position may be at no cost
+    tank_leash_cost: int = 4  # movement halves for each hex past the leash
+    tank_escorted_standoff: int = 2  # hexes a screened tank keeps from enemy infantry
+    tank_danger_cost: int = 8  # movement halves of a route hex in enemy AT range with no escort
+    tank_bound: bool = True  # P7: bounding overwatch in contact
+    tank_contact_range: int = 12  # hexes: an enemy this near a tank puts it in contact
+    tank_overwatch_range: int = 8  # hexes a bounding tank may be from the tank that watches it
+    tank_section_fire: bool = True  # P6: the tanks fire as a section
+    tank_focus_bonus: int = 4  # a hex a tank of ours fired at in this phase
+    tank_threat_bonus: int = 3  # a hex with an enemy anti-tank weapon
+    tank_support_bonus: int = 3  # a hex near the own infantry
+    tank_flank_bonus: int = 8  # movement halves off a position that sees an enemy side or rear
+    tank_gun_exposure: int = 6  # movement halves on a position for each enemy gun that sees it
+    tank_hold_margin: int = 4  # movement halves another position must gain before a tank leaves its own
 
 
 # The record of a nation on the attack: a side with a positional victory condition of
@@ -327,6 +349,29 @@ def v6_parameters(p: Parameters) -> V6Parameters:
         threat_scale=p.threat_scale,
         schedule_margin=p.schedule_margin,
         route_risk=p.route_risk,
+        escort_bonus=p.escort_bonus,
+    )
+
+
+def armor_parameters(p: Parameters) -> ArmorParameters:
+    """The armor policy part of a v7 record."""
+    return ArmorParameters(
+        standoff=p.tank_standoff,
+        escort=p.tank_escort,
+        leash=p.tank_leash,
+        leash_cost=p.tank_leash_cost,
+        escorted_standoff=p.tank_escorted_standoff,
+        danger_cost=p.tank_danger_cost,
+        bound=p.tank_bound,
+        contact_range=p.tank_contact_range,
+        overwatch_range=p.tank_overwatch_range,
+        section_fire=p.tank_section_fire,
+        focus_bonus=p.tank_focus_bonus,
+        threat_bonus=p.tank_threat_bonus,
+        support_bonus=p.tank_support_bonus,
+        flank_bonus=p.tank_flank_bonus,
+        gun_exposure=p.tank_gun_exposure,
+        hold_margin=p.tank_hold_margin,
     )
 
 
@@ -342,11 +387,13 @@ class Plan:
 
 class ScriptedV7(ScriptedV6):
     name = "scripted"
-    version = "7"
+    # 7.1 (2026-10-11): the combined-arms pass of the armor policy, with its parameters.
+    version = "7.1"
 
     def __init__(self, engine: Engine, player: int, params: Parameters | None = None) -> None:
         self.v7 = params or Parameters()
         super().__init__(engine, player, v6_parameters(self.v7))
+        self.armor = ArmorPolicy(engine, player, armor_parameters(self.v7), objectives=lambda: self.open_objectives or self.objectives)
         self.engineer_on = self.v7.engineer
         self.sewer_gain = self.v7.sewer_gain
         # The expected loss of a unit in each hex, and the fire a unit gives from each hex,
@@ -984,6 +1031,7 @@ class ScriptedV7(ScriptedV6):
         # progress grows as the slack shrinks, so the attacker moves through low loss
         # early and accepts more loss late, in place of a wait and then a rush.
         urgency = self._urgency(state, unit_id, unit_hex)
+        bonus += self._escort_value(state, unit, dst)
         value = gain * self.v6.aggression * urgency + cover + fire + bonus - penalty * self.v6.threat_aversion - hold
         # The unit that has to run takes a step with a gain over a stand, unless the step
         # is a death: a squad that is killed in the street takes no building either.
@@ -1065,7 +1113,8 @@ class ScriptedV7(ScriptedV6):
         # One unit decides for itself: the others of the stack make their own choice, and
         # a stand that pays for the whole stack sends each unit out into the open alone.
         fire = self._fire_points(state, unit, unit.hex) + self._tool_points(state, unit, unit.hex, False)
-        return cover + fire - self._penalty(state, unit, unit.hex, False, 1) * self.v6.threat_aversion
+        escort = self._escort_value(state, unit, unit.hex)
+        return cover + fire + escort - self._penalty(state, unit, unit.hex, False, 1) * self.v6.threat_aversion
 
     # ------------------------------------------------------------------- the fire
 

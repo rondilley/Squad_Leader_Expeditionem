@@ -71,6 +71,22 @@ SPACE: dict[str, tuple[int, int]] = {
     "smoke_floor": (0, 800),
     "smoke_fire_share": (0, 200),
     "smoke_horizon": (1, 4),
+    # The combined-arms pass of the armor policy (2026-10-11). A scenario with no vehicle
+    # plays the same game for each value, so a search of these needs scenario 4.
+    "escort_bonus": (0, 16),
+    "tank_standoff": (2, 6),
+    "tank_leash": (1, 6),
+    "tank_leash_cost": (0, 12),
+    "tank_escorted_standoff": (1, 4),
+    "tank_danger_cost": (0, 24),
+    "tank_contact_range": (6, 20),
+    "tank_overwatch_range": (4, 12),
+    "tank_focus_bonus": (0, 10),
+    "tank_threat_bonus": (0, 10),
+    "tank_support_bonus": (0, 8),
+    "tank_flank_bonus": (0, 16),
+    "tank_gun_exposure": (0, 16),
+    "tank_hold_margin": (0, 12),
 }
 
 # The boolean parameters the search flips.
@@ -81,6 +97,9 @@ FLAGS: tuple[str, ...] = (
     "rout_by_loss",
     "dash_arrives",
     "setup_by_odds",
+    "tank_escort",
+    "tank_bound",
+    "tank_section_fire",
 )
 
 Genome = dict[str, Any]

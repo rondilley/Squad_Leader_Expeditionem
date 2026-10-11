@@ -4,6 +4,84 @@ The session log, newest entry first. This file gives the next session, human or 
 
 ---
 
+## 2026-10-11 - The learned tier on scenario 4, and why one net cannot play all scenarios
+
+The owner asked to test the neural net players with vehicles.
+
+- No snapshot of the tree loads. The GitHub line changed the net (24 board planes, not 20;
+  34 unit features, not 26; a target embedding and an option head), so the snapshots of
+  2026-09-14 and 2026-10-10 fail `load_state_dict`. The tree has no learned player now.
+- New imitation snapshot on scenario 4: teachers v7 and v6, 400 games, 10 epochs, cuda
+  (`runs/imitate_s04_v7v6/snapshot-0.pt`, `runs/20261011T172423Z-imitate-s04-armor-probe`).
+  Holdout accuracy 64.0 percent. As the Allied side it wins 10 of 10 against v1 to v5, 7 of
+  10 against v6.3, 4 of 10 against v7.1; as the Axis it wins 0 of 10 against each, and
+  against random 2 of its 10 Axis games end in a repeat.
+- Its tanks (40 games against v7 and v6): as the Axis they fire 0 shots in 20 games and stay
+  near the start (mean 7.7 hexes from the own infantry); as the Allied side they fire, and a
+  tank stands within three hexes of enemy infantry with no escort in 11 to 12 percent of the
+  samples (v6.3 and v7.1: 4 or less). The section moved whole in 9 of 73 phases in contact.
+- The owner: "The network needs to be trained on all the scenarios (obviously)". The net
+  cannot do that now: `nets.Policy` flattens the board into a Linear of
+  `channels * cols * (rows + 1)`, the target head has one output for each hex of the board,
+  and the unit slots are the unit count of the scenario. Scenarios 1, 2, 3A, and 4 have 16,
+  19, 33, and 25 columns and 53, 96, 149, and 26 units, so each one makes another net.
+  `sl-cli imitate` and `sl-cli train` take one `--scenario`. Discussed with the owner.
+- The owner chose one net for each scenario. Scenario 1 net trained
+  (`runs/imitate_s01_v7v6/snapshot-0.pt`, holdout 49.6 percent, 1 of 20 against v7). The
+  scenario 2 run was stopped part way for the owner's battery; the rest of the plan and the
+  commands to restart are in `tasks/todo.md` ("Paused 2026-10-11").
+
+---
+
+## 2026-10-11 - The combined-arms pass: tanks that work with the infantry
+
+The owner asked for the status of the computer's training and said: "The tanks do not
+appear to be working in coordination or within written doctrines for tank warware, small
+unit tactics, mixed unit tactics, etc." The review agreed. Each tank chose its hex and its
+target alone, the infantry code did not read the tanks, the evolution had no tank
+parameter, and the learned tier had only played scenario 1, which has no vehicle. The owner
+said to do the five recommendations.
+
+- `armor.py`, the RV-9 principles that it did not have:
+  - P13: a firing position starts its route field at a cost, `leash_cost` halves for each
+    hex past `leash` from the own squads and crews. A screened hex (an own squad or crew in
+    it or next to it) is a position at `escorted_standoff` (2) from enemy infantry, not at
+    `standoff` (4). A route hex in the AT range of enemy infantry with no escort costs
+    `danger_cost`. v6 and v7 squads of the side with a deadline get `escort_bonus` for the
+    hex of a tank in contact that has no escort (one escort for each tank).
+  - P7: in contact, the section moves by halves (the parity of the turn). A tank of the
+    watch half moves only while another tank holds a firing position and has not moved, and
+    the step stays within `overwatch_range` of it. A tank in AT range with no escort pulls
+    back in any turn. A tank that will move does not fire in the Prep Fire Phase (rule 33.2).
+  - P6: a shot gets `focus_bonus` for a hex a tank of ours fired at in this phase,
+    `threat_bonus` for an enemy AT weapon, and `support_bonus` for an enemy within three
+    hexes of the own infantry.
+  - P4: a position costs `gun_exposure` for each enemy gun that sees it and `flank_bonus`
+    less when it sees the side or rear of an enemy vehicle (`r28_vehicles.target_face`,
+    added to `api.SURFACE`). A holding tank turns its front to an enemy gun first, then an
+    AT weapon, then the nearest enemy. A tank leaves a position only for one `hold_margin`
+    halves better.
+- v7.1 has the `tank_*` parameters and `escort_bonus` (`v7.armor_parameters`), and they are
+  in `evolve.SPACE` and `FLAGS`. v3.2, v6.3.
+- Measured, 40 games of v7 and v6 on scenario 4 (the same seeds, old tree from `git
+  archive HEAD`): tanks lost 88 of 240 before, 66 after; the Allied v6 tanks 38 of 60 before,
+  22 after; a v6 Allied tank within three hexes of enemy infantry with no escort 31 percent
+  of the samples before, 4 after; Axis wins 2 of 40 before, 11 after. The whole section in
+  motion in a Movement Phase in contact: 22 of 131 before, 0 of 136 after.
+- Gauntlet of scenario 4, v7 against v3, v5, v6, 40 games a pair: old v7 65.0 percent (1748),
+  new 70.0 percent (1791); v7 as the Axis against v6 0 of 20 before, 8 of 20 after; the side
+  term of the Axis -546 before, -455 after. `runs/20261011T170128Z-gauntlet-v7`.
+- Evolution of the 17 tank parameters on scenario 4 (`runs/20261011T170308Z-evolve-v7`, 10
+  generations, panel v6 and v7, 5,520 games): the best pick scored 52.0 percent and the base
+  51.7 percent on new seeds, 400 games each. The defaults stay.
+- `tests/armor/test_combined_arms.py`: 9 tests. `docs/images/window_armor_probe.png` made
+  again (v3's tanks take other routes).
+- The first measure of the bounding read the full state and left out the tanks that fired in
+  the Prep Fire Phase; `tasks/lessons.md` has the lesson.
+- Still open: scenario 4 favours the Allied side. The learned tier has not played a vehicle.
+
+---
+
 ## 2026-10-10 - Two German tanks that stood: the armor route, and the card's "columns"
 
 The owner watched v7 (Axis) against v6 on scenario 4: "Two of the tanks on the AXIS side

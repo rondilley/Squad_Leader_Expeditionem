@@ -119,7 +119,7 @@ from slcore.rules.victory import (
 from slcore.units import KIND_LEADER, KIND_SW, Unit
 from slcore.view import visible_to
 
-from slagents.scripted.armor import ArmorParameters, ArmorPolicy
+from slagents.scripted.armor import ESCORT_KINDS, ArmorParameters, ArmorPolicy
 from slagents.scripted.v5 import Parameters as V5Parameters
 from slagents.scripted.v5 import ScriptedV5
 
@@ -137,6 +137,9 @@ OPEN_GROUND_FACTOR = 2
 # A hex with an unbroken enemy in it is not a step of a route, unless it is the target. The
 # route goes around it at this cost in movement halves.
 ENEMY_HEX_HALVES = 20
+
+# P13: a tank of ours with seen enemy infantry this near it needs a squad next to it.
+ESCORT_CONTACT = 6
 
 
 @dataclass(frozen=True)
@@ -156,6 +159,8 @@ class Parameters:
     threat_scale: int = 8  # firepower halves for one unit of threat: one squad of four
     schedule_margin: int = 2  # turns of slack below which a unit is pressed to move
     route_risk: int = 2  # movement halves that one unit of threat adds to a hex on the route
+    # The combined-arms pass (2026-10-11, RV-9 P13):
+    escort_bonus: int = 6  # score points of a step next to a tank of ours in contact with no escort
 
 
 NATION_PROFILES: dict[str, Parameters] = {
@@ -187,7 +192,9 @@ class ScriptedV6(ScriptedV5):
     name = "scripted"
     # 6.2 (2026-10-10): its vehicles drive and fire with the armor policy of `armor.py`;
     # before, v6 had no policy for a vehicle, and its tanks stood and never fired.
-    version = "6.2"
+    # 6.3 (2026-10-11): the combined-arms pass of the armor policy, and the squads of the
+    # attacker escort the tanks (`escort_bonus`).
+    version = "6.3"
 
     def __init__(self, engine: Engine, player: int, params: Parameters | None = None) -> None:
         self.v6 = params or Parameters()
@@ -579,9 +586,44 @@ class ScriptedV6(ScriptedV5):
             threat *= OPEN_GROUND_FACTOR
         if moving:
             threat *= max(1, count)
-        value = gain * self.v6.aggression + cover + bonus - threat * self.v6.threat_aversion
+        escort = self._escort_value(state, state.units[unit_id], dst)
+        value = gain * self.v6.aggression + cover + bonus + escort - threat * self.v6.threat_aversion
         pressed = 1 if gain > 0 and is_pressed else 0
         return (pressed, value)
+
+    def _escort_value(self, state: State, unit: Unit, dst: HexRef) -> int:
+        """P13: the worth of a hex in or next to a tank of ours that seen enemy infantry is
+        near and that no other squad or crew of ours screens yet.
+
+        Only the side with a deadline earns it: its tanks go forward into the anti-tank
+        range of the defender, and a defender's squad stays in the building it holds. One
+        escort for each tank, so the force does not gather around the tanks.
+        """
+        if not self.v6.escort_bonus or not self._has_vehicles or not self.has_deadline:
+            return 0
+        if unit.kind not in ESCORT_KINDS or unit.broken:
+            return 0
+        enemies = [
+            u.hex for u in state.player_units(self.opponent)
+            if u.hex is not None and u.is_infantry and not u.broken and visible_to(state, u, self.player)
+        ]
+        if not enemies:
+            return 0
+        screens = [
+            u.hex for u in state.player_units(self.player)
+            if u.id != unit.id and u.hex is not None and u.kind in ESCORT_KINDS and not u.broken and not u.riding
+        ]
+        for tank in state.player_units(self.player):
+            if not tank.is_vehicle or tank.hex is None or tank.wreck or tank.eliminated:
+                continue
+            if geometry.distance(tank.hex, dst) > 1:
+                continue
+            if not any(geometry.distance(tank.hex, e) <= ESCORT_CONTACT for e in enemies):
+                continue
+            if any(geometry.distance(tank.hex, h) <= 1 for h in screens):
+                continue
+            return self.v6.escort_bonus
+        return 0
 
     # ------------------------------------------------------------------ fire
 
@@ -620,7 +662,7 @@ class ScriptedV6(ScriptedV5):
             threat //= 2
         count = sum(1 for u in state.infantry_in(unit.hex) if u.player == self.player and not u.broken)
         threat *= max(1, count)
-        return cover - threat * self.v6.threat_aversion
+        return cover + self._escort_value(state, unit, unit.hex) - threat * self.v6.threat_aversion
 
     # -------------------------------------------------------------- movement
 

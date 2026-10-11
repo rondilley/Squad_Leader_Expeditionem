@@ -61,7 +61,9 @@ class ScriptedV3(ScriptedV2):
     name = "tanker"
     # 3.1 (2026-10-10): the vehicles use the armor policy of `armor.py` (a route to a firing
     # position, hold and fire, overrun only a weak target).
-    version = "3.1"
+    # 3.2 (2026-10-11): the combined-arms pass of the armor policy (the leash to the
+    # infantry, bounding overwatch, section fire, flank and front).
+    version = "3.2"
 
     def __init__(self, engine: Engine, player: int, params: Parameters | None = None) -> None:
         super().__init__(engine, player, params or Parameters())

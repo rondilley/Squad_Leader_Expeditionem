@@ -35,7 +35,7 @@ NAMED = ("aggression", "cover_preference", "fire_priority")
 def test_the_project_ships_eight_scripted_agents_with_versions():
     engine = build_engine("s01_guards_counterattack")
     agents = [make_agent(kind, engine, 1, 0) for kind in AGENTS]
-    assert [a.version for a in agents] == ["0", "1", "2", "3.1", "4", "5", "6.2", "7"]
+    assert [a.version for a in agents] == ["0", "1", "2", "3.2", "4", "5", "6.3", "7.1"]
     assert len({(a.name, a.version) for a in agents}) == len(AGENTS)
     assert isinstance(agents[0], ScriptedV0)
     assert isinstance(agents[1], ScriptedV1)

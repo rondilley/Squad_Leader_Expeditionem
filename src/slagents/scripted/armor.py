@@ -24,8 +24,40 @@ This policy drives a tank the way a tank commander uses one:
   range; infantry next to a vehicle attacks it (rule 36.1) and infantry on one attacks it in
   close combat (rule 36.2); a broken gun gets its repair die (rule 38.1).
 
+The combined-arms pass (2026-10-11). The owner watched v7 and v6 on scenario 4 and said:
+"The tanks do not appear to be working in coordination or within written doctrines for tank
+warfare, small unit tactics, mixed unit tactics." A measure of 20 games agreed: a tank had a
+squad of its own in or next to its hex in 0 to 13 percent of the samples, and the Allied
+tanks of v6 lost 20 of 30. Each tank chose its hex and its target alone. The pass puts the
+principles of RV-9 into the policy:
+
+- P13, tanks and infantry cover each other. A firing position more than `leash` hexes from
+  the own infantry costs `leash_cost` halves for each hex past it, so the tanks stay with
+  the force. A tank with an own squad or crew in or next to its hex is screened, so it may
+  stand `escorted_standoff` hexes from enemy infantry in place of `standoff`. A route hex in
+  the anti-tank range of enemy infantry with no escort costs `danger_cost` halves. The
+  infantry half of the team is in v6 and v7 (`escort_bonus`): a squad of the attacker gains
+  for a step next to a tank of its own that is near the enemy and has no escort yet.
+- P7, bounding overwatch. In contact (an enemy within `contact_range` of the tank), a tank
+  leaves its hex only while another tank of its own holds a firing position, and it ends
+  each step within `overwatch_range` of that tank. With no tank in a firing position, the
+  section bounds by halves: one half moves in an odd turn, the other in an even turn. A
+  tank that will move does not fire in the Prep Fire Phase, because rule 33.2 holds a tank
+  that fired there.
+- P6, fire as a section. A shot gets `focus_bonus` for a hex that a tank of its own already
+  fired at in this phase and that still holds an unbroken enemy, `threat_bonus` for a hex
+  with an enemy anti-tank weapon, and `support_bonus` for a hex within three hexes of the
+  own infantry, the enemy that stops the infantry.
+- P4, flank and front. A firing position that sees an enemy vehicle's side or rear (rule
+  33.5) costs `flank_bonus` halves less, and one in the sight and range of each enemy gun
+  costs `gun_exposure` halves more. A tank that holds turns its front to the largest
+  threat: an enemy gun first, then an enemy anti-tank weapon, then the nearest enemy.
+- A tank in a firing position holds there unless another position is `hold_margin` halves
+  better by the route, so a tank does not leave a good position for a small gain.
+
 The policy reads the state and the frame and picks one legal command, or None so that the
-infantry policy of the agent decides. It is deterministic for a state and a frame.
+infantry policy of the agent decides. It keeps one record between decisions: the hexes its
+tanks fired at in the phase in hand, for the section fire.
 """
 
 from __future__ import annotations
@@ -49,6 +81,7 @@ from slcore.game import (
 from slcore.geometry import HexRef
 from slcore.los_eval import evaluate as evaluate_los
 from slcore.rules import r28_vehicles, r30_vehicle_movement, r37_at_weapons
+from slcore.units import KIND_CREW, KIND_SQUAD
 
 ARMOR_FIRE_ACTIONS = ("at_fire", "afv_fire", "afv_mg", "afv_attack")
 UNREACHABLE = 10**9
@@ -59,6 +92,10 @@ UNREACHABLE = 10**9
 # and stood for the rest of the game. A tank goes around rough ground unless the way around
 # is much longer.
 BREAKDOWN_PENALTY = 12
+# The units that screen a tank (P13): a squad or a crew on foot. A leader alone does not.
+ESCORT_KINDS = (KIND_SQUAD, KIND_CREW)
+# An enemy this near an own unbroken squad is the enemy that stops the infantry (P6).
+SUPPORT_RADIUS = 3
 
 
 @dataclass(frozen=True)
@@ -71,6 +108,22 @@ class ArmorParameters:
     fire_range: int = 12  # the farthest target that makes a hex a firing position
     overrun: bool = True  # whether a tank drives over weak infantry (rule 35)
     pivot_to_aim: bool = True  # whether a tank that holds turns to face its target
+    # The combined-arms pass (2026-10-11).
+    escort: bool = True  # P13: the tanks stay with the infantry, and a screened tank may close in
+    leash: int = 3  # hexes from the own infantry that a firing position may be at no cost
+    leash_cost: int = 4  # movement halves for each hex past the leash
+    escorted_standoff: int = 2  # hexes a screened tank keeps from enemy infantry
+    danger_cost: int = 8  # movement halves of a route hex in the AT range of enemy infantry, with no escort
+    bound: bool = True  # P7: bounding overwatch in contact
+    contact_range: int = 12  # hexes: an enemy this near a tank puts it in contact
+    overwatch_range: int = 8  # hexes a bounding tank may be from the tank that watches it
+    section_fire: bool = True  # P6: the tanks fire as a section
+    focus_bonus: int = 4  # a hex that a tank of ours fired at in this phase
+    threat_bonus: int = 3  # a hex with an enemy anti-tank weapon
+    support_bonus: int = 3  # a hex near the own infantry
+    flank_bonus: int = 8  # movement halves off a position that sees an enemy side or rear
+    gun_exposure: int = 6  # movement halves on a position for each enemy gun that sees it
+    hold_margin: int = 4  # movement halves another position must gain before a tank leaves its own
 
 
 class ArmorPolicy:
@@ -83,6 +136,12 @@ class ArmorPolicy:
         self._objectives = objectives or (lambda: engine.objectives(player))
         self._fields: dict[tuple, dict[HexRef, int]] = {}
         self._positions: dict[tuple, frozenset[HexRef]] = {}
+        self._costs: dict[tuple, dict[HexRef, int]] = {}
+        self._danger: dict[tuple, dict[HexRef, int]] = {}
+        # The hexes the tanks of this side fired at in the phase in hand (P6). The key is
+        # the turn and the phase; each phase of an agent comes one time in a turn.
+        self._shots_key: tuple[int, str] = (-1, "")
+        self._shots: set[HexRef] = set()
 
     # ------------------------------------------------------------------ choose
 
@@ -92,9 +151,12 @@ class ArmorPolicy:
             # Rule 38.1: a gun that nobody works on stays broken for the game.
             return min(by_action["afv_repair"], key=lambda lc: lc.id).id
         if phase in (PHASE_PREP_FIRE, PHASE_DEFENSIVE_FIRE, PHASE_ADVANCING_FIRE):
+            if phase == PHASE_PREP_FIRE:
+                by_action = self._without_movers(state, by_action)
             shot = self._armor_shot(state, by_action)
             if shot is not None:
-                return shot
+                self._record_shot(state, shot)
+                return shot.id
             if phase in (PHASE_PREP_FIRE, PHASE_DEFENSIVE_FIRE):
                 return self._aim(state, by_action)
         if phase == PHASE_MOVEMENT:
@@ -106,7 +168,7 @@ class ArmorPolicy:
 
     # -------------------------------------------------------------------- fire
 
-    def _armor_shot(self, state: State, by_action: dict[str, list[LegalCommand]]) -> str | None:
+    def _armor_shot(self, state: State, by_action: dict[str, list[LegalCommand]]) -> LegalCommand | None:
         best: LegalCommand | None = None
         best_score: tuple[int, int] | None = None
         for action in ARMOR_FIRE_ACTIONS:
@@ -116,7 +178,7 @@ class ArmorPolicy:
                     continue
                 if best_score is None or score > best_score or (score == best_score and best is not None and lc.id < best.id):
                     best, best_score = lc, score
-        return None if best is None else best.id
+        return best
 
     def _shot_score(self, state: State, action: str, lc: LegalCommand) -> tuple[int, int] | None:
         target = lc.command.hex
@@ -125,23 +187,66 @@ class ArmorPolicy:
         payload = dict(lc.command.extra)
         vehicle = r28_vehicles.vehicle_in(state, target)
         hostile = vehicle is not None and vehicle.player != self.player and not vehicle.wreck
-        occupants = sum(1 for u in state.infantry_in(target) if u.player != self.player and not u.broken)
+        occupants = [u for u in state.infantry_in(target) if u.player != self.player and not u.broken]
+        focus = self._focus(state, target)
         if action == "at_fire":
             # Rule 37: the weapon has no other target, so it fires when it can.
-            return (self.params.armor_priority * 2, 0) if hostile else None
+            return (self.params.armor_priority * 2 + focus, 0) if hostile else None
         if action == "afv_attack":
-            return (self.params.armor_priority, 0) if hostile else None
+            return (self.params.armor_priority + focus, 0) if hostile else None
         if action == "afv_fire":
             if str(payload.get("aim")) == "vehicle":
-                return (self.params.armor_priority, 0) if hostile else None
-            if occupants == 0:
+                return (self.params.armor_priority + focus, 0) if hostile else None
+            if not occupants:
                 return None
-            return (self.params.fire_priority * occupants, occupants)
+            return (self.params.fire_priority * len(occupants) + self._section_value(state, target, occupants) + focus, len(occupants))
         if action == "afv_mg":
-            if occupants == 0:
+            if not occupants:
                 return None
-            return (self.params.fire_priority * occupants - 1, occupants)
+            return (self.params.fire_priority * len(occupants) - 1 + self._section_value(state, target, occupants) + focus, len(occupants))
         return None
+
+    def _section_value(self, state: State, target: HexRef, occupants: list) -> int:
+        """P6: what the hex is worth to the force: an enemy anti-tank weapon, and an enemy
+        near the own infantry."""
+        if not self.params.section_fire:
+            return 0
+        value = 0
+        types = self.engine.types
+        if any(r37_at_weapons.anti_tank_weapons(state, types, u) for u in occupants):
+            value += self.params.threat_bonus
+        if any(geometry.distance(target, f) <= SUPPORT_RADIUS for f in self._friends(state)):
+            value += self.params.support_bonus
+        return value
+
+    def _focus(self, state: State, target: HexRef) -> int:
+        if not self.params.section_fire:
+            return 0
+        if self._shots_key != (state.turn, state.phase):
+            return 0
+        return self.params.focus_bonus if target in self._shots else 0
+
+    def _record_shot(self, state: State, shot: LegalCommand) -> None:
+        key = (state.turn, state.phase)
+        if self._shots_key != key:
+            self._shots_key, self._shots = key, set()
+        if shot.command.hex is not None:
+            self._shots.add(shot.command.hex)
+
+    def _without_movers(self, state: State, by_action: dict[str, list[LegalCommand]]) -> dict[str, list[LegalCommand]]:
+        """P7 with rule 33.2: a tank that fires in the Prep Fire Phase may not move, so a tank
+        that will bound in this player turn keeps its fire for the Advancing Fire Phase."""
+        movers = self._movers(state)
+        if not movers:
+            return by_action
+        out: dict[str, list[LegalCommand]] = {}
+        for action, commands in by_action.items():
+            if action in ARMOR_FIRE_ACTIONS:
+                commands = [lc for lc in commands if not (lc.command.units and lc.command.units[0] in movers)]
+                if not commands:
+                    continue
+            out[action] = commands
+        return out
 
     # ---------------------------------------------------------------- the picture
 
@@ -151,22 +256,53 @@ class ArmorPolicy:
     def _enemy_infantry(self, state: State) -> list[HexRef]:
         return sorted({u.hex for u in self._enemies(state) if u.is_infantry and not u.riding})
 
+    def _enemy_guns(self, state: State) -> list:
+        """The enemy vehicles with a working main armament."""
+        types = self.engine.types
+        return [
+            u for u in self._enemies(state)
+            if u.is_vehicle and types[u.type_key].gun > 0 and not u.malfunction and not u.disabled
+        ]
+
+    def _friends(self, state: State) -> frozenset[HexRef]:
+        """The hexes of the own unbroken squads and crews on foot: the infantry that screens a tank."""
+        if not self.params.escort:
+            return frozenset()
+        return frozenset(
+            u.hex for u in state.player_units(self.player)
+            if u.hex is not None and u.kind in ESCORT_KINDS and not u.broken and not u.eliminated and not u.riding
+        )
+
+    @staticmethod
+    def _escorted(friends: frozenset[HexRef], here: HexRef) -> bool:
+        return any(geometry.distance(here, f) <= 1 for f in friends)
+
     def _picture(self, state: State) -> tuple:
         return tuple(sorted((u.id, u.hex) for u in self._enemies(state)))
 
+    def _key(self, state: State) -> tuple:
+        """The enemy picture and the own infantry: the things a position and a route read."""
+        return (self._picture(state), self._friends(state))
+
     def firing_positions(self, state: State) -> frozenset[HexRef]:
         """The hexes with a line of sight to an enemy within `fire_range` and at least
-        `standoff` hexes from each enemy infantry unit."""
-        key = self._picture(state)
+        `standoff` hexes from each enemy infantry unit (`escorted_standoff` for a hex that
+        an own squad or crew screens)."""
+        key = self._key(state)
         found = self._positions.get(key)
         if found is not None:
             return found
         engine = self.engine
         enemies = sorted({u.hex for u in self._enemies(state)})
         infantry = self._enemy_infantry(state)
+        friends = key[1]
         out = set()
         for here in engine.board.order:
-            if any(geometry.distance(here, h) < self.params.standoff for h in infantry):
+            near = min((geometry.distance(here, h) for h in infantry), default=UNREACHABLE)
+            keep = self.params.standoff
+            if friends and self._escorted(friends, here):
+                keep = min(keep, self.params.escorted_standoff)
+            if near < keep:
                 continue
             if r30_vehicle_movement.enemy_vehicle_in(state, self.player, here) is not None:
                 continue
@@ -187,21 +323,74 @@ class ArmorPolicy:
         self._positions = {key: found}
         return found
 
-    def _field(self, state: State, vehicle, goals: frozenset[HexRef], blocked: frozenset[HexRef] = frozenset()) -> dict[HexRef, int]:
-        """The cost in movement halves from each hex to the nearest goal, over the vehicle
-        entry costs of the core, for a vehicle of this type.
+    def goal_costs(self, state: State) -> dict[HexRef, int]:
+        """The start cost of each firing position, in movement halves (P13 and P4): the leash
+        to the own infantry, the enemy guns that see it, less the flank bonus."""
+        key = self._key(state)
+        found = self._costs.get(key)
+        if found is not None:
+            return found
+        engine = self.engine
+        friends = key[1]
+        guns = {u.id for u in self._enemy_guns(state)}
+        vehicles = [u for u in self._enemies(state) if u.is_vehicle]
+        out: dict[HexRef, int] = {}
+        for here in sorted(self.firing_positions(state)):
+            cost = 0
+            if friends:
+                near = min(geometry.distance(here, f) for f in friends)
+                cost += self.params.leash_cost * max(0, near - self.params.leash)
+            exposed = 0
+            flank = False
+            for enemy in vehicles:
+                if geometry.distance(here, enemy.hex) > self.params.fire_range:
+                    continue
+                if not evaluate_los(engine.board, engine.los, here, enemy.hex).clear:
+                    continue
+                if enemy.id in guns:
+                    exposed += 1
+                if r28_vehicles.target_face(enemy, here, engine.types) in (r28_vehicles.SIDE, r28_vehicles.REAR):
+                    flank = True
+            cost += self.params.gun_exposure * exposed
+            if flank:
+                cost -= self.params.flank_bonus
+            out[here] = max(0, cost)
+        self._costs = {key: out}
+        return out
+
+    def _danger_map(self, state: State) -> dict[HexRef, int]:
+        """The extra cost of each hex in the AT range of enemy infantry with no escort (P13)."""
+        key = self._key(state)
+        found = self._danger.get(key)
+        if found is not None:
+            return found
+        out: dict[HexRef, int] = {}
+        if self.params.danger_cost:
+            infantry = self._enemy_infantry(state)
+            friends = key[1]
+            for here in self.engine.board.order:
+                if any(geometry.distance(here, h) < self.params.standoff for h in infantry) and not self._escorted(friends, here):
+                    out[here] = self.params.danger_cost
+        self._danger = {key: out}
+        return out
+
+    def _field(self, state: State, vehicle, seeds: tuple[tuple[HexRef, int], ...], blocked: frozenset[HexRef] = frozenset()) -> dict[HexRef, int]:
+        """The cost in movement halves from each hex to the best goal, over the vehicle
+        entry costs of the core, for a vehicle of this type. Each goal starts at its own
+        cost (`goal_costs`).
 
         A route does not go through a hex of `blocked`, the hexes that `_best_step` does not
         enter. A route through one gave a hex a cost that no step could reach, and an
         assault gun behind a tank of its own side stood there for four turns.
         """
-        key = (self._picture(state), vehicle.type_key, goals, blocked)
+        key = (self._key(state), vehicle.type_key, seeds, blocked)
         found = self._fields.get(key)
         if found is not None:
             return found
         board = self.engine.board
+        danger = self._danger_map(state)
         dist: dict[HexRef, int] = {}
-        heap = [(0, g) for g in sorted(goals)]
+        heap = [(cost, g) for g, cost in seeds]
         heapq.heapify(heap)
         while heap:
             d, here = heapq.heappop(heap)
@@ -218,7 +407,7 @@ class ArmorPolicy:
                 cost = self._step_cost(state, vehicle, there, here)
                 if cost is None:
                     continue
-                heapq.heappush(heap, (d + cost, there))
+                heapq.heappush(heap, (d + cost + danger.get(here, 0), there))
         if len(self._fields) > 32:
             self._fields.clear()
         self._fields[key] = dist
@@ -235,6 +424,85 @@ class ArmorPolicy:
             faces = 7 - r30_vehicle_movement.breakdown_number(self.engine.types, vehicle)
             cost += BREAKDOWN_PENALTY * faces
         return cost
+
+    # ------------------------------------------------------------------- the section
+
+    def _mobile(self, state: State) -> list:
+        """The own vehicles that can still drive, in the order of their id."""
+        return sorted(
+            (u for u in state.player_units(self.player)
+             if u.is_vehicle and u.hex is not None and not u.wreck and not u.eliminated and not u.immobilized),
+            key=lambda u: u.id,
+        )
+
+    def _taken(self, state: State, vehicle) -> frozenset[HexRef]:
+        # Rule 30.8: a vehicle may not stop where another working vehicle stands, so a hex
+        # that holds one of this side's other vehicles is no goal and no step for this one.
+        return frozenset(
+            u.hex for u in state.player_units(self.player)
+            if u.is_vehicle and u.id != vehicle.id and u.hex is not None and not u.wreck and not u.eliminated
+        )
+
+    def _route(self, state: State, vehicle) -> tuple[dict[HexRef, int], frozenset[HexRef]]:
+        """The route field of this vehicle, and the hexes it may not enter."""
+        taken = self._taken(state, vehicle)
+        positions = self.firing_positions(state)
+        if positions:
+            costs = self.goal_costs(state)
+            seeds = tuple((h, costs.get(h, 0)) for h in sorted(positions - taken))
+        else:
+            seeds = tuple((h, 0) for h in sorted(frozenset(self._objectives()) - taken))
+        blocked = taken | frozenset(self._enemy_infantry(state))
+        field = self._field(state, vehicle, seeds, blocked) if seeds else {}
+        return field, taken
+
+    def _holds(self, state: State, vehicle) -> bool:
+        """A tank in a firing position holds there, unless the route offers another one that
+        is `hold_margin` halves better (P4, P13)."""
+        if vehicle.hex is None or vehicle.hex not in self.firing_positions(state):
+            return False
+        own = self.goal_costs(state).get(vehicle.hex, 0)
+        field, _ = self._route(state, vehicle)
+        return own - field.get(vehicle.hex, own) <= self.params.hold_margin
+
+    def _in_contact(self, state: State, vehicle) -> bool:
+        return any(geometry.distance(vehicle.hex, u.hex) <= self.params.contact_range for u in self._enemies(state))
+
+    def _watchers(self, state: State, vehicle, mobile: list) -> list[HexRef]:
+        """The hexes of the other own tanks that hold a firing position and did not move in
+        this phase: the overwatch of this tank's bound (P7)."""
+        return [
+            u.hex for u in mobile
+            if u.id != vehicle.id and not u.moved and u.hex in self.firing_positions(state) and self._holds(state, u)
+        ]
+
+    def _may_bound(self, state: State, vehicle, mobile: list) -> bool:
+        """P7: in contact, the section moves by halves. The half of the turn bounds; the
+        other half watches, and a tank of it moves only while another tank holds a firing
+        position and watches it.
+
+        The first rule let a tank move whenever any tank of its own held a position. The
+        position of a watcher changed when the infantry moved or broke, the watcher then
+        moved too, and the whole section moved in 22 of 56 phases in contact.
+        """
+        if not self.params.bound or len(mobile) < 2 or not self._in_contact(state, vehicle):
+            return True
+        if vehicle.hex in self._danger_map(state):
+            # P13: a tank in the anti-tank range of enemy infantry with no escort pulls
+            # back now; it does not wait for the turn of its half.
+            return True
+        ids = [u.id for u in mobile]
+        index = ids.index(vehicle.id) if vehicle.id in ids else 0
+        if index % 2 == state.turn % 2:
+            return True
+        return bool(self._watchers(state, vehicle, mobile))
+
+    def _movers(self, state: State) -> set[int]:
+        """The own tanks that will leave their hex in this player turn."""
+        if not self.params.bound:
+            return {u.id for u in self._mobile(state) if not self._holds(state, u)}
+        mobile = self._mobile(state)
+        return {u.id for u in mobile if not self._holds(state, u) and self._may_bound(state, u, mobile)}
 
     # ------------------------------------------------------------------- drive
 
@@ -254,41 +522,39 @@ class ArmorPolicy:
         for lc in by_action.get("vehicle_move", []):
             moves.setdefault(lc.command.units[0], []).append(lc)
         if moves:
-            positions = self.firing_positions(state)
             # Rule 30.8: a vehicle may not stop where another vehicle or a wreck stands, and
             # the core keeps the phase open until it leaves, so it leaves first.
             for vehicle_id in sorted(moves):
                 vehicle = state.units[vehicle_id]
                 if vehicle.hex is not None and r30_vehicle_movement.must_leave(state, vehicle):
-                    out = self._best_step(state, vehicle, moves[vehicle_id], positions, leaving=True)
+                    out = self._best_step(state, vehicle, moves[vehicle_id], leaving=True)
                     if out is not None:
                         return out.id
+            mobile = self._mobile(state)
             for vehicle_id in sorted(moves):
                 vehicle = state.units[vehicle_id]
                 if vehicle.hex is None:
                     continue
-                if vehicle.hex in positions:
+                if self._holds(state, vehicle):
                     continue  # it holds here and fires
+                if not self._may_bound(state, vehicle, mobile):
+                    continue  # it watches the other half of the section bound
                 for lc in sorted(moves[vehicle_id], key=lambda lc: lc.id):
                     if lc.command.hex is not None and self._weak_overrun(state, lc.command.hex):
                         return lc.id
-                best = self._best_step(state, vehicle, moves[vehicle_id], positions)
+                watchers = self._watchers(state, vehicle, mobile) if self.params.bound else []
+                best = self._best_step(state, vehicle, moves[vehicle_id], watchers=watchers)
                 if best is not None:
                     return best.id
         return self._aim(state, by_action)
 
-    def _best_step(self, state: State, vehicle, moves: list[LegalCommand], positions: frozenset[HexRef], leaving: bool = False) -> LegalCommand | None:
+    def _best_step(self, state: State, vehicle, moves: list[LegalCommand], leaving: bool = False, watchers: list[HexRef] | None = None) -> LegalCommand | None:
         """The move one hex down the route field. With `leaving` the vehicle must leave its
-        hex, so the best move goes even when it does not shorten the route."""
-        # Rule 30.8: a vehicle may not stop where another working vehicle stands, so a hex
-        # that holds one of this side's other vehicles is no goal and no step for this one.
-        taken = frozenset(
-            u.hex for u in state.player_units(self.player)
-            if u.is_vehicle and u.id != vehicle.id and u.hex is not None and not u.wreck and not u.eliminated
-        )
-        goals = (positions or frozenset(self._objectives())) - taken
-        blocked = taken | frozenset(self._enemy_infantry(state))
-        field = self._field(state, vehicle, goals, blocked) if goals else {}
+        hex, so the best move goes even when it does not shorten the route. With `watchers`
+        a step goes no farther than `overwatch_range` from the nearest of them (P7), unless
+        it comes nearer to them."""
+        field, taken = self._route(state, vehicle)
+        danger = self._danger_map(state)
         # The cost of a move is the step itself (its entry cost and the risk of the breakdown
         # die) and the route from where it ends. The field holds only the route, so a step
         # into a wood that ended one hex nearer looked as good as a step on open ground, and
@@ -296,29 +562,45 @@ class ArmorPolicy:
         best: LegalCommand | None = None
         here = field.get(vehicle.hex, UNREACHABLE)
         best_cost = 2 * UNREACHABLE + 1 if leaving else (here + 1 if here < UNREACHABLE else UNREACHABLE)
+        reach = None
+        if watchers:
+            reach = max(self.params.overwatch_range, min(geometry.distance(vehicle.hex, w) for w in watchers))
         for lc in sorted(moves, key=lambda lc: lc.id):
             dst = lc.command.hex
             if dst is None or dst in taken or r30_vehicle_movement.enemy_infantry_in(state, self.player, dst):
                 continue
+            if reach is not None and not leaving and min(geometry.distance(dst, w) for w in watchers) > reach:
+                continue
             rest = field.get(dst, UNREACHABLE)
             step = self._step_cost(state, vehicle, vehicle.hex, dst)
-            cost = rest + (UNREACHABLE if step is None else step)
+            cost = rest + (UNREACHABLE if step is None else step + danger.get(dst, 0))
             if cost < best_cost:
                 best, best_cost = lc, cost
         return best
 
+    def _threat_rank(self, state: State, unit, enemy) -> tuple[int, int, HexRef]:
+        """P4: the order of the threats a tank turns its front to: an enemy gun in range,
+        then an enemy anti-tank weapon near, then the nearest enemy."""
+        distance = geometry.distance(unit.hex, enemy.hex)
+        types = self.engine.types
+        if enemy.is_vehicle and types[enemy.type_key].gun > 0 and not enemy.disabled and distance <= self.params.fire_range:
+            return (0, distance, enemy.hex)
+        if enemy.is_infantry and distance <= self.params.standoff + 2 and r37_at_weapons.anti_tank_weapons(state, types, enemy):
+            return (1, distance, enemy.hex)
+        return (2, distance, enemy.hex)
+
     def _aim(self, state: State, by_action: dict[str, list[LegalCommand]]) -> str | None:
-        """Rule 30.5: a vehicle that holds turns its gun to the nearest enemy it does not cover."""
+        """Rule 30.5: a vehicle that holds turns its front to the largest threat it does not cover."""
         if not self.params.pivot_to_aim:
             return None
-        enemies = [u.hex for u in self._enemies(state)]
+        enemies = self._enemies(state)
         if not enemies:
             return None
         for lc in sorted(by_action.get("vehicle_pivot", []), key=lambda lc: lc.id):
             unit = state.units[lc.command.units[0]]
             if unit.hex is None or unit.pivoted:
                 continue
-            near = min(enemies, key=lambda h: (geometry.distance(unit.hex, h), h))
+            near = min((self._threat_rank(state, unit, e) for e in enemies))[2]
             if r28_vehicles.in_covered_arc(unit.hex, unit.facing, near):
                 continue
             facing = int(dict(lc.command.extra).get("facing", -1))

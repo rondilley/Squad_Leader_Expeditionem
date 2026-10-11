@@ -202,7 +202,9 @@ SURFACE: dict[str, tuple[str, ...]] = {
     "slcore.rules.r24_smoke": ("blocks_path",),
     "slcore.rules.r25_concealment": ("halves_for",),
     "slcore.rules.r26_fanaticism": ("modifier_for",),
-    "slcore.rules.r28_vehicles": ("facing_towards", "in_covered_arc", "vehicle_in"),
+    # The combined-arms pass of the armor policy (2026-10-11) reads the face of an enemy
+    # vehicle that a firing position sees (rule 33.5), to prefer a shot at side or rear armor.
+    "slcore.rules.r28_vehicles": ("REAR", "SIDE", "facing_towards", "in_covered_arc", "target_face", "vehicle_in"),
     # The route and the firing positions of the armor policy (`slagents/scripted/armor.py`,
     # 2026-10-10): the entry cost of a hex, the stops of rule 30.8, and the AT weapons.
     "slcore.rules.r30_vehicle_movement": ("breakdown_number", "enemy_infantry_in", "enemy_vehicle_in", "entry_cost_halves", "must_leave"),
