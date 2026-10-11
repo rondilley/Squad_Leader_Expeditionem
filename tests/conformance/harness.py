@@ -183,6 +183,7 @@ def build_case(case: dict[str, Any]) -> CaseState:
                 mg_fired=bool(spec.get("mg_fired", False)),
                 boarded=bool(spec.get("boarded", False)),
                 overran=bool(spec.get("overran", False)),
+                overrun_hex=None if spec.get("overrun_hex") is None else geometry.parse_hex_id(str(spec["overrun_hex"])),
                 dischargers_used=bool(spec.get("dischargers_used", False)),
             )
         )

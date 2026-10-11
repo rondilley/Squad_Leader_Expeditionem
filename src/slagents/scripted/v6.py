@@ -118,6 +118,7 @@ from slcore.rules.victory import (
 )
 from slcore.units import KIND_LEADER, KIND_SW, Unit
 
+from slagents.scripted.armor import ArmorParameters, ArmorPolicy
 from slagents.scripted.v5 import Parameters as V5Parameters
 from slagents.scripted.v5 import ScriptedV5
 
@@ -141,19 +142,25 @@ ENEMY_HEX_HALVES = 20
 class Parameters:
     """The named parameters of v6. It is a superset of the v5 parameters (FR-44)."""
 
-    aggression: int = 2
+    # Version 6.1 (2026-10-10) changed aggression 2 to 3, threat_aversion 1 to 0,
+    # schedule_margin 2 to 1, and route_risk 2 to 4, from a sweep of 108 sets on scenario 1.
+    # On new seeds the Russian attack won 134 of 200 against v1 and v5 Germans (the old set
+    # 107), the German defence was the same (237 of 300 and 233), and against the old set
+    # with the sides balanced it won 22-18, 25-11, 19-11, and 20-20 on scenarios 1, 2, 3A,
+    # and 4. The threat still sets the route (route_risk) and the stand or step choice.
+    aggression: int = 3
     cover_preference: int = 3
     fire_priority: int = 2
     group_size: int = 3
     advance_into_close_combat: bool = True
-    threat_aversion: int = 1
+    threat_aversion: int = 0
     close_combat_superiority: int = 2
     superiority_tenths: int = 15
     suppression_priority: int = 2
     # v6 adds these:
     threat_scale: int = 8  # firepower halves for one unit of threat: one squad of four
-    schedule_margin: int = 2  # turns of slack below which a unit is pressed to move
-    route_risk: int = 2  # movement halves that one unit of threat adds to a hex on the route
+    schedule_margin: int = 1  # turns of slack below which a unit is pressed to move
+    route_risk: int = 4  # movement halves that one unit of threat adds to a hex on the route
 
 
 NATION_PROFILES: dict[str, Parameters] = {
@@ -183,7 +190,9 @@ def with_parameters(**changes: object) -> Parameters:
 
 class ScriptedV6(ScriptedV5):
     name = "scripted"
-    version = "6"
+    # 6.2 (2026-10-10): its vehicles drive and fire with the armor policy of `armor.py`;
+    # before, v6 had no policy for a vehicle, and its tanks stood and never fired.
+    version = "6.2"
 
     def __init__(self, engine: Engine, player: int, params: Parameters | None = None) -> None:
         self.v6 = params or Parameters()
@@ -220,12 +229,22 @@ class ScriptedV6(ScriptedV5):
         self._picture: tuple = ()
         self._threat_map: dict[HexRef, int] = {}
         self._fields: dict[tuple[tuple[HexRef, ...], bool], dict[HexRef, int]] = {}
+        # The vehicles of this side drive and fire with the shared armor policy.
+        self._has_vehicles = bool(engine.has_vehicles)
+        self.armor = ArmorPolicy(engine, player, ArmorParameters(), objectives=lambda: self.open_objectives or self.objectives)
 
     # ---------------------------------------------------------- the objectives
 
     def select(self, state: State, frame: DecisionFrame) -> str:
         self._refresh_routes(state)
         self._refresh_objectives(state)
+        if self._has_vehicles:
+            by_action: dict[str, list] = {}
+            for lc in frame.commands:
+                by_action.setdefault(lc.command.action, []).append(lc)
+            choice = self.armor.choose(state, frame, by_action)
+            if choice is not None:
+                return choice
         return super().select(state, frame)
 
     def _targets_wanted(self) -> int:
@@ -459,6 +478,10 @@ class ScriptedV6(ScriptedV5):
         return dist
 
     def _route_cost(self, state: State, target: tuple[HexRef, ...], hex_ref: HexRef, safe: bool = True) -> int:
+        if not target:
+            # A side with no place to go (scenario 2 gives one side no objective hex): each
+            # hex has the same cost, so a step has no gain and the threat decides.
+            return 0
         field = self._route_field(state, target, safe)
         found = field.get(hex_ref)
         if found is None:

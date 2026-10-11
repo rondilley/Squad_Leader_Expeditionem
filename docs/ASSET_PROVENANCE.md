@@ -103,7 +103,32 @@ Two things hold the rule that no scan gets in:
   compares it with the file in the tree. A picture that a person put there by hand does not
   pass.
 
-## 3. What the project does not have
+## 3. The sounds
+
+The project ships no recorded audio. Code makes each sound when the 3D window opens
+(`src/slwindow3d/sounds.py`), and the window plays it from memory. No sound file is in the
+tree. The sounds are noise, decay envelopes, filters, and low tones, and each one is the
+project's own work:
+
+| Sound | What the code makes |
+|---|---|
+| Rifle fire | A ragged volley of three to five shots. Each shot is a crack, a short body, and a low echo. |
+| Submachine gun | Eight fast, light cracks. |
+| Machine gun | A burst at a rate of fire. The German guns fire about 20 rounds each second, and the Russian and American guns about 9. |
+| Flamethrower | A roar of filtered noise, with crackle. |
+| Rocket | A launch hiss and a blast. |
+| Tank gun | A crack, a deep boom that falls in pitch, and a long rumble. |
+| Demolition charge | The largest blast, with debris. |
+| Grenades | Two to four short, low bangs. |
+| Smoke | A pop and a hiss. |
+| One man moves | Four muffled footsteps: a low thud and a soft scuff, quieter than all weapons. |
+| A squad moves | Four men who step out of time, with a soft rattle of equipment. A rout is the same, faster. |
+| A vehicle moves | A deep motor that throbs with its firing pulses. The track links make a heavy, low clunk about ten times each second, and the road wheels roll. All of it is low in pitch, and it is quieter than a gun. |
+
+The random parts of each sound come from a generator with a fixed seed, so each run makes
+the same sounds.
+
+## 4. What the project does not have
 
 - No scan, photograph, or screenshot of a 1977 component is in the repository, in a
   fixture, in a test, or in a run artifact.
@@ -115,16 +140,16 @@ Two things hold the rule that no scan gets in:
   photographs of the owner's boards are in that directory, and the code holds no pixel of
   them.
 
-## 4. Where the reference material is
+## 5. Where the reference material is
 
 `background/` holds the owner's copy of the rules and the photographs the owner took. It is
 on the owner's machine, and git does not record it. `background/reference/` holds the text
 that the research documents gave before. The project moved that text out of the tree, so
 that no rulebook text and no card text ships (SR-07).
 
-## 5. When to change this record
+## 6. When to change this record
 
-Add a row when the window or the client draws something new. Say where the look comes from
+Add a row when the window or the client draws or plays something new. Say where the look comes from
 before you write the code. A change to a colour or a shape does not make a new row
 necessary. A new type of mark does. The counter rubric in `docs/SUCCESS_CRITERIA.md` scores this record, so
 an asset with no row is an unsatisfactory item.

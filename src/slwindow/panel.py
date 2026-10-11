@@ -11,11 +11,15 @@ from typing import Any, Sequence
 import pygame
 
 from slwindow import theme
+from slwindow.logtext import log_text, unit_names
 
 WIDTH = 320
 PAD = 12
 LINE = 18
 LOG_LINES = 12
+# The events that say how the game moves on, not what happened to a unit. The log leaves
+# them out so that the lines with dice stay in view.
+QUIET_KINDS = frozenset({"group_add", "group_leader", "track_return", "track_return_end", "turn_start"})
 MAX_COMMANDS = 18
 
 
@@ -27,8 +31,12 @@ def draw_panel(
     small: pygame.font.Font,
     selected: int,
     filter_text: str,
+    show_commands: bool = True,
 ) -> list[tuple[pygame.Rect, int]]:
-    """Draw the panel and give back the clickable command rows."""
+    """Draw the panel and give back the clickable command rows.
+
+    With show_commands False the panel draws no command list (the 3D window has its own
+    buttons), and the action log takes the space."""
     pygame.draw.rect(surface, theme.PANEL, rect)
     pygame.draw.line(surface, theme.PANEL_RULE, rect.topleft, rect.bottomleft, 2)
     y = rect.top + PAD
@@ -50,6 +58,9 @@ def draw_panel(
     y += 8
 
     rows: list[tuple[pygame.Rect, int]] = []
+    if not show_commands:
+        _draw_log(surface, rect, y, state, small, max(LOG_LINES, (rect.bottom - y - PAD) // LINE - 1))
+        return rows
     if filter_text:
         y = _line(surface, rect, y, f"find: {filter_text}", small, theme.HIGHLIGHT)
     commands = _matching(state.legal, filter_text)
@@ -67,13 +78,22 @@ def draw_panel(
         y = _line(surface, rect, y, f"and {len(commands) - MAX_COMMANDS} more", small, theme.PANEL_DIM)
 
     y = max(y + 8, rect.bottom - PAD - LINE * (LOG_LINES + 1))
+    _draw_log(surface, rect, y, state, small, LOG_LINES)
+    return rows
+
+
+def _draw_log(surface: pygame.Surface, rect: pygame.Rect, y: int, state: Any, small: pygame.font.Font, lines: int) -> None:
+    """The action log: one line for each event, with its rule, dice, modifier, and result
+    (BC-04). A line that does not fit the panel wraps."""
     pygame.draw.line(surface, theme.PANEL_RULE, (rect.left + PAD, y), (rect.right - PAD, y), 1)
     y += 6
     y = _line(surface, rect, y, "action log", small, theme.PANEL_DIM)
-    for entry in state.log[-LOG_LINES:]:
-        text = f"{entry.get('rule_id', '')} {entry.get('kind', '')}"
-        y = _line(surface, rect, y, text[: 44], small, theme.PANEL_TEXT)
-    return rows
+    names = unit_names(state.view)
+    texts = [log_text(entry, names) for entry in state.log if entry.get("kind") not in QUIET_KINDS]
+    for text in texts[-lines:]:
+        if y > rect.bottom - PAD - LINE:
+            break
+        y = _wrapped(surface, rect, y, text, small, theme.PANEL_TEXT)
 
 
 def _seat_text(state: Any) -> str:

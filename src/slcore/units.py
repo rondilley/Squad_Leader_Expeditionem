@@ -226,6 +226,9 @@ class Unit:
     mg_fired: bool = False
     boarded: bool = False
     overran: bool = False
+    # PR-31: the hex of an overrun this vehicle declared in the Movement Phase. It resolves
+    # at the end of the Defensive Fire Phase that follows (rule 35.6).
+    overrun_hex: HexRef | None = None
     dischargers_used: bool = False
     canister_spent: bool = False
     from_wreck: int | None = None
@@ -328,11 +331,18 @@ class Unit:
             demo_placed=bool(d.get("demo_placed", False)),
             routed=bool(d.get("routed", False)),
             hidden=bool(d.get("hidden", False)),
-            **{key: d[key] for key in _VEHICLE_DEFAULTS if key in d},
+            **{key: _vehicle_value(key, d[key]) for key in _VEHICLE_DEFAULTS if key in d},
         )
 
     def with_(self, **changes: Any) -> "Unit":
         return replace(self, **changes)
+
+
+def _vehicle_value(key: str, value: Any) -> Any:
+    """A vehicle field from a state document: a hex comes back as a tuple."""
+    if key == "overrun_hex" and value is not None:
+        return (int(value[0]), int(value[1]))
+    return value
 
 
 # The vehicle fields of rules 28 to 41 with their default. `to_dict` writes a field only
@@ -352,6 +362,7 @@ _VEHICLE_DEFAULTS: dict[str, Any] = {
     "mg_fired": False,
     "boarded": False,
     "overran": False,
+    "overrun_hex": None,
     "dischargers_used": False,
     "canister_spent": False,
     "from_wreck": None,

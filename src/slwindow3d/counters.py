@@ -157,13 +157,27 @@ _pygame = None
 _font = None
 _small = None
 _texture_cache: dict[str, Texture] = {}
+# One more each time `_ensure_pygame` makes the fonts, so a caller that keeps its own font
+# knows to make it again after a `pygame.quit()`.
+_font_generation = 0
 
 
 def _ensure_pygame():
-    """Import pygame with the dummy video driver, so it needs no display (SR-07 path)."""
-    global _pygame, _font, _small
-    if _pygame is not None:
-        return _pygame
+    """Import pygame with the dummy video driver, so it needs no display (SR-07 path).
+
+    A `pygame.quit()` elsewhere in the process (the 2D window calls it when it closes)
+    makes each font invalid, also when pygame is initialized again after it. So when a kept
+    font fails a small call, this initializes pygame again and makes the fonts again."""
+    global _pygame, _font, _small, _font_generation
+    if _pygame is not None and _pygame.font.get_init():
+        # pygame can be initialized again after a quit, and a font made before the quit is
+        # still invalid, so test the kept fonts with one small call.
+        try:
+            _font.size("M")
+            _small.size("M")
+            return _pygame
+        except _pygame.error:
+            pass
     os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
     os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
     import pygame
@@ -179,7 +193,13 @@ def _ensure_pygame():
     _pygame = pygame
     _font = pygame.font.SysFont("dejavusans,arial,helvetica", 44)
     _small = pygame.font.SysFont("dejavusansmono,consolas,couriernew", 40)
+    _font_generation += 1
     return pygame
+
+
+def font_generation() -> int:
+    """The number of times the fonts were made (see `_font_generation`)."""
+    return _font_generation
 
 
 def _unit_key(unit: dict[str, Any]) -> str:

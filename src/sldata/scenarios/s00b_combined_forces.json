@@ -2,6 +2,7 @@
  "id": "s00b_combined_forces",
  "title": "Combined forces meeting engagement",
  "notes": "A project scenario, not a printed scenario. It exists so that a game can start with the three armies of the 1977 counter set: German on one side, Russian and American together on the other. The three 1977 scenarios of year one are German against Russian, and the first printed card with an American force is scenario 7, which needs rules 42 to 52. Those rules wait for later tiers, so this scenario gives the American counters a game inside rules 1 to 27. The board comes from the generator, and the forces are the project's own; no part of it is card text (SR-07, FR-22).",
+ "situation": "A meeting fight in a village. A German force with engineers meets a Russian and American force. The Germans win if they hold one more of the marked buildings than they started with. Otherwise the Allies win. The Germans move first. Six turns.",
  "board": "village",
  "board_generator": {
   "seed": 20260908,

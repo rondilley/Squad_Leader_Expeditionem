@@ -1,10 +1,15 @@
 """Rule 35, overruns, with rule 38.3 and rule 42.6.
 
 An overrun is an attack a vehicle makes in the Movement Phase by driving into a hex that
-enemy infantry holds. It is resolved on the Infantry Fire Table the moment the vehicle
-enters (rule 35.1). A vehicle overruns one hex in a player turn, and it must be the first
+enemy infantry holds. A vehicle overruns one hex in a player turn, and it must be the first
 enemy hex it enters (rule 35.8). After an overrun the vehicle fires nothing for the rest
 of that player turn (rule 35.9).
+
+Project ruling PR-31: the vehicle declares the overrun as it enters, and the attack
+resolves on the Infantry Fire Table at the end of the Defensive Fire Phase that follows,
+if the vehicle is not a wreck by then. Rule 35.1 says "as the AFV enters", and rule 35.6
+says it must first survive all defensive fire, which comes only in the next phase; the
+Advanced Sequence of Play resolves overruns in that phase, after the fire.
 """
 
 from __future__ import annotations
@@ -24,6 +29,8 @@ RULE_35_1 = "35.1"
 RULE_35_3 = "35.3"
 RULE_35_4 = "35.4"
 RULE_35_5 = "35.5"
+RULE_35_6 = "35.6"
+RULE_35_7 = "35.7"
 RULE_35_8 = "35.8"
 RULE_35_9 = "35.9"
 RULE_38_3 = "38.3"
@@ -70,6 +77,45 @@ def may_overrun(state: State, vehicle: Unit, hex_ref: HexRef) -> bool:
     if r28_vehicles.vehicle_in(state, hex_ref) is not None:
         return False
     return bool(targets_in(state, hex_ref, vehicle.player))
+
+
+def declare(state: State, vehicle_id: int, hex_ref: HexRef) -> tuple[State, list[Event]]:
+    """PR-31: the vehicle enters the hex and declares the overrun. No die is rolled now."""
+    vehicle = state.units[vehicle_id]
+    state = state.with_unit(vehicle.with_(overran=True, overrun_hex=hex_ref))
+    return state, [Event(RULE_35_6, "overrun_declared", {"unit": vehicle_id, "hex": geometry.hex_id(*hex_ref)})]
+
+
+def resolve_pending(
+    ctx: ArmorContext, fire_ctx: FireContext, state: State, player: int
+) -> tuple[State, list[Event]]:
+    """PR-31 and rule 35.6: at the end of the Defensive Fire Phase, each declared overrun
+    of this player resolves if its vehicle survived the defensive fire."""
+    events: list[Event] = []
+    for vehicle in r28_vehicles.vehicles(state, player):
+        hex_ref = vehicle.overrun_hex
+        if hex_ref is None:
+            continue
+        state = state.with_unit(state.units[vehicle.id].with_(overrun_hex=None))
+        current = state.units[vehicle.id]
+        where = geometry.hex_id(*hex_ref)
+        if current.wreck or current.eliminated:
+            events.append(Event(RULE_35_6, "overrun_stopped", {"unit": vehicle.id, "hex": where}))
+            continue
+        if not targets_in(state, hex_ref, player):
+            events.append(Event(RULE_35_6, "overrun_empty", {"unit": vehicle.id, "hex": where}))
+            continue
+        state, ev = resolve(ctx, fire_ctx, state, vehicle.id, hex_ref)
+        events.extend(ev)
+    return state, events
+
+
+def stops_infantry_attack(board: Board, vehicle: Unit, unit: Unit) -> bool:
+    """Rule 35.7: infantry in the open-terrain hex the vehicle overruns makes no infantry
+    attack on that vehicle. An anti-tank weapon is not an infantry attack and may fire."""
+    if vehicle.overrun_hex is None or unit.hex != vehicle.overrun_hex:
+        return False
+    return board.hex(vehicle.overrun_hex).terrain == "open"
 
 
 def resolve(

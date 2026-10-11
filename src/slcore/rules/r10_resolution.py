@@ -58,8 +58,14 @@ def traced_path(ctx: FireContext, firer: HexRef, target: HexRef) -> tuple[HexRef
     return evaluate(ctx.board, ctx.los, firer, target).traced
 
 
-def common_modifier(ctx: FireContext, state: State, group: FireGroup, phase: str = "") -> tuple[int, list[dict]]:
-    """Rules 11.1, 11.53, 11.6, and 15.2: the modifiers that apply to every unit in the target hex."""
+def common_modifier(
+    ctx: FireContext, state: State, group: FireGroup, phase: str = "", known_only: bool = False
+) -> tuple[int, list[dict]]:
+    """Rules 11.1, 11.53, 11.6, and 15.2: the modifiers that apply to every unit in the target hex.
+
+    With known_only the modifiers that read the units in the target hex (a flamethrower
+    there, the cover of a vehicle) are left out. That is what the firer knows before the
+    fire, and the preview of the fire uses it, so a preview names no hidden enemy unit."""
     parts: list[dict] = []
     total = r11_terrain.target_hex_modifier(ctx.board, group.target)
     if total:
@@ -79,6 +85,8 @@ def common_modifier(ctx: FireContext, state: State, group: FireGroup, phase: str
         rating = ctx.types[state.units[group.leader].type_key].leadership
         total += rating
         parts.append({"rule": "15.2", "value": rating, "cause": f"leader {group.leader}"})
+    if known_only:
+        return total, parts
     if r22_flamethrower.in_hex(state, ctx.types, group.target):
         total += r22_flamethrower.TARGET_MODIFIER
         parts.append(
@@ -199,6 +207,40 @@ def resolve_group(ctx: FireContext, state: State, group: FireGroup, phase: str) 
     state, pen = penetrate(ctx, state, group, halves, raw, phase)
     events.extend(pen)
     return state, events
+
+
+def preview(ctx: FireContext, state: State, group: FireGroup) -> dict:
+    """Rule 10.3 and rule 10.5 before the dice: the fire group the player builds now.
+
+    It gives the firepower, the IFT column, the modifiers the firer knows, and for each IFT
+    result the number of the 36 rolls of two dice that give it. It rolls no die and it
+    changes no state. Left out, and named in the notes: the smoke die of rule 24.6, the
+    modifiers that read the units in the target hex, the half firepower of rule 25.8
+    against a concealed unit, and the moving target modifier of rule 16.5.
+    """
+    halves, members = r08_fire.group_firepower(state, ctx.types, group)
+    halves, members = rural_halves(ctx, state, group, members, ctx.wheat_in_season)
+    firepower = halves // 2
+    drm, parts = common_modifier(ctx, state, group, known_only=True)
+    rolls: dict[str, int] = {}
+    for first in range(1, 7):
+        for second in range(1, 7):
+            result = ctx.ift.lookup(firepower, first + second + drm)
+            rolls[result] = rolls.get(result, 0) + 1
+    return {
+        "rule_id": RULE_10_3,
+        "target": geometry.hex_id(*group.target),
+        "firepower": firepower,
+        "column": column_label(ctx.ift, firepower),
+        "drm": drm,
+        "modifiers": parts,
+        "rolls_of_36": dict(sorted(rolls.items())),
+        "notes": [
+            "24.6 a smoke die is not in the preview",
+            "25.8 a concealed unit takes half the firepower",
+            "16.5 a unit that moved in the open adds its modifier",
+        ],
+    }
 
 
 def firing_player(state: State, group: FireGroup) -> int:

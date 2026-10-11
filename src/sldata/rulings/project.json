@@ -212,6 +212,13 @@
       "ruling": "A vehicle makes at most one free pivot in a movement phase. After it has pivoted, the decision frame gives it no more pivot commands until the next player turn resets its movement.",
       "cause": "Rule 30.5 gives a pivot inside the hex, and rule 33.32 charges the pivot to fire and not to movement, so a pivot costs no movement point. With no cost, a vehicle can turn to a facing and back again without end, and a game never terminates. The eval gauntlet found it: v5 against v3 on s04 reached 20000 commands with one vehicle turning between facing 4 and facing 1. One pivot command reads a facing straight from the payload and reaches any of the six facings, so more than one pivot in a hex is never necessary. The single-pivot limit removes the cycle from the action space, so the learned environment and every agent terminate.",
       "decided": "2026-09-12"
+    },
+    {
+      "id": "PR-31",
+      "extends": "35.6",
+      "ruling": "A vehicle that enters a hex of enemy infantry in the Movement Phase declares its overrun there and rolls no dice. At the end of the Defensive Fire Phase that follows, the overrun resolves on the Infantry Fire Table against the infantry then in that hex, with the modifiers of rule 35.4, if the vehicle is not a wreck. A wreck makes no overrun. The push-out of rule 35.8 comes after the overruns resolve. Infantry in an open-terrain overrun hex makes no rule 36 attack on that vehicle, also when its crew is exposed (rule 35.7); an anti-tank weapon may still fire.",
+      "cause": "Rule 35.1 says the overrun resolves as the vehicle enters the hex, and rule 35.6 says the vehicle must first survive all defensive fire from any source before it enters. Defensive fire comes only in the Defensive Fire Phase after the Movement Phase (rule 4), so the two cannot both hold at the moment of entry. The Advanced Sequence of Play puts 'resolve Overruns (35.6)' in step 4.1 of the Defensive Fire Phase, after the fire, so the project follows that order. Fire at the vehicle anywhere on its track in that phase counts as fire before it entered, because the core returns moved units along their track for defensive fire (rule 16) and does not record which hex of the track a shot came from. Before this ruling the core resolved the overrun at entry, and the defender had no fire at the vehicle first.",
+      "decided": "2026-10-10"
     }
   ]
 }

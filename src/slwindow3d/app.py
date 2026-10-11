@@ -24,6 +24,14 @@ Move around:
 - i: show or hide the tactical action indicators (fire lines, move arrows, the active side)
 - o: show or hide the options overlay (where a unit can move, and who can fire at what)
 
+Play (when the window holds a seat, see `play.py`):
+
+- a click on a unit selects it, and a click on a ring sends the move or the fire
+- the buttons on the left send a command with no hex, or select a unit to place
+- l: the line of sight from the selected unit to the hex under the mouse (the host answers)
+- m: sound on or off
+- Escape closes the menu or clears the selection; q quits
+
 The window opens on Windows and on Unix, because Panda3D ships a wheel for each. A test or a
 screenshot uses the offscreen path (`render_screenshot`), which needs no display.
 """
@@ -48,6 +56,7 @@ from panda3d.core import (
 from slwindow3d import counters as counter3d
 from slwindow3d.indicators import Indicators
 from slwindow3d.mesh import HEIGHT_PER_LEVEL, THICKNESS, build_board_geom, build_textured_board, hex_world
+from slwindow3d.picking import pick_hex
 
 # The 2D board art is drawn to a texture of this pixel size, then mapped onto the hex tops.
 # It is large, so the woods, the buildings, and the roads stay crisp when the camera is close.
@@ -70,12 +79,29 @@ MIN_DISTANCE = 8.0
 MAX_DISTANCE = 900.0
 DRAG_PAN = 0.06
 DRAG_TILT = 0.25
+# A press and a release closer than this (in the -1 to 1 mouse coordinates) is a click and
+# not a drag, so a small shake of the hand still selects a unit.
+CLICK_SLOP = 0.012
+# The width of the status panel on the right, in pixels. A click there is not on the board.
+HUD_WIDTH = 360
 
 
 class Board3DApp(ShowBase):
     """The 3D board window. Build it with a board document; feed it view documents."""
 
-    def __init__(self, board_doc: dict[str, Any] | None = None, poll: Any = None) -> None:
+    def __init__(
+        self,
+        board_doc: dict[str, Any] | None = None,
+        poll: Any = None,
+        send: Any = None,
+        on_frame: Any = None,
+        person_side: str | None = None,
+        ask_los: Any = None,
+        briefing: dict[str, Any] | None = None,
+        on_begin: Any = None,
+        sound: bool = False,
+        muted: bool = False,
+    ) -> None:
         super().__init__()
         self.setBackgroundColor(*BACKGROUND)
         self.disableMouse()
@@ -85,10 +111,18 @@ class Board3DApp(ShowBase):
         self.indicators: Indicators | None = None
         self.board_doc: dict[str, Any] | None = None
         self._poll = poll
+        # The side the person plays against the computer, for the end-of-game screen.
+        self.person_side = person_side
+        self._game_over_panel = None
+        # Called after each new frame (the command saves the game there).
+        self._on_frame = on_frame
         self._last_frame_id = None
+        self._last_notice = ""
+        self._last_los = None
         self._hud = None
         self._panel_font = None
         self._panel_small = None
+        self._panel_generation = -1
         self.target = Vec3(0, 0, 0)
         self.span = 40.0
         self.distance = 80.0
@@ -97,11 +131,37 @@ class Board3DApp(ShowBase):
         self.mode = MODE_3D
         self._drag_button = None
         self._drag_from = (0, 0)
+        self._press_at = (0.0, 0.0)
+        self._dragged = 0.0
         self._add_lights()
         if board_doc is not None:
             self.set_board(board_doc)
         self._bind_keys()
         self._add_help_line()
+        # The sounds of fire and movement (see `audio.py`), when the window has audio.
+        self.sound_board = None
+        if sound:
+            from slwindow3d.audio import SoundBoard
+
+            self.sound_board = SoundBoard(self, muted=muted)
+            self._hook_sound()
+        # The scenario card before the game (see `briefing.py`). `on_begin` starts the game
+        # when the person closes it; with no briefing the game starts at once.
+        self.briefing = None
+        if briefing is not None:
+            from slwindow3d.briefing import Briefing
+
+            self.briefing = Briefing(self, briefing, on_begin or (lambda: None))
+        elif on_begin is not None:
+            on_begin()
+        # With a send function the window holds a seat, and a click plays (see `play.py`).
+        self.play = None
+        if send is not None:
+            from slwindow3d.play import PlayInput
+
+            self.play = PlayInput(self, send, ask_los)
+            if self.indicators is not None:
+                self.indicators.options = False
         self.taskMgr.add(self._camera_task, "camera-task")
         if self._poll is not None:
             self.taskMgr.add(self._poll_task, "poll-task")
@@ -113,7 +173,7 @@ class Board3DApp(ShowBase):
             from direct.gui.OnscreenText import OnscreenText
 
             OnscreenText(
-                text="t 2D/3D  drag pan  wheel zoom  r reset  i indicators  o options  q quit",
+                text="click unit, click ring  l line of sight  m sound  esc cancel  t 2D/3D  drag pan  wheel zoom  r reset  i indicators  o options  q quit",
                 parent=self.a2dBottomLeft,
                 pos=(0.02, 0.04),
                 scale=0.035,
@@ -163,6 +223,10 @@ class Board3DApp(ShowBase):
         if self.board_node is not None:
             self.board_node.removeNode()
         self.board_doc = board_doc
+        # A new board is a new game, so the end-of-game screen of the last one goes.
+        if self._game_over_panel is not None:
+            self._game_over_panel.destroy()
+            self._game_over_panel = None
         texture, camera = self._board_texture(board_doc)
         self.board_node = build_textured_board(board_doc, camera, texture, BOARD_TEX_W, BOARD_TEX_H)
         self.board_node.reparentTo(self.render)
@@ -174,6 +238,11 @@ class Board3DApp(ShowBase):
         if self.indicator_root is not None:
             self.indicator_root.removeNode()
         self.indicators = Indicators(self.render)
+        self._hook_sound()
+        if getattr(self, "play", None) is not None:
+            # A person who plays sees the rings of the selected unit. The faint rings of
+            # each unit's options would hide them, so the `o` overlay starts off here.
+            self.indicators.options = False
         self.indicator_root = self.indicators.root
         self.indicators.set_board(board_doc)
         self.taskMgr.remove("indicator-sweep")
@@ -250,10 +319,36 @@ class Board3DApp(ShowBase):
         self.accept("i", self._toggle_indicators)
         self.accept("o", self._toggle_options)
         self.accept("q", self.userExit)
-        self.accept("escape", self.userExit)
+        self.accept("escape", self._escape)
+        self.accept("l", self._ask_los)
+        self.accept("m", self._toggle_mute)
         for button in ("mouse1", "mouse3"):
             self.accept(button, self._drag_start, [button])
             self.accept(f"{button}-up", self._drag_stop, [button])
+
+    def _ask_los(self) -> None:
+        """The `l` key: the line of sight from the selected unit to the hex under the mouse."""
+        if self.play is not None and self.mouseWatcherNode.hasMouse():
+            self.play.request_los(self.mouseWatcherNode.getMouseX(), self.mouseWatcherNode.getMouseY())
+
+    def _hook_sound(self) -> None:
+        """Give the new events of the indicators to the sound board (a new board makes new
+        indicators, so this runs again)."""
+        board = getattr(self, "sound_board", None)
+        if board is not None and self.indicators is not None:
+            self.indicators.on_new_events = board.on_events
+
+    def _toggle_mute(self) -> None:
+        if self.sound_board is not None:
+            self.sound_board.toggle_mute()
+
+    def _escape(self) -> None:
+        """Escape cancels the play input. A window that only watches has nothing to cancel,
+        so there it quits, as it did before the window could play."""
+        if self.play is not None:
+            self.play.cancel()
+        else:
+            self.userExit()
 
     def toggle_mode(self) -> None:
         self.mode = MODE_2D if self.mode == MODE_3D else MODE_3D
@@ -269,8 +364,12 @@ class Board3DApp(ShowBase):
             self.indicators.toggle_options()
 
     def _indicator_sweep_task(self, task: Any) -> int:
-        """Remove a fire or a move overlay that has lingered past its time."""
+        """Move the fire animations, sized for the camera distance, and remove a fire or a
+        move overlay that has lingered past its time."""
         if self.indicators is not None:
+            from slwindow3d.effects import zoom_for
+
+            self.indicators.effects.zoom = zoom_for(self.distance)
             self.indicators.sweep()
         return task.cont
 
@@ -296,12 +395,51 @@ class Board3DApp(ShowBase):
 
     def _drag_start(self, button: str) -> None:
         self._drag_button = button
+        self._dragged = 0.0
         if self.mouseWatcherNode.hasMouse():
             self._drag_from = (self.mouseWatcherNode.getMouseX(), self.mouseWatcherNode.getMouseY())
+            self._press_at = self._drag_from
 
     def _drag_stop(self, button: str) -> None:
         if self._drag_button == button:
             self._drag_button = None
+        if self.briefing is not None and self.briefing.open:
+            # The card is on the screen; a click on it is not a click on the board.
+            return
+        if button == "mouse1" and self._dragged < CLICK_SLOP and self.play is not None:
+            # A press with no drag is a click, and a click on the board plays.
+            if not self._in_hud(self._press_at[0]):
+                self.play.click_board(*self._press_at)
+
+    def _in_hud(self, mouse_x: float) -> bool:
+        """True when a mouse x (from -1 to 1) is over the status panel on the right."""
+        width = self.win.getXSize() if self.win is not None else 0
+        if not width:
+            return False
+        pixel = (mouse_x + 1.0) * 0.5 * width
+        return pixel >= width - HUD_WIDTH
+
+    def pick_at(self, mouse_x: float, mouse_y: float) -> str | None:
+        """The hex under a mouse position (each from -1 to 1), through the current lens."""
+        from panda3d.core import Point2, Point3
+
+        if self.board_doc is None:
+            return None
+        self._place_camera()
+        near = Point3()
+        far = Point3()
+        if not self.cam.node().getLens().extrude(Point2(mouse_x, mouse_y), near, far):
+            return None
+        start = self.render.getRelativePoint(self.cam, near)
+        end = self.render.getRelativePoint(self.cam, far)
+        direction = end - start
+        return pick_hex(
+            self.board_doc,
+            (start.x, start.y, start.z),
+            (direction.x, direction.y, direction.z),
+            HEIGHT_PER_LEVEL,
+            THICKNESS,
+        )
 
     def _camera_task(self, task: Any) -> int:
         self._apply_drag()
@@ -341,6 +479,7 @@ class Board3DApp(ShowBase):
         dx = x - self._drag_from[0]
         dy = y - self._drag_from[1]
         self._drag_from = (x, y)
+        self._dragged += abs(dx) + abs(dy)
         if self._drag_button == "mouse1":
             # Left drag pans the target across the board plane.
             self._pan(-dx * self.distance * DRAG_PAN, -dy * self.distance * DRAG_PAN)
@@ -372,7 +511,56 @@ class Board3DApp(ShowBase):
             # newest fire and move actions, and the options overlay. It never raises.
             if self.indicators is not None:
                 self.indicators.update(snapshot)
+            if self.play is not None:
+                self.play.update(snapshot)
+            if self._on_frame is not None:
+                self._on_frame()
+        los = getattr(snapshot, "los", None)
+        if self.play is not None and los is not None and los is not self._last_los:
+            self._last_los = los
+            self.play.show_los(los)
+        if getattr(snapshot, "game_over", False) and self._game_over_panel is None:
+            self.show_game_over(snapshot)
+        notice = getattr(snapshot, "notice", "") or ""
+        if notice != self._last_notice:
+            self._last_notice = notice
+            if notice and self.play is not None:
+                # The host refused the intent and the frame did not change. Show the cause,
+                # and let the person choose again.
+                self.play.refused(snapshot)
         return task.cont
+
+    def show_game_over(self, snapshot: Any) -> None:
+        """The end-of-game screen: a panel in the middle with the winner and the cause."""
+        from direct.gui.DirectGui import DirectFrame
+        from direct.gui.OnscreenText import OnscreenText
+
+        from slwindow3d.selection import game_over_lines
+
+        lines = game_over_lines(snapshot, self.person_side)
+        self._game_over_panel = DirectFrame(
+            parent=self.aspect2d,
+            frameColor=(0.05, 0.06, 0.05, 0.88),
+            frameSize=(-1.0, 1.0, -0.32, 0.3),
+            pos=(-0.15, 0, 0.1),
+        )
+        OnscreenText(
+            text=lines[0],
+            parent=self._game_over_panel,
+            pos=(0, 0.14),
+            scale=0.11,
+            fg=(1, 0.95, 0.6, 1),
+            align=TextNode.ACenter,
+        )
+        OnscreenText(
+            text="\n".join(lines[1:]),
+            parent=self._game_over_panel,
+            pos=(0, 0.02),
+            scale=0.045,
+            fg=(0.95, 0.95, 0.9, 1),
+            align=TextNode.ACenter,
+            wordwrap=40,
+        )
 
     def _update_hud(self, snapshot: Any) -> None:
         """Draw the side panel of the pygame window (scenario, turn, phase, log, commands) to
@@ -382,19 +570,24 @@ class Board3DApp(ShowBase):
         from panda3d.core import TransparencyAttrib
 
         from slwindow import panel
-        from slwindow3d.counters import _ensure_pygame, _surface_to_texture
+        from slwindow3d.counters import _ensure_pygame, _surface_to_texture, font_generation
 
         pygame = _ensure_pygame()
         win_w = self.win.getXSize() or 1500
         win_h = self.win.getYSize() or 950
-        panel_w = 360
-        if self._panel_font is None:
+        panel_w = HUD_WIDTH
+        if self._panel_font is None or self._panel_generation != font_generation():
+            # After a `pygame.quit()` `_ensure_pygame` makes the fonts again, and a font made
+            # before the quit is invalid.
+            self._panel_generation = font_generation()
             self._panel_font = pygame.font.SysFont("dejavusans,arial,helvetica", 15)
             self._panel_small = pygame.font.SysFont("dejavusansmono,consolas,couriernew", 12)
         surface = pygame.Surface((panel_w, win_h))
         rect = pygame.Rect(0, 0, panel_w, win_h)
         try:
-            panel.draw_panel(surface, rect, snapshot, self._panel_font, self._panel_small, -1, "")
+            # The 3D window has its own command buttons, so the panel gives that space to
+            # the action log with the dice (BC-04).
+            panel.draw_panel(surface, rect, snapshot, self._panel_font, self._panel_small, -1, "", show_commands=self.play is None)
         except Exception:
             return
         texture = _surface_to_texture(surface, "hud")

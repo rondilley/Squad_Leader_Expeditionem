@@ -2,6 +2,7 @@
  "id": "s04_armor_probe",
  "title": "Armor probe at the crossroads",
  "notes": "A project scenario, not a printed scenario. It is the first game that plays the armor rules 28 to 41: tanks and self-propelled guns, their covered arcs, their guns against infantry and against each other, the overrun, the panzerfaust, and the wrecks they leave. The board comes from the generator and the forces are the project's own, so no part of it is card text (SR-07, FR-22). Rules 47 and 51 hold the halftrack, the truck, and the jeep, and project ruling PR-20 keeps them out until then.",
+ "situation": "A crossroads village. A German force of infantry with panzerfausts, two tanks, and an assault gun probes a Russian position held by infantry, two T-34 tanks, and an assault gun. The Germans win if they hold one more of the marked buildings than they started with. Otherwise the Russians win. Tanks can overrun infantry, and the guns can fire at infantry and at vehicles. The Germans move first. Six turns.",
  "board": "village",
  "board_generator": {
   "seed": 20260909,

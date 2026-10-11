@@ -305,11 +305,21 @@ _LABEL_FONT: Any = None
 
 
 def _label_font() -> pygame.font.Font:
+    """The small bold font of a weapon label, made one time and kept.
+
+    A `pygame.quit()` makes a kept font invalid, also when pygame is initialized again after
+    it, and `get_init()` cannot tell. So the kept font is tested with one small call, and made
+    again when the call fails."""
     global _LABEL_FONT
-    if _LABEL_FONT is None:
-        if not pygame.font.get_init():
-            pygame.font.init()
-        _LABEL_FONT = pygame.font.SysFont("dejavusansmono,consolas,couriernew", 11, bold=True)
+    if _LABEL_FONT is not None:
+        try:
+            _LABEL_FONT.size("M")
+            return _LABEL_FONT
+        except pygame.error:
+            _LABEL_FONT = None
+    if not pygame.font.get_init():
+        pygame.font.init()
+    _LABEL_FONT = pygame.font.SysFont("dejavusansmono,consolas,couriernew", 11, bold=True)
     return _LABEL_FONT
 
 

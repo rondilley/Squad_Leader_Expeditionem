@@ -50,6 +50,12 @@ class GameView:
     legal: list[dict[str, Any]] = field(default_factory=list)
     log: list[dict[str, Any]] = field(default_factory=list)
     notice: str = ""
+    fire_preview: dict[str, Any] | None = None
+    # The number of entries of the host's whole log that this client has read.
+    log_known: int = 0
+    # The last line of sight answer of the host (FR-34): from, to, clear, rule_id, traced,
+    # hindrance, blocking_hex.
+    los: dict[str, Any] | None = None
     game_over: bool = False
     result: str = ""
     result_cause: str = ""
@@ -181,12 +187,24 @@ class HostClient:
                 state.sub_step = str(message["sub_step"])
                 state.turn = int(message["turn"])
                 state.legal = list(message["legal_commands"])
-                state.log.extend(message.get("log_tail", []))
+                state.fire_preview = message.get("fire_preview")
+                tail = list(message.get("log_tail", []))
+                if "log_from" in message:
+                    # The host sends the last part of its log with each frame. Add only the
+                    # entries this client does not have yet, so no event shows twice.
+                    start = int(message["log_from"])
+                    skip = max(0, state.log_known - start)
+                    state.log.extend(tail[skip:])
+                    state.log_known = max(state.log_known, start + len(tail))
+                else:
+                    state.log.extend(tail)
                 del state.log[:-MAX_LOG]
                 state.frames += 1
                 state.notice = ""
             elif kind == "error":
                 state.notice = f"rule {message.get('rule_id', '')}: {message.get('message', '')}"
+            elif kind == "los_result":
+                state.los = {"from": message.get("from"), "to": message.get("to"), **dict(message.get("result") or {})}
             elif kind == "game_over":
                 state.game_over = True
                 state.result = str(message.get("result", ""))
@@ -210,6 +228,8 @@ class HostClient:
                 legal=list(state.legal),
                 log=list(state.log),
                 notice=state.notice,
+                fire_preview=state.fire_preview,
+                los=state.los,
                 game_over=state.game_over,
                 result=state.result,
                 result_cause=state.result_cause,

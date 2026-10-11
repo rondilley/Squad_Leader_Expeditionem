@@ -57,9 +57,10 @@ def _snapshot(board, log):
             {"id": 2, "player": 1, "hex": "A3", "kind": "squad"},
         ]
     }
+    # The shape the host sends: an id and a payload for each entry.
     legal = [
-        {"action": "move", "units": [1], "hex": "A2"},
-        {"action": "group_add", "units": [1], "hex": "A3"},
+        {"id": "c1", "payload": {"action": "move", "units": [1], "hex": "A2"}},
+        {"id": "c2", "payload": {"action": "group_add", "units": [1], "hex": "A3"}},
     ]
     return SimpleNamespace(
         board=board,
@@ -166,3 +167,99 @@ def test_update_never_raises_on_bad_snapshot(app):
     bad = SimpleNamespace(active=0, phase="fire", view={"units": []}, legal=[], log=[{"kind": "fire"}])
     app.indicators.update(bad)
     app.indicators.update(None)
+
+
+def test_options_overlay_draws_from_the_legal_list_the_host_sends(app):
+    """The host sends each legal entry as an id and a payload. The options overlay read the
+    action from the top of the entry, found none, and drew nothing in a live game."""
+    board = _board()
+    app.indicators.set_board(board)
+    try:
+        snapshot = _snapshot(board, [])
+        # A window that plays starts with the overlay off; this test reads it on.
+        app.indicators.options = True
+        app.indicators.update(snapshot)
+        with_options = app.indicators.frame_root.getNumChildren()
+        app._toggle_options()
+        app.indicators.update(snapshot)
+        without_options = app.indicators.frame_root.getNumChildren()
+        app._toggle_options()
+        # One ring for the move to A2 and one line for the fire at A3.
+        assert with_options - without_options == 2
+    finally:
+        app.indicators.clear()
+
+
+def test_a_hex_outline_lies_inside_its_hex_and_marks_no_disc_over_the_counter(app):
+    """The board style: an outline is a thin band just inside the hex edge. Its inner edge
+    is far from the centre, so the counter and the terrain in the middle stay in view."""
+    import math
+
+    from panda3d.core import GeomVertexReader
+
+    from slwindow3d.indicators import HEX_RADIUS, WIDTH_OUTLINE
+
+    board = _board()
+    app.indicators.set_board(board)
+    try:
+        node = app.indicators._hex_outline(app.indicators.frame_root, "A2", (1, 1, 1, 1), WIDTH_OUTLINE)
+        assert node is not None
+        cx, cy, _ = app.indicators._ground("A2")
+        geom = node.node().getGeom(0)
+        reader = GeomVertexReader(geom.getVertexData(), "vertex")
+        distances = []
+        while not reader.isAtEnd():
+            v = reader.getData3()
+            distances.append(math.hypot(v.x - cx, v.y - cy))
+        assert max(distances) <= HEX_RADIUS + 1e-6
+        # The inner edge of the band is more than three quarters of the way out.
+        assert min(distances) > HEX_RADIUS * 0.75
+    finally:
+        app.indicators.clear()
+
+
+def test_the_result_word_of_a_fire_comes_from_its_events():
+    from slwindow3d.indicators import result_words
+
+    def result(code):
+        return {"kind": "fire_result", "data": {"result": code}}
+
+    assert result_words([result("-")]) == "no effect"
+    assert result_words([result("M")]) == "MC"
+    assert result_words([result("1"), result("2")]) == "MC+2"
+    assert result_words([result("2"), {"kind": "broken", "data": {}}]) == "BROKEN"
+    assert result_words([result("KIA"), {"kind": "eliminated", "data": {}}]) == "KIA"
+    assert result_words([]) == ""
+
+
+def test_each_kind_of_fire_animates_and_leaves_no_node_behind(app):
+    """Each kind starts its particles, moves them, and removes each one at its end."""
+    from slwindow3d.firekinds import BLAST, FLAME, GRENADES, GUN, MG, OVERRUN, RIFLE, ROCKET, SMG, SMOKE, Shot
+
+    board = _board()
+    app.indicators.set_board(board)
+    effects = app.indicators.effects
+    try:
+        counts = {}
+        for kind in (RIFLE, SMG, MG, FLAME, ROCKET, GUN, BLAST, SMOKE, GRENADES, OVERRUN):
+            made = effects.launch(Shot(kind, "A1", "A3", 2, True), key=kind, now=0.0)
+            assert made > 0, f"{kind} made no particle"
+            counts[kind] = made
+            # The same event draws the same way.
+            effects.clear()
+            assert effects.launch(Shot(kind, "A1", "A3", 2, True), key=kind, now=0.0) == made
+            assert effects.step(0.05) > 0
+            app.graphicsEngine.renderFrame()
+            assert effects.step(30.0) == 0
+            assert effects.root.getNumChildren() == 0
+        # A machine gun fires more rounds than rifles, and an HMG more than an LMG.
+        assert counts[MG] > counts[RIFLE]
+        light = effects.launch(Shot(MG, "A1", "A3", 1), key="l", now=0.0)
+        effects.clear()
+        heavy = effects.launch(Shot(MG, "A1", "A3", 3), key="h", now=0.0)
+        effects.clear()
+        assert heavy > light
+        # A shot with no target hex on the board draws nothing.
+        assert effects.launch(Shot(RIFLE, "A1", "Z99"), now=0.0) == 0
+    finally:
+        app.indicators.clear()

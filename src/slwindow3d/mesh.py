@@ -7,9 +7,9 @@ level 2 hex stands two steps above a level 0 hex, and a slope shades under the l
 
 The geometry reads the same lattice the rest of the project reads. A hex centre is two
 units of x to a vertex and one unit of y, and a y unit carries an implicit factor of the
-square root of three (NFR-05). This module maps the lattice to world space, and it is the
-one place here that multiplies by the square root of three, the same way the camera of the
-pygame window is the one place that multiplies by it.
+square root of three (NFR-05). `picking.world_xy` maps the lattice to world space for the
+whole window, and it is the one place here that multiplies by the square root of three, the
+same way the camera of the pygame window is the one place that multiplies by it.
 """
 
 from __future__ import annotations
@@ -28,10 +28,9 @@ from panda3d.core import (
     Texture,
 )
 
-from slcore.geometry import VERTEX_OFFSETS
 from slwindow import theme
+from slwindow3d.picking import corner_offsets, world_xy
 
-ROOT_THREE = math.sqrt(3.0)
 # Each elevation level lifts a hex by this much. The 1977 board shows a hill as a flat brown
 # area, so the height here is a game aid and not a measure. It is small: just enough that the
 # side face of a level change is a thin step the eye reads, and not a tower.
@@ -41,8 +40,8 @@ SIDE_SHADE = 0.62
 
 
 def hex_world(center: Sequence[float]) -> tuple[float, float]:
-    """The world x and y of a hex centre. The y unit carries the square root of three."""
-    return (float(center[0]), float(center[1]) * ROOT_THREE)
+    """The world x and y of a hex centre (see `picking.world_xy`)."""
+    return world_xy(center[0], center[1])
 
 
 def elevation_z(level: int, height_per_level: float = HEIGHT_PER_LEVEL) -> float:
@@ -95,9 +94,7 @@ def build_board_geom(
         base_rgb = theme.TERRAIN.get(hexagon["terrain"], theme.GROUND)
         top = _col01(base_rgb)
         side = _darker(base_rgb)
-        corners = [
-            (cx + ox, (lattice_y + oy) * ROOT_THREE) for ox, oy in VERTEX_OFFSETS
-        ]
+        corners = [world_xy(cx + ox, lattice_y + oy) for ox, oy in corner_offsets()]
         # The top face is a fan from the centre to each pair of corners.
         centre_index = add_vertex((cx, world_y, top_z), (0, 0, 1), top)
         top_indices = [add_vertex((x, y, top_z), (0, 0, 1), top) for x, y in corners]
@@ -156,9 +153,9 @@ def _build_tops(board_doc: dict[str, Any], camera: Any, tex_w: int, tex_h: int, 
         top_z = elevation_z(int(hexagon.get("elevation", 0) or 0), height_per_level)
         centre = add((cx, world_y, top_z), _uv(camera, tex_w, tex_h, lat_x, lat_y))
         corner_indices = []
-        for ox, oy in VERTEX_OFFSETS:
+        for ox, oy in corner_offsets():
             corner_indices.append(
-                add((cx + ox, (lat_y + oy) * ROOT_THREE, top_z), _uv(camera, tex_w, tex_h, lat_x + ox, lat_y + oy))
+                add((*world_xy(lat_x + ox, lat_y + oy), top_z), _uv(camera, tex_w, tex_h, lat_x + ox, lat_y + oy))
             )
         for i in range(6):
             tris.addVertices(centre, corner_indices[i], corner_indices[(i + 1) % 6])
@@ -192,7 +189,7 @@ def _build_sides(board_doc: dict[str, Any], height_per_level: float, thickness: 
         top_z = elevation_z(int(hexagon.get("elevation", 0) or 0), height_per_level)
         base_z = -thickness
         side = _darker(theme.TERRAIN.get(hexagon["terrain"], theme.GROUND))
-        corners = [(cx + ox, (lat_y + oy) * ROOT_THREE) for ox, oy in VERTEX_OFFSETS]
+        corners = [world_xy(cx + ox, lat_y + oy) for ox, oy in corner_offsets()]
         for i in range(6):
             x1, y1 = corners[i]
             x2, y2 = corners[(i + 1) % 6]

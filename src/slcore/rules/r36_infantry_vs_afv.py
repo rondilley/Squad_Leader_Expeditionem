@@ -17,7 +17,7 @@ from slcore.commands import Command
 from slcore.events import Event
 from slcore.game import State
 from slcore.rng import roll_2d6
-from slcore.rules import r10_resolution, r15_leadership, r28_vehicles, r33_afv_combat
+from slcore.rules import r10_resolution, r15_leadership, r28_vehicles, r33_afv_combat, r35_overrun
 from slcore.rules.r10_resolution import FireContext
 from slcore.rules.r33_afv_combat import ArmorContext
 from slcore.state import Board
@@ -74,6 +74,8 @@ def attackers_for(
         if not unit.is_infantry or unit.hex is None or unit.broken or unit.riding:
             continue
         if unit.fired or unit.prep_fired or unit.directed or unit.carrier is not None:
+            continue
+        if r35_overrun.stops_infantry_attack(board, vehicle, unit):
             continue
         if vehicle.crew_exposed:
             out.append(unit)

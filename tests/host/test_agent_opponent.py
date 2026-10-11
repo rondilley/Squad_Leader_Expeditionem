@@ -111,3 +111,38 @@ def test_the_host_names_the_human_seat(engine):
     assert host.human_player() == 0
     plain = Host(engine, seed=1)
     assert plain.human_player() == plain.game.state.active
+
+
+async def test_a_set_up_agent_places_the_persons_units_and_then_the_person_plays():
+    """The person can give the set up of their own side to an agent. The first frame the
+    person gets is after the Set Up Phase, with each of their units on a hex, and from that
+    frame on the side is the person's."""
+    engine = build_engine("s01_guards_counterattack")
+    host = Host(
+        engine,
+        seed=4,
+        agents={1: ScriptedV1(engine, 1)},
+        setup_agents={0: ScriptedV1(engine, 0)},
+    )
+    manager = host.start("127.0.0.1", 0)
+    server = await manager.__aenter__()
+    port = Host.bound_port(server)
+    try:
+        async with connect(f"ws://127.0.0.1:{port}") as socket:
+            await socket.send(protocol.dump({"type": "join", "room_code": host.room.code, "display_name": "person"}))
+            await receive_until(socket, protocol.HOST_WELCOME)
+            frame = await receive_until(socket, protocol.HOST_FRAME)
+            assert frame["phase"] != "setup"
+            assert frame["active"] == 0
+            own = [u for u in frame["view"]["units"] if u["player"] == 0 and u.get("carrier") is None]
+            assert own and all(u["hex"] is not None for u in own), "the set up agent placed each unit"
+            placed_by_agent = [c for c in host.game.commands if c["player"] == 0 and c["phase"] == "setup"]
+            assert placed_by_agent, "the agent's placements are in the command log"
+            # After set up the side is the person's: the host waits for the person's intent.
+            assert host.agent_now() is None
+            command = frame["legal_commands"][0]["id"]
+            await socket.send(protocol.dump({"type": "intent", "frame_id": frame["frame_id"], "command_id": command}))
+            await receive_until(socket, protocol.HOST_FRAME)
+            assert any(c["player"] == 0 and c["phase"] != "setup" and c["command_id"] == command for c in host.game.commands)
+    finally:
+        await manager.__aexit__(None, None, None)

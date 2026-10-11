@@ -127,3 +127,21 @@ def test_a_stack_climbs_a_thickness_for_each_counter():
     for lower, higher in zip(heights, heights[1:]):
         assert higher > lower, "a counter of the stack does not sit above the one below it"
         assert higher - lower == pytest.approx(c3d.COUNTER_THICKNESS * 1.02), "the stack step is not one thickness"
+
+
+def test_a_counter_still_draws_after_pygame_quit():
+    """The 2D window calls `pygame.quit()` when it closes, and that makes each font invalid.
+    The font caches of the counter drawing kept the old fonts, so the next machine gun
+    counter raised 'Invalid font' in the poll task of the 3D window."""
+    pygame = c3d._ensure_pygame()
+    machine_gun = _unit(9001, kind="weapon", typ="MMG")
+    c3d._texture_cache.clear()
+    assert c3d.counter_texture(machine_gun) is not None
+    before = c3d.font_generation()
+    pygame.quit()
+    # Another part of the process initializes pygame again; the kept fonts are still invalid.
+    pygame.init()
+    c3d._texture_cache.clear()
+    texture = c3d.counter_texture(_unit(9002, kind="weapon", typ="LMG"))
+    assert texture is not None
+    assert c3d.font_generation() == before + 1

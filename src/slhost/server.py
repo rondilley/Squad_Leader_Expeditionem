@@ -30,10 +30,10 @@ from slcore import geometry, view
 from slcore.commands import Command
 from slcore.engine import Engine, IllegalCommand
 from slagents.tuned.traces import TraceWriter, board_source
-from slcore.game import State
+from slcore.game import PHASE_SETUP, State
 from slcore.los_eval import evaluate as evaluate_los
 from slcore import view
-from slhost import protocol, rooms
+from slhost import logview, protocol, rooms
 from slhost.protocol import ProtocolError
 
 HUMAN_FAMILY = "human"
@@ -64,6 +64,9 @@ class Game:
     commands: list[dict[str, Any]] = field(default_factory=list)
     traces: TraceWriter | None = None
     agent_names: dict[int, tuple[str, str]] = field(default_factory=dict)
+    # The log of each seated player: the same events, with each unit that player could not
+    # see left out or made unknown (`logview`, AR-09). `log` is the whole log of the host.
+    player_logs: dict[int, list[dict[str, Any]]] = field(default_factory=dict)
 
     def frame(self) -> dict[str, Any]:
         return self.engine.legal_commands(self.state).to_dict()
@@ -110,6 +113,8 @@ class Game:
             if self.state.game_over:
                 self.traces.finish(self.state.result)
         self.log.extend(entries)
+        for player, kept in logview.entries_for_players(entries, before, self.state, range(len(self.engine.players))).items():
+            self.player_logs.setdefault(player, []).extend(kept)
         self.commands.append(
             {
                 "seq": self.state.seq,
@@ -143,9 +148,14 @@ class Host:
         agents: dict[int, Any] | None = None,
         traces: str | Path | None = None,
         agent_delay: float = 0.0,
+        setup_agents: dict[int, Any] | None = None,
     ) -> None:
         self.engine = engine
         self.agents: dict[int, Any] = dict(agents or {})
+        # A side that a person plays can give its set up to a computer opponent: the agent
+        # places the units, and the person plays from the first turn. It is a choice of the
+        # person and not a rule, and the agent picks from the legal list like any agent.
+        self.setup_agents: dict[int, Any] = dict(setup_agents or {})
         self.trace_root = Path(traces) if traces else None
         self.game = Game(engine, engine.new_game(seed))
         if self.trace_root is not None:
@@ -171,6 +181,8 @@ class Host:
         self.self_playing = len(self.agents) >= 2
         self.agent_delay = float(agent_delay)
         self.commands_played = 0
+        # For each player, the length of that player's log at the last frame the host sent.
+        self.log_sent: dict[int, int] = {}
         self.solo_task: asyncio.Task | None = None
 
     # ------------------------------------------------------------ static files
@@ -273,7 +285,7 @@ class Host:
         frame_id = str(message.require("frame_id"))
         command_id = str(message.require("command_id"))
         active = self.game.state.active
-        if active in self.agents:
+        if self.agent_now() is not None:
             raise ProtocolError("FR-39", f"player {active} is a computer opponent")
         if not self.room.controls(connection_id, active):
             raise ProtocolError("SR-03", "this connection does not hold the seat that acts now")
@@ -294,15 +306,29 @@ class Host:
         if self.self_playing:
             return 0
         played = 0
-        while not self.game.state.game_over and self.game.state.active in self.agents and played < MAX_AGENT_COMMANDS:
+        while not self.game.state.game_over and played < MAX_AGENT_COMMANDS:
+            agent = self.agent_now()
+            if agent is None:
+                break
             frame = self.engine.legal_commands(self.game.state)
             if not frame.commands:
                 raise RuntimeError(f"no legal command in {self.game.state.phase} for the computer opponent")
-            agent = self.agents[self.game.state.active]
             chosen = agent.select(self.game.state, frame)
             self.game.apply(frame.frame_id, chosen)
             played += 1
         return played
+
+    def agent_now(self) -> Any:
+        """The agent that acts in this frame, or None when a person acts.
+
+        A computer opponent holds its side for the whole game. A set up agent holds a
+        person's side in the Set Up Phase only."""
+        state = self.game.state
+        if state.active in self.agents:
+            return self.agents[state.active]
+        if state.phase == PHASE_SETUP and state.active in self.setup_agents:
+            return self.setup_agents[state.active]
+        return None
 
     def step_once(self) -> bool:
         """One command from the computer opponent whose turn it is. False at the game end."""
@@ -365,6 +391,14 @@ class Host:
 
     # --------------------------------------------------------------- messaging
 
+    def preview_for(self, player: int) -> dict[str, Any] | None:
+        """The fire preview for this player: only the player who acts, and only when that
+        player builds a fire group (AR-09)."""
+        state = self.game.state
+        if player != state.active or state.game_over:
+            return None
+        return self.engine.fire_preview(state)
+
     def human_player(self) -> int:
         """The side the person at the screen sees. With no computer opponent it is the active side."""
         active = self.game.state.active
@@ -403,16 +437,19 @@ class Host:
         opponent acts, so no opponent-hidden state reaches it.
         """
         frame = self.game.frame()
-        tail = self.game.log_tail()
         if self.self_playing:
+            log_from, tail = self.log_tail_for(view.SPECTATOR)
             payload = protocol.frame_message(
-                view.SPECTATOR, self.game.spectator_view(self.self_playing), frame, tail
+                view.SPECTATOR, self.game.spectator_view(self.self_playing), frame, tail, log_from=log_from
             )
             await self.broadcast(payload)
             return
         if self.room.hot_seat:
             player = self.human_player()
-            payload = protocol.frame_message(player, self.game.view_for(player), frame, tail)
+            log_from, tail = self.log_tail_for(player)
+            payload = protocol.frame_message(
+                player, self.game.view_for(player), frame, tail, self.preview_for(player), log_from=log_from
+            )
             await self.broadcast(payload)
             return
         # A copy, because a client that leaves during the send changes the seat map.
@@ -420,8 +457,24 @@ class Host:
             connection = self.connections.get(connection_id)
             if connection is None:
                 continue
-            payload = protocol.frame_message(player, self.game.view_for(player), frame, tail)
+            log_from, tail = self.log_tail_for(player)
+            payload = protocol.frame_message(
+                player, self.game.view_for(player), frame, tail, self.preview_for(player), log_from=log_from
+            )
             await self.send(connection, payload)
+
+    def log_tail_for(self, player: int) -> tuple[int, list[dict[str, Any]]]:
+        """The log entries of one player since the last frame, and at least the last
+        LOG_TAIL of them, with the number in that player's log of the first one.
+
+        A computer opponent can play a whole turn between two frames, and a fixed tail lost
+        the start of that turn from the log of the person. A watcher of two computers gets
+        the whole log; a seated player gets the log that `logview` made for them (AR-09)."""
+        log = self.game.log if player == view.SPECTATOR else self.game.player_logs.get(player, [])
+        sent = self.log_sent.get(player, 0)
+        log_from = min(sent, max(0, len(log) - LOG_TAIL))
+        self.log_sent[player] = len(log)
+        return log_from, log[log_from:]
 
     # ------------------------------------------------------------------ server
 

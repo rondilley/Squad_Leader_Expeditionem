@@ -28,6 +28,12 @@ desktop = [
 view3d = [
     "panda3d>=1.10",
 ]
+# The game for a person: the 3D window with its 2D and 3D cameras. One install command:
+# pip install -e ".[play]"
+play = [
+    "panda3d>=1.10",
+    "pygame-ce>=2.5",
+]
 train = [
     "torch>=2.4",
     "numpy>=2.0",

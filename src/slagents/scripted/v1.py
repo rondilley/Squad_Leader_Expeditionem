@@ -211,6 +211,12 @@ class ScriptedV1:
             return min(out_of_the_hex, key=lambda lc: (-len(lc.command.units), lc.id)).id
         if moves:
             return min(moves, key=lambda lc: (-len(lc.command.units), lc.id)).id
+        # Rule 30.8 keeps the window open too, while a vehicle stands where another vehicle
+        # or a wreck does. A pickup or a drop does not close it, and an agent that answered
+        # with them looped (the tanker in scenario 4, 2026-10-10), so a vehicle drives on.
+        vehicle_moves = by_action.get("vehicle_move", [])
+        if vehicle_moves:
+            return min(vehicle_moves, key=lambda lc: lc.id).id
         if best is not None:
             return best.id
         return min((lc for group in by_action.values() for lc in group), key=lambda lc: lc.id).id

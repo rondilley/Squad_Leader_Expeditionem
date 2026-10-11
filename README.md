@@ -4,6 +4,59 @@ An edition of the 1977 Avalon Hill board game Squad Leader, with the 4th edition
 
 This project is not affiliated with, sponsored by, or endorsed by Hasbro or Multi-Man Publishing. It ships no Avalon Hill art, scans, board layouts, or rulebook text. The game gets a different public title before a release. The repository name is a working name.
 
+## Play the game
+
+The game plays in the 3D window. The window has a 3D camera and a flat 2D camera, and the
+`t` key changes between them. Install it with one command, and then start a game against
+the computer:
+
+```
+python -m venv .venv
+# Linux or macOS:     source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install -e ".[play]"
+
+sl-cli window3d --scenario s01_guards_counterattack --agent hard --auto-setup
+```
+
+- `--agent easy`, `normal`, or `hard` sets the computer opponent (agent v5, v3, or v6).
+  `--agent-side german` gives the computer the German side. The default is the second side.
+  With no `--agent` two persons play at one screen.
+- `--auto-setup` lets the computer place your units in the Set Up Phase. Without it you
+  place them: the units to place are buttons on the left.
+- The scenarios are `s01_guards_counterattack`, `s02_tractor_works`,
+  `s03a_streets_of_stalingrad`, and `s04_armor_probe` (the armor game).
+
+The window first shows the scenario card: the situation, the forces of each side, the turn
+record, and the victory conditions. Press Begin, Space, or Enter to start the game.
+`--no-briefing` starts the game with no card.
+
+How to play:
+
+- Click one of your units. Blue rings show where it can move, and red rings show what it
+  can fire at. Click a ring to do it. A second click on a stack selects the next unit in it.
+- When a hex gives more than one command, a small menu asks which one.
+- The buttons on the left are the commands with no hex: end the phase, fire the group,
+  rally, and the units to place.
+- When you build a fire group, the line at the bottom shows its firepower and IFT column.
+  It also shows the modifiers and the result of each of the 36 rolls of two dice.
+- The panel on the right gives the action log with the rule, the dice, and the modifiers
+  of each result.
+- Press `l` to see the line of sight from the selected unit to the hex below the pointer. The
+  host gives the answer and the rule that decides it. A green line is clear, and a red line
+  shows the hex that blocks it.
+- The game has sound effects for weapons fire, explosions, footsteps, and engines. Press `m`
+  to turn the sound off or on. `--mute` starts the game with no sound.
+- Escape closes the menu or clears the selection. `q` stops the game. Drag to move the
+  board, use the wheel to zoom, and right-drag to tilt and turn the 3D camera.
+
+The game saves itself after each command to `runs/saves/<scenario>-seed<seed>.json`. To
+continue a game, use the command that the window gives when it starts:
+
+```
+sl-cli window3d --resume runs/saves/s01_guards_counterattack-seed1.json
+```
+
 ## What it looks like
 
 ![The desktop window in turn 4 of scenario 4. The board, the counters of the two sides with

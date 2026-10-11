@@ -2,6 +2,7 @@
  "id": "s03a_streets_of_stalingrad",
  "title": "The Streets of Stalingrad",
  "notes": "Scenario 3A of the 1977 game, in the project's own words (FR-22). Stalingrad, October 1942. The card joins scenarios 1 and 2 into one game on the whole board, and it introduces sewer movement (rule 27). Variant 3A is the game without the armor of variant 3B, which waits for the armor rules of sections 28 to 41. The force lists, the turn count, and the victory conditions come from the scenario card as docs/research/2026-09-07_RV-2_boards_scenarios.md section 3 records them. The card text is not reproduced. The board is a whole generated city board with the sewer entrances of rule 27.1. The five set up passes follow the card, which sets the scenario 1 forces up before the scenario 2 counters. The card says to roll a die for the first mover, and project ruling PR-12 gives that roll to the core generator.",
+ "situation": "Stalingrad, October 1942. The fights for the city block and for the factory are one battle on one board. The Russians must take two more German buildings than they lose of their own, and either side wins by sole control of six factory hexes. Russian units can move through the sewers. The Russians move first. Seven turns.",
  "board": "city",
  "board_generator": {
   "seed": 19421021,

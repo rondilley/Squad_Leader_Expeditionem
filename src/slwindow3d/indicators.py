@@ -1,28 +1,31 @@
-"""Tactical action indicators drawn over the 3D board.
+"""Tactical indicators drawn over the 3D board, in the manner of a printed wargame.
 
-The 3D window (see `app.py`) shows the board and the counters. This module adds the tactical
-overlay a watcher wants: whose turn it is, where a unit can move and where it moved, who
-fires at what, and the line of the fire. It reads the same snapshot the window already polls
-from the host client (AR-06): the active player, the phase, the units of the view, the legal
-command list, and the tail of the action log. It adds no rule and no rule table; it draws.
+The 3D window (see `app.py`) shows the board and the counters. This module adds what a
+player or a watcher reads from the table: whose turn it is, where a unit can go and where it
+went, who fired at what and with what result, and the line of sight. It reads the snapshot
+the window already polls from the host client (AR-06). It adds no rule; it draws.
+
+The style is that of the board and not of a cartoon. A hex is marked by a thin outline on
+its edge, sometimes with a faint tint, so the counter and the terrain inside stay in view. A
+line of sight is a thin taut thread from centre dot to centre dot, the way rule 7.1 traces it
+with a string. A fire is its animation (`effects.py`), then a faint dark narrow line and a short
+result word on the target hex (KIA, MC+1, no effect). A move is a thin path with a small arrowhead. Each width is in world units, so a
+line keeps its width on the board when the camera pulls back and does not vanish.
 
 Two kinds of overlay:
 
-- The action overlay is the newest events of the log. A fire draws a bright line from each
-  firer to its target and a ring on the target coloured by the result. A move draws an arrow
-  from the source hex to the destination and a ring on the destination. An action lingers for
-  a short time (`ACTION_LINGER`) so it reads at speed, then a per-frame sweep removes it.
-- The frame overlay rebuilds each frame from the current snapshot. It is the low-alpha active
-  side markers under the acting player's units, and the toggleable options overlay: the
-  destinations a unit can move to, or the targets a unit can fire at.
+- The action overlay is the newest events of the log. It lingers for a short time
+  (`ACTION_LINGER`) so it reads at speed, then a sweep removes it.
+- The frame overlay rebuilds each frame: a faint outline on the hexes of the side that acts,
+  and the toggleable options overlay (`o`): faint outlines on the hexes a unit can move to,
+  and on the hexes it can fire at.
 
-The colours of a result come from the event kinds the core emits (grep `src/slcore/rules/`):
-an `eliminated` or a `broken` outcome is red, a pin or a failed morale check is orange, and no
-effect is grey.
+The colour of a result comes from the event kinds the core emits: an `eliminated` or a
+`broken` outcome is red, a pin or a failed morale check is amber, and no effect is grey.
 
 Robustness is the rule here: the live game must never crash because of an overlay bug. The
 whole update runs inside a try/except that prints a short warning and returns, and every
-rebuild clears its old nodes first, so a bug leaks no nodes and kills no window.
+rebuild clears its old nodes first.
 """
 
 from __future__ import annotations
@@ -44,44 +47,64 @@ from panda3d.core import (
     TransparencyAttrib,
 )
 
+from slwindow3d.effects import Effects
+from slwindow3d.firekinds import shots_for
 from slwindow3d.mesh import HEIGHT_PER_LEVEL, hex_world
 
 # How long an action (a fire or a move) stays on the board, in seconds. Long enough that the
 # eye reads it while a computer-versus-computer game runs at speed.
 ACTION_LINGER = 1.8
 
-# The overlay floats a little above the top of the counters, so a line and a ring read over
-# the board and the pieces and do not fight the counter art for the same pixels.
-LIFT = 1.4
-RING_LIFT = 0.25
+# The overlay lies just over the top of each hex. The depth test is off for it, so it reads
+# over the counters; a small lift keeps it off the hex face, and a low one keeps it on its hex
+# when the 3D camera tilts.
+LIFT = 0.06
+# The text of a result sits a little higher, so it reads over a counter.
+TEXT_LIFT = 0.4
 
-# The radius of a hex highlight ring, in world units. A hex is two units across its short
-# radius, so a ring near this size fills the hex and reads from far away.
-RING_RADIUS = 1.7
-RING_SEGMENTS = 28
+# The hex outline: its distance in from the hex edge, as a share of the hex radius, and the
+# hex radius of the lattice (a vertex is two units from the centre).
+HEX_RADIUS = 2.0
+OUTLINE_INSET = 0.06
 
-# The colours. RGBA, each channel from zero to one.
-COLOR_FIRE = (1.0, 0.9, 0.15, 1.0)
-COLOR_RESULT_RED = (0.98, 0.18, 0.12, 0.95)
-COLOR_RESULT_ORANGE = (1.0, 0.6, 0.08, 0.95)
-COLOR_RESULT_GREY = (0.75, 0.75, 0.78, 0.85)
-COLOR_MOVE = (0.3, 0.75, 1.0, 1.0)
-COLOR_ACTIVE = (0.25, 1.0, 0.45, 0.5)
-COLOR_OPTION_MOVE = (0.3, 0.75, 1.0, 0.42)
-COLOR_OPTION_FIRE = (1.0, 0.9, 0.2, 0.42)
+# The colours. RGBA, each channel from zero to one. A muted palette, near the inks of a
+# printed board: ivory, slate blue, brick red, amber, and grey.
+# The fire line: the animation of the fire (`effects.py`) shows the shot, so the line that
+# stays after it is only a faint dark trace of who fired at what (owner, 2026-10-10: no
+# medium yellow line and no dot).
+COLOR_FIRE = (0.12, 0.11, 0.09, 0.45)
+COLOR_RESULT_RED = (0.80, 0.16, 0.12, 0.95)
+COLOR_RESULT_ORANGE = (0.92, 0.62, 0.18, 0.95)
+COLOR_RESULT_GREY = (0.78, 0.78, 0.74, 0.85)
+COLOR_MOVE = (0.62, 0.78, 0.95, 0.9)
+COLOR_ACTIVE = (0.96, 0.92, 0.75, 0.28)
+COLOR_OPTION_MOVE = (0.62, 0.78, 0.95, 0.4)
+COLOR_OPTION_FIRE = (0.85, 0.30, 0.22, 0.4)
+# The play input: the selected unit, and the hexes a click can send it to or fire it at.
+COLOR_SELECTED = (1.0, 0.97, 0.86, 0.98)
+COLOR_TARGET_MOVE = (0.62, 0.78, 0.95, 0.9)
+COLOR_TARGET_FIRE = (0.85, 0.22, 0.16, 0.92)
+# A faint tint inside a target outline, so a target reads at a glance.
+TINT_MOVE = (0.62, 0.78, 0.95, 0.12)
+TINT_FIRE = (0.85, 0.22, 0.16, 0.12)
+# The line of sight answer of the host: the thread, and the part past the blocking hex.
+COLOR_LOS_CLEAR = (0.97, 0.96, 0.90, 0.95)
+COLOR_LOS_BLOCKED = (0.85, 0.18, 0.14, 0.95)
 
-# The width of each kind of line, in WORLD units (not pixels). A pixel-wide line vanishes when
-# the camera pulls back to show the whole board, so a line is a flat ribbon of real width that
-# stays visible at any zoom.
-WIDTH_FIRE = 0.55
-WIDTH_MOVE = 0.6
-WIDTH_OPTION = 0.28
-# The width of the ring band of a highlight, in world units.
-RING_BAND = 0.35
-# Kept for callers; the value is no longer a pixel thickness.
+# The widths, in WORLD units (a hex is four units across). Thin, like ink on the board.
+WIDTH_FIRE = 0.04
+WIDTH_MOVE = 0.10
+WIDTH_OPTION = 0.07
+WIDTH_LOS = 0.08
+WIDTH_OUTLINE = 0.12
+WIDTH_SELECTED = 0.18
+WIDTH_ACTIVE = 0.07
+# Kept for callers that read the old names.
 THICK_FIRE = WIDTH_FIRE
 THICK_MOVE = WIDTH_MOVE
 THICK_OPTION = WIDTH_OPTION
+RING_RADIUS = HEX_RADIUS
+RING_BAND = WIDTH_OUTLINE
 
 # The high bin so the overlay draws after the board and the counters and reads over them.
 OVERLAY_BIN = 60
@@ -124,10 +147,18 @@ class Indicators:
         self.root: NodePath = parent.attachNewNode("indicators")
         self.action_root: NodePath = self.root.attachNewNode("actions")
         self.frame_root: NodePath = self.root.attachNewNode("frame")
+        # The selection layer of the play input. It rebuilds on each click and each frame,
+        # and the toggles of the watcher overlay do not hide it.
+        self.selection_root: NodePath = parent.attachNewNode("selection")
+        # The line of sight answer the person asked for with the `l` key.
+        self.los_root: NodePath = parent.attachNewNode("los")
         self._style(self.root)
+        self._style(self.selection_root)
+        self._style(self.los_root)
         self.enabled = True
         self.options = True
         self._tops: dict[str, tuple[float, float, float]] = {}
+        self._hexes: dict[str, dict[str, Any]] = {}
         # The host re-sends the last part of the log with every frame, and the client trims the
         # log to a fixed length, so a count of "how many events I have seen" is not reliable.
         # Instead each event that has become an action is remembered by its content, so a
@@ -138,6 +169,12 @@ class Indicators:
         self._primed = False
         # The nodes of a lingering action and the time each one must go, so `sweep` removes it.
         self._active_nodes: list[tuple[float, NodePath]] = []
+        # The animations of fire, one kind for each weapon (`effects.py`). They hang under the
+        # overlay root, so the `i` key hides them with the rest.
+        self.effects = Effects(self.root, self._ground)
+        # Called with the new events of each frame and the units of the view (the window
+        # gives it to the sound board).
+        self.on_new_events = None
 
     # ------------------------------------------------------------------ setup
 
@@ -153,6 +190,8 @@ class Indicators:
     def set_board(self, board_doc: dict[str, Any] | None) -> None:
         """Build the hex id to world point map from the board document."""
         self._tops = {}
+        self._hexes = {}
+        self.effects.clear()
         # A new board is a new game, so forget the events of the last one.
         self._seen_keys = set()
         self._primed = False
@@ -162,15 +201,7 @@ class Indicators:
             wx, wy = hex_world(hexagon["center"])
             wz = int(hexagon.get("elevation", 0) or 0) * HEIGHT_PER_LEVEL
             self._tops[hexagon["id"]] = (wx, wy, wz)
-
-    def _point(self, hex_id: Any) -> tuple[float, float, float] | None:
-        """The world point at the top of a hex, lifted so the overlay floats over the pieces."""
-        if hex_id is None:
-            return None
-        placed = self._tops.get(str(hex_id))
-        if placed is None:
-            return None
-        return (placed[0], placed[1], placed[2] + LIFT)
+            self._hexes[hexagon["id"]] = hexagon
 
     # ------------------------------------------------------------------ toggles
 
@@ -193,6 +224,7 @@ class Indicators:
         self.action_root.node().removeAllChildren()
         self.frame_root.node().removeAllChildren()
         self._active_nodes = []
+        self.effects.clear()
 
     # ------------------------------------------------------------------ the update
 
@@ -224,12 +256,14 @@ class Indicators:
         self._draw_active(units, active)
         if self.options:
             self._draw_options(legal, unit_hex, active, phase)
-        self._ingest_log(log, unit_hex)
+        units_by_id = {u.get("id"): u for u in units}
+        self._ingest_log(log, unit_hex, units_by_id)
 
     def sweep(self) -> None:
         """Remove any lingering action that has passed its time. Call it each frame."""
         try:
             now = time.monotonic()
+            self.effects.step(now)
             kept: list[tuple[float, NodePath]] = []
             for expiry, node in self._active_nodes:
                 if now >= expiry:
@@ -243,8 +277,8 @@ class Indicators:
     # ------------------------------------------------------------------ the active side
 
     def _draw_active(self, units: list[dict[str, Any]], active: Any) -> None:
-        """A subtle low-alpha ring under each unit of the active player, so the watcher sees
-        whose turn it is without the marker fighting the action for attention."""
+        """A faint thin outline on each hex of the side that acts, so a watcher sees whose
+        turn it is without the marker taking the eye from the action."""
         try:
             active_int = int(active)
         except (TypeError, ValueError):
@@ -259,34 +293,64 @@ class Indicators:
             if hex_id in drawn:
                 continue
             drawn.add(hex_id)
-            point = self._point(hex_id)
-            if point is not None:
-                self._ring(self.frame_root, point, COLOR_ACTIVE, RING_RADIUS * 1.25, THICK_OPTION)
+            self._hex_outline(self.frame_root, hex_id, COLOR_ACTIVE, WIDTH_ACTIVE)
 
     # ------------------------------------------------------------------ the options
 
     def _draw_options(self, legal: list[dict[str, Any]], unit_hex: dict[Any, Any], active: Any, phase: str) -> None:
-        """The faint overlay of what the active player can do this frame.
-
-        In a phase with legal moves, a faint ring on each destination hex. In a phase with
-        legal fire, a faint thin line from each firer to each target. It stays low-alpha, so
-        the actual action (bright) stands out over it.
-        """
-        for command in legal:
+        """The faint overlay of what the side that acts can do this frame: an outline on each
+        hex a unit can move to, and an outline on each hex a unit can fire at. One node for
+        each legal entry, so a watcher can count the options."""
+        for entry in legal:
+            # The host sends each entry as {"id": ..., "payload": {...}}.
+            command = entry.get("payload", entry)
             action = command.get("action")
             target = command.get("hex")
             if action in _MOVE_ACTIONS:
-                point = self._point(target)
-                if point is not None:
-                    self._ring(self.frame_root, point, COLOR_OPTION_MOVE, RING_RADIUS, THICK_OPTION)
+                self._hex_outline(self.frame_root, target, COLOR_OPTION_MOVE, WIDTH_OPTION)
             elif action in _FIRE_ACTIONS:
-                dst = self._point(target)
-                if dst is None:
-                    continue
-                for uid in command.get("units", []):
-                    src = self._point(unit_hex.get(uid))
-                    if src is not None:
-                        self._line(self.frame_root, src, dst, COLOR_OPTION_FIRE, THICK_OPTION)
+                self._hex_outline(self.frame_root, target, COLOR_OPTION_FIRE, WIDTH_OPTION)
+
+    # ---------------------------------------------------------------- the selection
+
+    def show_selection(self, selected_hex: str | None, move_hexes, fire_hexes) -> None:
+        """The play input: an ivory outline on the hex of the selected unit, a slate blue
+        outline and tint on each hex a click moves it to, and a brick red outline and tint on
+        each hex a click fires it at."""
+        self.selection_root.node().removeAllChildren()
+        for hex_id in move_hexes:
+            node = self.selection_root.attachNewNode("move-target")
+            self._hex_fill(node, hex_id, TINT_MOVE)
+            self._hex_outline(node, hex_id, COLOR_TARGET_MOVE, WIDTH_OUTLINE)
+        for hex_id in fire_hexes:
+            node = self.selection_root.attachNewNode("fire-target")
+            self._hex_fill(node, hex_id, TINT_FIRE)
+            self._hex_outline(node, hex_id, COLOR_TARGET_FIRE, WIDTH_OUTLINE)
+        if selected_hex is not None:
+            self._hex_outline(self.selection_root, selected_hex, COLOR_SELECTED, WIDTH_SELECTED)
+
+    def show_los(self, answer: dict[str, Any] | None) -> None:
+        """The host's line of sight answer, as a thread from centre dot to centre dot (rule
+        7.1). A clear line is one ivory thread. A blocked line is ivory to the blocking hex and
+        red past it, with a red outline on the blocking hex. None removes it."""
+        self.los_root.node().removeAllChildren()
+        if not answer:
+            return
+        a = self._ground(answer.get("from"))
+        b = self._ground(answer.get("to"))
+        if a is None or b is None:
+            return
+        blocking_id = answer.get("blocking_hex")
+        blocking = self._ground(blocking_id)
+        if answer.get("clear") or blocking is None:
+            colour = COLOR_LOS_CLEAR if answer.get("clear") else COLOR_LOS_BLOCKED
+            self._ribbon(self.los_root, a, b, colour, WIDTH_LOS)
+        else:
+            self._ribbon(self.los_root, a, blocking, COLOR_LOS_CLEAR, WIDTH_LOS)
+            self._ribbon(self.los_root, blocking, b, COLOR_LOS_BLOCKED, WIDTH_LOS)
+            self._hex_outline(self.los_root, blocking_id, COLOR_LOS_BLOCKED, WIDTH_OUTLINE)
+        self._dot(self.los_root, a, COLOR_LOS_CLEAR)
+        self._dot(self.los_root, b, COLOR_LOS_CLEAR if answer.get("clear") else COLOR_LOS_BLOCKED)
 
     # ------------------------------------------------------------------ the log
 
@@ -295,7 +359,9 @@ class Indicators:
         """A content key of one event, so a re-sent event is not read as new."""
         return f"{event.get('rule_id')}|{event.get('kind')}|{json.dumps(event.get('data', {}), sort_keys=True, default=str)}"
 
-    def _ingest_log(self, log: list[dict[str, Any]], unit_hex: dict[Any, Any]) -> None:
+    def _ingest_log(
+        self, log: list[dict[str, Any]], unit_hex: dict[Any, Any], units_by_id: dict[Any, Any] | None = None
+    ) -> None:
         """Turn the events that are new since the last frame into lingering actions.
 
         The host re-sends the last part of the log with each frame and the client trims the log
@@ -312,6 +378,12 @@ class Indicators:
         self._seen_keys.update(keys)
         if not new_events:
             return
+        if self.on_new_events is not None:
+            self.on_new_events(new_events, units_by_id or {})
+        # The animation of each new fire, by its kind of weapon.
+        for event in new_events:
+            for shot in shots_for(event, units_by_id or {}):
+                self.effects.launch(shot, key=self._event_key(event))
         # A fire event and the result events that follow it in the same batch are one action:
         # the result colours the target ring. Walk the new tail and group each fire with the
         # results that come after it until the next fire or move.
@@ -321,10 +393,10 @@ class Indicators:
             event = new_events[i]
             kind = event.get("kind")
             if kind == "fire":
-                following: set[str] = set()
+                following: list[dict[str, Any]] = []
                 j = i + 1
                 while j < n and new_events[j].get("kind") not in {"fire"} | _MOVE_EVENTS:
-                    following.add(str(new_events[j].get("kind")))
+                    following.append(new_events[j])
                     j += 1
                 self._add_fire(event, unit_hex, following)
                 i = j
@@ -334,41 +406,112 @@ class Indicators:
             else:
                 i += 1
 
-    def _add_fire(self, event: dict[str, Any], unit_hex: dict[Any, Any], following: set[str]) -> None:
-        """A bright fire line from each firer to the target, and a result ring on the target."""
+    def _add_fire(self, event: dict[str, Any], unit_hex: dict[Any, Any], following: list[dict[str, Any]]) -> None:
+        """A faint dark narrow line from each firer to the target (the animation shows the
+        shot itself), an outline on the target in the colour of the result, and the result as
+        a short word on the target hex."""
         data = event.get("data", {})
-        target = self._point(data.get("target"))
+        target_id = data.get("target")
+        target = self._ground(target_id)
         if target is None:
             return
+        kinds = {str(e.get("kind")) for e in following}
+        colour = result_color(kinds)
         node = self.action_root.attachNewNode("fire")
-        members = data.get("members", [])
-        for member in members:
-            src = self._point(unit_hex.get(member.get("unit")))
+        for member in data.get("members", []):
+            src = self._ground(unit_hex.get(member.get("unit")))
             if src is not None:
-                self._line(node, src, target, COLOR_FIRE, THICK_FIRE)
-        self._ring(node, target, result_color(following), RING_RADIUS, THICK_FIRE)
-        phase = data.get("phase")
-        if phase:
-            self._label(node, target, str(phase))
+                self._ribbon(node, src, target, COLOR_FIRE, WIDTH_FIRE)
+        self._hex_outline(node, target_id, colour, WIDTH_OUTLINE)
+        words = result_words(following)
+        if words:
+            self._text(node, target_id, words, colour)
         self._active_nodes.append((time.monotonic() + ACTION_LINGER, node))
 
     def _add_move(self, event: dict[str, Any]) -> None:
-        """An arrow from the source hex to the destination, and a ring on the destination."""
+        """A thin path from the source hex to the destination, with a small arrowhead, and a
+        thin outline on the destination."""
         data = event.get("data", {})
-        src = self._point(data.get("from"))
-        dst = self._point(data.get("to"))
+        src = self._ground(data.get("from"))
+        dst = self._ground(data.get("to"))
         if src is None or dst is None:
             return
         node = self.action_root.attachNewNode("move")
-        self._arrow(node, src, dst, COLOR_MOVE, THICK_MOVE)
-        self._ring(node, dst, COLOR_MOVE, RING_RADIUS, THICK_MOVE)
+        self._arrow(node, src, dst, COLOR_MOVE, WIDTH_MOVE)
+        self._hex_outline(node, data.get("to"), COLOR_MOVE, WIDTH_ACTIVE)
         self._active_nodes.append((time.monotonic() + ACTION_LINGER, node))
 
     # ------------------------------------------------------------------ the drawing
 
+    def _ground(self, hex_id: Any) -> tuple[float, float, float] | None:
+        """The centre of a hex top, just over its face."""
+        if hex_id is None:
+            return None
+        placed = self._tops.get(str(hex_id))
+        if placed is None:
+            return None
+        return (placed[0], placed[1], placed[2] + LIFT)
+
+    def _corners(self, hex_id: Any, shrink: float) -> list[tuple[float, float, float]] | None:
+        """The six corners of a hex top, pulled in toward its centre by `shrink` world units."""
+        from slwindow3d.picking import hex_corners
+
+        hexagon = self._hexes.get(str(hex_id)) if hex_id is not None else None
+        centre = self._ground(hex_id)
+        if hexagon is None or centre is None:
+            return None
+        cx, cy, z = centre
+        scale = max(0.0, (HEX_RADIUS - shrink) / HEX_RADIUS)
+        return [(cx + (x - cx) * scale, cy + (y - cy) * scale, z) for x, y in hex_corners(hexagon)]
+
+    def _hex_outline(self, parent: NodePath, hex_id: Any, color, width: float) -> NodePath | None:
+        """A thin band just inside the edge of a hex, in one colour: the way a player marks a
+        hex on the board, and not a disc over the counter."""
+        outer = self._corners(hex_id, HEX_RADIUS * OUTLINE_INSET)
+        inner = self._corners(hex_id, HEX_RADIUS * OUTLINE_INSET + width)
+        if outer is None or inner is None:
+            return None
+        vdata = GeomVertexData("outline", GeomVertexFormat.getV3c4(), Geom.UHStatic)
+        vertex = GeomVertexWriter(vdata, "vertex")
+        cwriter = GeomVertexWriter(vdata, "color")
+        tris = GeomTriangles(Geom.UHStatic)
+        for i in range(6):
+            j = (i + 1) % 6
+            base = i * 4
+            for point in (outer[i], outer[j], inner[j], inner[i]):
+                vertex.addData3(*point)
+                cwriter.addData4(*color)
+            tris.addVertices(base, base + 1, base + 2)
+            tris.addVertices(base, base + 2, base + 3)
+        geom = Geom(vdata)
+        geom.addPrimitive(tris)
+        node = GeomNode("outline")
+        node.addGeom(geom)
+        return parent.attachNewNode(node)
+
+    def _hex_fill(self, parent: NodePath, hex_id: Any, color) -> NodePath | None:
+        """A faint tint over a whole hex."""
+        corners = self._corners(hex_id, HEX_RADIUS * OUTLINE_INSET)
+        centre = self._ground(hex_id)
+        if corners is None or centre is None:
+            return None
+        vdata = GeomVertexData("tint", GeomVertexFormat.getV3c4(), Geom.UHStatic)
+        vertex = GeomVertexWriter(vdata, "vertex")
+        cwriter = GeomVertexWriter(vdata, "color")
+        for point in [centre] + corners:
+            vertex.addData3(*point)
+            cwriter.addData4(*color)
+        tris = GeomTriangles(Geom.UHStatic)
+        for i in range(6):
+            tris.addVertices(0, 1 + i, 1 + (i + 1) % 6)
+        geom = Geom(vdata)
+        geom.addPrimitive(tris)
+        node = GeomNode("tint")
+        node.addGeom(geom)
+        return parent.attachNewNode(node)
+
     def _quad(self, parent: NodePath, corners, color) -> NodePath:
-        """A flat two-triangle quad from four world corners, in one flat colour. World-space,
-        so it stays the same size on the board and reads when the camera shows the whole map."""
+        """A flat two-triangle quad from four world corners, in one flat colour."""
         vdata = GeomVertexData("quad", GeomVertexFormat.getV3c4(), Geom.UHStatic)
         vertex = GeomVertexWriter(vdata, "vertex")
         cwriter = GeomVertexWriter(vdata, "color")
@@ -385,7 +528,8 @@ class Indicators:
         return parent.attachNewNode(node)
 
     def _ribbon(self, parent: NodePath, a, b, color, width: float) -> NodePath:
-        """A flat band of world `width` from a to b, on the plane between them."""
+        """A thin flat band of world `width` from a to b: a line that keeps its width on the
+        board at any zoom."""
         import math
 
         ax, ay, az = a
@@ -403,11 +547,35 @@ class Indicators:
         return self._quad(parent, corners, color)
 
     def _line(self, parent: NodePath, a, b, color, width: float) -> NodePath:
-        """A fire line, as a world-width ribbon so it reads at any zoom."""
         return self._ribbon(parent, a, b, color, width)
 
+    def _dot(self, parent: NodePath, centre, color, radius: float = 0.22) -> NodePath:
+        """A small filled dot: the centre dot of a hex, where a thread starts or ends."""
+        import math
+
+        cx, cy, cz = centre
+        vdata = GeomVertexData("dot", GeomVertexFormat.getV3c4(), Geom.UHStatic)
+        vertex = GeomVertexWriter(vdata, "vertex")
+        cwriter = GeomVertexWriter(vdata, "color")
+        vertex.addData3(cx, cy, cz)
+        cwriter.addData4(*color)
+        steps = 12
+        for i in range(steps):
+            angle = 2.0 * math.pi * i / steps
+            vertex.addData3(cx + radius * math.cos(angle), cy + radius * math.sin(angle), cz)
+            cwriter.addData4(*color)
+        tris = GeomTriangles(Geom.UHStatic)
+        for i in range(steps):
+            tris.addVertices(0, 1 + i, 1 + (i + 1) % steps)
+        geom = Geom(vdata)
+        geom.addPrimitive(tris)
+        node = GeomNode("dot")
+        node.addGeom(geom)
+        return parent.attachNewNode(node)
+
     def _arrow(self, parent: NodePath, a, b, color, width: float) -> NodePath:
-        """A ribbon from a to b with a solid arrowhead at b."""
+        """A thin line from a to b with a small arrowhead that stops short of the centre of b,
+        so the head does not cover the counter."""
         import math
 
         node = parent.attachNewNode("arrow")
@@ -416,56 +584,58 @@ class Indicators:
         dx, dy = bx - ax, by - ay
         length = math.hypot(dx, dy) or 0.001
         ux, uy = dx / length, dy / length
-        head = min(1.8, length * 0.4)
-        shaft_x, shaft_y = bx - ux * head, by - uy * head
-        self._ribbon(node, a, (shaft_x, shaft_y, bz), color, width)
-        half = width * 1.9
-        left = (shaft_x - uy * half, shaft_y + ux * half, bz)
-        right = (shaft_x + uy * half, shaft_y - ux * half, bz)
-        # The head is a triangle (a degenerate quad, the tip repeated).
-        self._quad(node, [(bx, by, bz), left, right, (bx, by, bz)], color)
+        stop = min(0.9, length * 0.25)
+        tip_x, tip_y = bx - ux * stop, by - uy * stop
+        head = min(0.7, length * 0.3)
+        base_x, base_y = tip_x - ux * head, tip_y - uy * head
+        self._ribbon(node, a, (base_x, base_y, bz), color, width)
+        half = head * 0.45
+        left = (base_x - uy * half, base_y + ux * half, bz)
+        right = (base_x + uy * half, base_y - ux * half, bz)
+        self._quad(node, [(tip_x, tip_y, bz), left, right, (tip_x, tip_y, bz)], color)
         return node
 
-    def _ring(self, parent: NodePath, center, color, radius: float, width: float) -> NodePath:
-        """A hex highlight as a filled band (an annulus) of world width, so it reads from far.
-
-        A thin outline vanishes when the camera pulls back; a filled band does not. The centre
-        of the band is a hole, so the counter under it still shows."""
-        import math
-
-        cx, cy, cz = center
-        z = cz + RING_LIFT
-        band = max(0.3, width)
-        inner = max(0.12, radius - band)
-        vdata = GeomVertexData("ring", GeomVertexFormat.getV3c4(), Geom.UHStatic)
-        vertex = GeomVertexWriter(vdata, "vertex")
-        cwriter = GeomVertexWriter(vdata, "color")
-        tris = GeomTriangles(Geom.UHStatic)
-        segments = RING_SEGMENTS
-        for i in range(segments):
-            angle0 = 2.0 * math.pi * i / segments
-            angle1 = 2.0 * math.pi * (i + 1) / segments
-            base = i * 4
-            for radius_at, angle in ((inner, angle0), (radius, angle0), (radius, angle1), (inner, angle1)):
-                vertex.addData3(cx + radius_at * math.cos(angle), cy + radius_at * math.sin(angle), z)
-                cwriter.addData4(*color)
-            tris.addVertices(base, base + 1, base + 2)
-            tris.addVertices(base, base + 2, base + 3)
-        geom = Geom(vdata)
-        geom.addPrimitive(tris)
-        node = GeomNode("ring")
-        node.addGeom(geom)
-        return parent.attachNewNode(node)
-
-    def _label(self, parent: NodePath, center: tuple[float, float, float], text: str) -> NodePath:
-        """A small flat text label above a target, so the watcher reads the fire phase."""
-        node = TextNode("phase")
+    def _text(self, parent: NodePath, hex_id: Any, text: str, color) -> NodePath | None:
+        """A short word flat on the lower part of a hex, in a small type, the way a player
+        writes a result on a note: it does not cover the counter in the centre."""
+        centre = self._ground(hex_id)
+        if centre is None:
+            return None
+        node = TextNode("result")
         node.setText(text)
         node.setAlign(TextNode.ACenter)
-        node.setTextColor(*COLOR_FIRE)
+        node.setTextColor(*color)
+        # A small dark label behind the word, like a marker on the board, so the word reads
+        # over the art of a counter.
+        node.setCardColor(0.08, 0.08, 0.07, 0.78)
+        node.setCardAsMargin(0.18, 0.18, 0.08, 0.06)
+        node.setCardDecal(True)
         path = parent.attachNewNode(node)
-        path.setScale(0.9)
-        path.setPos(center[0], center[1], center[2] + 1.0)
-        # The label lies flat on the board plane, so it reads from the tilted 3D camera.
+        path.setScale(0.42)
+        path.setPos(centre[0], centre[1] - HEX_RADIUS * 0.72, centre[2] + TEXT_LIFT)
+        # The text lies flat on the board, so it reads from the tilted 3D camera too.
         path.setP(-90)
         return path
+
+
+def result_words(following: list[dict[str, Any]]) -> str:
+    """The short result of one fire, from the events that follow it: the worst IFT result
+    on the hex, and BROKEN or KIA when a unit broke or died. Each word is a word of the
+    events (AR-06)."""
+    kinds = {str(e.get("kind")) for e in following}
+    if "eliminated" in kinds:
+        return "KIA" if any(str((e.get("data") or {}).get("result")) == "KIA" for e in following) else "ELIM"
+    if "broken" in kinds:
+        return "BROKEN"
+    results = [str((e.get("data") or {}).get("result")) for e in following if e.get("kind") == "fire_result"]
+    if not results:
+        return ""
+    for code in results:
+        if code == "KIA":
+            return "KIA"
+    numbers = sorted((int(c) for c in results if c.isdigit()), reverse=True)
+    if numbers:
+        return f"MC+{numbers[0]}"
+    if "M" in results:
+        return "MC"
+    return "no effect"

@@ -75,8 +75,19 @@ def welcome(player: int, seat: str, board: dict[str, Any], scenario: dict[str, A
     return {"type": HOST_WELCOME, "player": player, "seat": seat, "board": board, "scenario": scenario}
 
 
-def frame_message(player: int, view: dict[str, Any], frame: dict[str, Any], log_tail: list[dict[str, Any]]) -> dict[str, Any]:
-    return {
+def frame_message(
+    player: int,
+    view: dict[str, Any],
+    frame: dict[str, Any],
+    log_tail: list[dict[str, Any]],
+    fire_preview: dict[str, Any] | None = None,
+    log_from: int | None = None,
+) -> dict[str, Any]:
+    """One frame for one player. `fire_preview` is the odds of the fire group that this
+    player builds now; the host gives it only to that player (AR-09). `log_from` is the
+    number in the whole log of the first entry of `log_tail`, so a client that keeps the
+    log adds only the entries it does not have."""
+    message = {
         "type": HOST_FRAME,
         "player": player,
         "view": view,
@@ -88,6 +99,11 @@ def frame_message(player: int, view: dict[str, Any], frame: dict[str, Any], log_
         "legal_commands": frame["commands"],
         "log_tail": log_tail,
     }
+    if fire_preview is not None:
+        message["fire_preview"] = fire_preview
+    if log_from is not None:
+        message["log_from"] = int(log_from)
+    return message
 
 
 def error_message(rule_id: str, message: str) -> dict[str, Any]:

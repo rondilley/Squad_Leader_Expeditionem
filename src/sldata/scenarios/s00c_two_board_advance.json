@@ -2,6 +2,7 @@
  "id": "s00c_two_board_advance",
  "title": "Advance across two boards",
  "notes": "A project scenario, not a printed scenario. It exists so that the board composition of FR-29 has a game. Two generated boards join along their short edges, west to east, and the second one is turned one hundred and eighty degrees. The printed scenarios that use two to four boards are numbers 4 to 12, and each of those uses rules 42 to 60, which wait for a subsequent tier. This scenario uses rules 1 to 26 and the hidden initial placement of rule 42, and the forces are the project's own (SR-07, FR-22).",
+ "situation": "An advance across two boards. A German assault force with engineers must cross to the second board and take the building that the Russian defenders hold there. Some Russian units are hidden at the start. The Germans move first. Six turns.",
  "board": "city",
  "board_composition": {
   "side": "east",

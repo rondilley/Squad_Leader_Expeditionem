@@ -1036,7 +1036,8 @@ class Engine:
                     self.board, state, vehicle_id, r35_overrun.RULE_35_5, "an overrun", charge=False
                 )
                 events.extend(off)
-            state, ev = r35_overrun.resolve(self.armor_ctx, self.fire_ctx, state, vehicle_id, target)
+            # PR-31: the overrun waits for the Defensive Fire Phase (rule 35.6).
+            state, ev = r35_overrun.declare(state, vehicle_id, target)
             events.extend(ev)
         return state, events
 
@@ -1244,6 +1245,10 @@ class Engine:
                 state, ev = r34_afv_vs_infantry.clear_exposure(state, 1 - state.phasing)
                 events.extend(ev)
                 if phase == PHASE_DEFENSIVE_FIRE:
+                    # PR-31 and rule 35.6: the overruns of the Movement Phase resolve now,
+                    # after the defensive fire, for each vehicle that survived it.
+                    state, ev = r35_overrun.resolve_pending(self.armor_ctx, self.fire_ctx, state, state.phasing)
+                    events.extend(ev)
                     # Rule 35.8: infantry that a vehicle stopped on top of steps to one
                     # side, immediately after this phase.
                     for vehicle in r28_vehicles.vehicles(state, state.phasing):
@@ -1410,6 +1415,17 @@ class Engine:
             if g.objective:
                 out.extend(g.area.resolve(self.board))
         return tuple(sorted(set(out)))
+
+    def fire_preview(self, state: State) -> dict[str, Any] | None:
+        """The preview of the fire group the active player builds now, or None.
+
+        It is a read of the state and changes nothing (see `r10_resolution.preview`). The
+        host sends it to the player who builds the group, so a person sees the odds before
+        the fire."""
+        group = state.fire_group
+        if group is None or not group.members:
+            return None
+        return r10_resolution.preview(self.fire_ctx, state, group)
 
     def replay(self, seed: int, payloads: list[Mapping[str, Any]], switches: Mapping[str, str] | None = None) -> list[str]:
         """Apply each logged payload and give the hash after each."""

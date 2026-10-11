@@ -27,6 +27,11 @@ def _scenario_names() -> list[str]:
     return sorted(names)
 
 
+def load_document(name: str) -> dict[str, Any]:
+    """The scenario JSON of one scenario id, for a card or a briefing."""
+    return _load(name)
+
+
 def _load(name: str) -> dict[str, Any]:
     ref = resources.files("sldata").joinpath(f"scenarios/{name}.json")
     try:

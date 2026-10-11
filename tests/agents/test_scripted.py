@@ -34,7 +34,7 @@ NAMED = ("aggression", "cover_preference", "fire_priority")
 def test_the_project_ships_seven_scripted_agents_with_versions():
     engine = build_engine("s01_guards_counterattack")
     agents = [make_agent(kind, engine, 1, 0) for kind in AGENTS]
-    assert [a.version for a in agents] == ["0", "1", "2", "3", "4", "5", "6"]
+    assert [a.version for a in agents] == ["0", "1", "2", "3.1", "4", "5", "6.2"]
     assert len({(a.name, a.version) for a in agents}) == len(AGENTS)
     assert isinstance(agents[0], ScriptedV0)
     assert isinstance(agents[1], ScriptedV1)
@@ -197,3 +197,15 @@ def test_the_gate_run_reports_each_pair_and_its_parameters():
     assert stats["passed"] == {"TC-15": True}
     assert art.config["criteria"] == ["TC-15", "FR-44"]
     assert set(art.config["parameters"]) == set(AGENTS)
+
+
+@pytest.mark.gate
+def test_the_mixed_gate_plays_each_ordered_pair_of_two_agents():
+    """Each agent against each other agent, on each side. A state that one agent makes can
+    break another agent, and the self play gate does not make it."""
+    art = run_gate(games=1, first_seed=9200, workers=6, scenarios=SCENARIOS[:1], mixed=True)
+    rows = art.stats["pairs"]
+    kinds = {r["agent"] for r in rows}
+    assert len(kinds) == len(AGENTS) * (len(AGENTS) - 1)
+    assert "v1+v6" in kinds and "v6+v1" in kinds
+    assert art.stats["passed"]["TC-15"], art.stats["unhandled_errors"][:3]
