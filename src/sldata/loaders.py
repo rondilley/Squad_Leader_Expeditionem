@@ -182,6 +182,11 @@ SCENARIO_KEYS = Keys(
         "hidden_placement": Keys({"side": None, "note": None}),
         "fanatic": Keys({"side": None, "area": AREA_KEYS}),
         "notes": None,
+<<<<<<< Updated upstream
+=======
+        # The text for the players on the scenario card; the notes are the provenance.
+        "situation": None,
+>>>>>>> Stashed changes
     }
 )
 

@@ -5,6 +5,15 @@ enemy infantry holds. It is resolved on the Infantry Fire Table the moment the v
 enters (rule 35.1). A vehicle overruns one hex in a player turn, and it must be the first
 enemy hex it enters (rule 35.8). After an overrun the vehicle fires nothing for the rest
 of that player turn (rule 35.9).
+<<<<<<< Updated upstream
+=======
+
+Project ruling PR-54: the vehicle declares the overrun as it enters, and the attack
+resolves on the Infantry Fire Table at the end of the Defensive Fire Phase that follows,
+if the vehicle is not a wreck by then. Rule 35.1 says "as the AFV enters", and rule 35.6
+says it must first survive all defensive fire, which comes only in the next phase; the
+Advanced Sequence of Play resolves overruns in that phase, after the fire.
+>>>>>>> Stashed changes
 """
 
 from __future__ import annotations
@@ -136,6 +145,7 @@ def resolve(
     return state, events
 
 
+<<<<<<< Updated upstream
 def pushed_units(state: State, player: int) -> list[Unit]:
     """Rule 35.8: the infantry on foot of this player in the hex of an enemy vehicle.
 
@@ -146,6 +156,57 @@ def pushed_units(state: State, player: int) -> list[Unit]:
     for vehicle in r28_vehicles.vehicles(state, 1 - player):
         if vehicle.hex is None or vehicle.wreck or vehicle.hidden:
             continue
+=======
+def declare(state: State, vehicle_id: int, hex_ref: HexRef) -> tuple[State, list[Event]]:
+    """PR-54: the vehicle enters the hex and declares the overrun. No die is rolled now."""
+    vehicle = state.units[vehicle_id]
+    state = state.with_unit(vehicle.with_(overran=True, overrun_hex=hex_ref))
+    return state, [Event(RULE_35_6, "overrun_declared", {"unit": vehicle_id, "hex": geometry.hex_id(*hex_ref)})]
+
+
+def resolve_pending(
+    ctx: ArmorContext, fire_ctx: FireContext, state: State, player: int
+) -> tuple[State, list[Event]]:
+    """PR-54 and rule 35.6: at the end of the Defensive Fire Phase, each declared overrun
+    of this player resolves if its vehicle survived the defensive fire."""
+    events: list[Event] = []
+    for vehicle in r28_vehicles.vehicles(state, player):
+        hex_ref = vehicle.overrun_hex
+        if hex_ref is None:
+            continue
+        state = state.with_unit(state.units[vehicle.id].with_(overrun_hex=None))
+        current = state.units[vehicle.id]
+        where = geometry.hex_id(*hex_ref)
+        if current.wreck or current.eliminated:
+            events.append(Event(RULE_35_6, "overrun_stopped", {"unit": vehicle.id, "hex": where}))
+            continue
+        if not targets_in(state, hex_ref, player) and not state.enemy_counter_in(hex_ref, player):
+            events.append(Event(RULE_35_6, "overrun_empty", {"unit": vehicle.id, "hex": where}))
+            continue
+        state, ev = resolve(ctx, fire_ctx, state, vehicle.id, hex_ref)
+        events.extend(ev)
+    return state, events
+
+
+def stops_infantry_attack(board: Board, vehicle: Unit, unit: Unit) -> bool:
+    """Rule 35.7: infantry in the open-terrain hex the vehicle overruns makes no infantry
+    attack on that vehicle. An anti-tank weapon is not an infantry attack and may fire."""
+    if vehicle.overrun_hex is None or unit.hex != vehicle.overrun_hex:
+        return False
+    return board.hex(vehicle.overrun_hex).terrain == "open"
+
+
+def pushed_units(state: State, player: int) -> list[Unit]:
+    """Rule 35.8: the infantry on foot of this player in the hex of an enemy vehicle.
+
+    The vehicle is working and on the board. A hidden vehicle is on its owner's record and
+    not on the board (rule 42.1), so it pushes nothing.
+    """
+    out: list[Unit] = []
+    for vehicle in r28_vehicles.vehicles(state, 1 - player):
+        if vehicle.hex is None or vehicle.wreck or vehicle.hidden:
+            continue
+>>>>>>> Stashed changes
         out.extend(u for u in targets_in(state, vehicle.hex, vehicle.player) if not u.hidden)
     return sorted(out, key=lambda u: u.id)
 

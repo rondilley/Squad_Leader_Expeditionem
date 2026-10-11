@@ -236,3 +236,17 @@ def test_with_parameters_changes_one_named_field():
     p = with_parameters(route_risk=5)
     assert p.route_risk == 5
     assert p.aggression == 2, "the other fields keep the default"
+<<<<<<< Updated upstream
+=======
+
+
+def test_v6_plays_a_side_that_has_no_objective_hex():
+    """Scenario 2 gives one side no objective hex. The route cost of v6 took the minimum
+    distance to an empty set of targets and raised ValueError in the Movement Phase. The
+    game is the one the parameter sweep of 2026-10-10 found."""
+    engine = build_engine("s02_tractor_works")
+    attacker = ScriptedV6(engine, 0, with_parameters(schedule_margin=1, threat_aversion=0, route_risk=4, aggression=3))
+    defender = ScriptedV6(engine, 1)
+    record = play_game(engine, 90000, (attacker, defender))
+    assert record.result
+>>>>>>> Stashed changes

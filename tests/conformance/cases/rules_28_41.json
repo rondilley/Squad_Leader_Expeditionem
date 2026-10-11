@@ -1463,7 +1463,11 @@
       "id": "r35.1-a-vehicle-overruns-the-infantry-of-the-hex-it-enters",
       "rule": "35.1",
       "type": "valid",
+<<<<<<< Updated upstream
       "citation": "Rule 35.1 and rule 35.3: an overrun is resolved on the Infantry Fire Table as the vehicle enters the hex, and a tank overruns with the equivalent of 16 firepower factors.",
+=======
+      "citation": "Rule 35.1 and rule 35.3: an overrun is resolved on the Infantry Fire Table as the vehicle enters the hex, and a tank overruns with the equivalent of 16 firepower factors. PR-54: the overrun resolves at the end of the Defensive Fire Phase that follows (rule 35.6), so the case ends the Movement Phase and the Defensive Fire Phase.",
+>>>>>>> Stashed changes
       "check": "effect",
       "phase": "movement",
       "sub_step": "move_window",
@@ -1496,6 +1500,15 @@
           ],
           "hex": "C2",
           "facing": 2
+<<<<<<< Updated upstream
+=======
+        },
+        {
+          "action": "end_phase"
+        },
+        {
+          "action": "end_phase"
+>>>>>>> Stashed changes
         }
       ],
       "expect_events": [
@@ -1563,7 +1576,11 @@
       "id": "r38.3-a-twelve-in-an-overrun-detracks-the-vehicle",
       "rule": "38.3",
       "type": "boundary",
+<<<<<<< Updated upstream
       "citation": "Rule 38.3: if while executing an overrun attack a vehicle rolls a twelve before modifiers, the infantry planted a grenade bundle and the vehicle is immobilized for the rest of the scenario.",
+=======
+      "citation": "Rule 38.3: if while executing an overrun attack a vehicle rolls a twelve before modifiers, the infantry planted a grenade bundle and the vehicle is immobilized for the rest of the scenario. PR-54: the overrun resolves at the end of the Defensive Fire Phase that follows (rule 35.6), so the case ends the Movement Phase and the Defensive Fire Phase.",
+>>>>>>> Stashed changes
       "check": "effect",
       "phase": "movement",
       "sub_step": "move_window",
@@ -1596,6 +1613,15 @@
           ],
           "hex": "C2",
           "facing": 2
+<<<<<<< Updated upstream
+=======
+        },
+        {
+          "action": "end_phase"
+        },
+        {
+          "action": "end_phase"
+>>>>>>> Stashed changes
         }
       ],
       "expect_events": [
@@ -2946,7 +2972,11 @@
       "id": "r35.3-a-broken-gun-halves-the-overrun",
       "rule": "35.3",
       "type": "boundary",
+<<<<<<< Updated upstream
       "citation": "Rule 35.3: should a vehicle lose either its main armament or its machine gun firepower to a malfunction, its overrun firepower factor is halved.",
+=======
+      "citation": "Rule 35.3: should a vehicle lose either its main armament or its machine gun firepower to a malfunction, its overrun firepower factor is halved. PR-54: the overrun resolves at the end of the Defensive Fire Phase that follows (rule 35.6), so the case ends the Movement Phase and the Defensive Fire Phase.",
+>>>>>>> Stashed changes
       "check": "effect",
       "phase": "movement",
       "sub_step": "move_window",
@@ -2980,6 +3010,15 @@
           ],
           "hex": "C2",
           "facing": 2
+<<<<<<< Updated upstream
+=======
+        },
+        {
+          "action": "end_phase"
+        },
+        {
+          "action": "end_phase"
+>>>>>>> Stashed changes
         }
       ],
       "expect_events": [
@@ -4158,6 +4197,156 @@
           "ammo": "he"
         }
       ]
+<<<<<<< Updated upstream
+=======
+    },
+    {
+      "id": "r35.6-an-overrun-waits-for-the-defensive-fire-phase",
+      "rule": "35.6",
+      "type": "valid",
+      "citation": "Rule 35.6 and PR-54: the vehicle must survive the defensive fire before its overrun, so entering the hex declares the overrun and rolls no dice.",
+      "check": "effect",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "dice": [
+        3,
+        3
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C1",
+          "facing": 1
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "C2"
+        }
+      ],
+      "apply": [
+        {
+          "action": "vehicle_move",
+          "units": [
+            "t"
+          ],
+          "hex": "C2",
+          "facing": 2
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "35.6",
+          "kind": "overrun_declared"
+        }
+      ],
+      "expect_no_events_of_rule": [
+        "35.1",
+        "10.5"
+      ],
+      "expect_units": {
+        "t": {
+          "overran": true,
+          "hex": "C2"
+        }
+      },
+      "expect_alive": [
+        "i"
+      ]
+    },
+    {
+      "id": "r35.6-a-wreck-makes-no-overrun",
+      "rule": "35.6",
+      "type": "boundary",
+      "citation": "Rule 35.6 and PR-54: a vehicle that the defensive fire made a wreck does not execute its overrun.",
+      "check": "effect",
+      "phase": "defensive_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "russian",
+      "dice": [
+        2,
+        2
+      ],
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C2",
+          "facing": 1,
+          "overran": true,
+          "overrun_hex": "C2",
+          "wreck": true
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "C2"
+        }
+      ],
+      "apply": [
+        {
+          "action": "end_phase"
+        }
+      ],
+      "expect_events": [
+        {
+          "rule_id": "35.6",
+          "kind": "overrun_stopped"
+        }
+      ],
+      "expect_no_events_of_rule": [
+        "35.1"
+      ],
+      "expect_alive": [
+        "i"
+      ]
+    },
+    {
+      "id": "r35.7-infantry-in-an-open-overrun-hex-makes-no-infantry-attack",
+      "rule": "35.7",
+      "type": "invalid",
+      "citation": "Rule 35.7: infantry in an open-terrain target hex may not execute defensive fire against the overrunning vehicle unless it has an anti-tank weapon. The crew exposed rule 34.8 does not lift that. Rule 36.1 also asks for cover, so the case holds the two rules to the same answer.",
+      "check": "legality",
+      "phase": "defensive_fire",
+      "sub_step": "fire_window",
+      "phasing": "german",
+      "active": "russian",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "C2",
+          "facing": 1,
+          "overran": true,
+          "overrun_hex": "C2",
+          "crew_exposed": true
+        },
+        {
+          "ref": "i",
+          "side": "russian",
+          "type": "4-4-7",
+          "hex": "C2"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "afv_attack",
+          "units": [
+            "i"
+          ],
+          "hex": "C2"
+        }
+      ]
+>>>>>>> Stashed changes
     }
   ]
 }

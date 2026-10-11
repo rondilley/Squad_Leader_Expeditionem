@@ -27,6 +27,14 @@ Move around:
 - Ctrl and i: show or hide the tactical overlay (the shaded hexes, the tracers, the bursts)
 - Ctrl and o: show or hide the options of the unit in focus (where it can move, what it can
   fire at)
+<<<<<<< Updated upstream
+=======
+- Ctrl and m: sound on or off (`audio.py`; `--mute` starts with no audio library)
+
+Before the game the window shows the scenario card (`briefing.py`), and the game starts
+when the person presses Begin, Space, or Enter. Each fire has its animation by the weapon
+and the army (`effects.py`), and each fire and move has its sound (`sounds.py`).
+>>>>>>> Stashed changes
 
 Play (H2), the same as the 2D window, through the same `HostClient` and `Chooser`:
 
@@ -121,6 +129,13 @@ class Board3DApp(ShowBase):
         poll: Any = None,
         ask_los: Any = None,
         client: Any = None,
+<<<<<<< Updated upstream
+=======
+        briefing: dict[str, Any] | None = None,
+        on_begin: Any = None,
+        sound: bool = False,
+        muted: bool = False,
+>>>>>>> Stashed changes
     ) -> None:
         super().__init__()
         self.setBackgroundColor(*BACKGROUND)
@@ -165,8 +180,27 @@ class Board3DApp(ShowBase):
         self._add_lights()
         if board_doc is not None:
             self.set_board(board_doc)
+<<<<<<< Updated upstream
         self._bind_keys()
         self._add_help_line()
+=======
+        # The sounds of fire and movement (see `audio.py`), when the window has audio.
+        self.sound_board = None
+        if sound:
+            from slwindow3d.audio import SoundBoard
+
+            self.sound_board = SoundBoard(self, muted=muted)
+            self._hook_sound()
+        self._bind_keys()
+        self._add_help_line()
+        # The scenario card before the game (see `briefing.py`). `on_begin` starts the game
+        # when the person closes it; with no briefing the caller starts the game at once.
+        self.briefing = None
+        if briefing is not None:
+            from slwindow3d.briefing import Briefing
+
+            self.briefing = Briefing(self, briefing, on_begin or (lambda: None))
+>>>>>>> Stashed changes
         self.taskMgr.add(self._camera_task, "camera-task")
         if self._poll is not None:
             self.taskMgr.add(self._poll_task, "poll-task")
@@ -179,7 +213,11 @@ class Board3DApp(ShowBase):
 
             OnscreenText(
                 text="click pick  enter play  tab list  type find  esc clear  ctrl+z undo  "
+<<<<<<< Updated upstream
                 "ctrl+t 2D/3D  ctrl+r reset  ctrl+i overlay  ctrl+o options  ctrl+q quit",
+=======
+                "ctrl+t 2D/3D  ctrl+r reset  ctrl+i overlay  ctrl+o options  ctrl+m sound  ctrl+q quit",
+>>>>>>> Stashed changes
                 parent=self.a2dBottomLeft,
                 pos=(0.02, 0.04),
                 scale=0.035,
@@ -242,6 +280,10 @@ class Board3DApp(ShowBase):
         self.indicators = Indicators(self.render, ask_los=self._ask_los)
         self.indicator_root = self.indicators.root
         self.indicators.set_board(board_doc)
+<<<<<<< Updated upstream
+=======
+        self._hook_sound()
+>>>>>>> Stashed changes
         self.pinned = None
         xs = [h["center"][0] for h in board_doc["hexes"]]
         ys = [hex_world(h["center"])[1] for h in board_doc["hexes"]]
@@ -319,6 +361,10 @@ class Board3DApp(ShowBase):
             "r": self.reset_view,
             "i": self._toggle_indicators,
             "o": self._toggle_options,
+<<<<<<< Updated upstream
+=======
+            "m": self.toggle_sound,
+>>>>>>> Stashed changes
             "q": self.userExit,
         }
         for letter, action in shortcuts.items():
@@ -440,6 +486,21 @@ class Board3DApp(ShowBase):
         if self.indicators is not None:
             self.indicators.toggle_options()
 
+<<<<<<< Updated upstream
+=======
+    def _hook_sound(self) -> None:
+        """Give the new log lines of the overlay to the sound board (a new board makes a
+        new overlay, so this runs again then)."""
+        board = getattr(self, "sound_board", None)
+        if board is not None and self.indicators is not None:
+            self.indicators.on_new_events = board.on_events
+
+    def toggle_sound(self) -> None:
+        """Ctrl and m: sound on or off."""
+        if self.sound_board is not None:
+            self.sound_board.toggle_mute()
+
+>>>>>>> Stashed changes
     # -------------------------------------------------------------------- the focus
 
     def clear_focus(self) -> None:
@@ -527,6 +588,12 @@ class Board3DApp(ShowBase):
             self.pitch = max(MIN_PITCH, min(MAX_PITCH, self.pitch + delta))
 
     def _drag_start(self, button: str) -> None:
+<<<<<<< Updated upstream
+=======
+        if getattr(self, "briefing", None) is not None and self.briefing.open:
+            # The scenario card is over the board, and a press on it is for the card.
+            return
+>>>>>>> Stashed changes
         pointer = self._pointer()
         if button == "mouse1" and pointer is not None:
             point = self.panel_point(pointer)
@@ -552,6 +619,15 @@ class Board3DApp(ShowBase):
         self._apply_drag()
         self._place_camera()
         self.pointer_hex = None if self._drag_button is not None else self.hex_under_pointer()
+<<<<<<< Updated upstream
+=======
+        if self.indicators is not None:
+            # An animation keeps its size on the screen as the camera zooms (`effects.py`).
+            from slwindow3d.effects import zoom_for
+
+            self.indicators.effects.zoom = zoom_for(self.distance)
+            self.indicators.sweep()
+>>>>>>> Stashed changes
         return task.cont
 
     def _place_camera(self) -> None:

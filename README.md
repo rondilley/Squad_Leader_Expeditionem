@@ -5,6 +5,65 @@ The repository name is `Squad_Leader_AI`. The public title of the game is Squad 
 An edition of the 1977 Avalon Hill board game Squad Leader, with the 4th edition rules. It has a rules engine that shows the rule number for each result, and computer opponents that learn. It plays in a browser or in a window of its own on Windows and on Unix.
 
 This project is not affiliated with, sponsored by, or endorsed by Hasbro or Multi-Man Publishing. It ships no Avalon Hill art, scans, board layouts, or rulebook text.
+<<<<<<< Updated upstream
+=======
+
+## Play the game
+
+The game plays in the 3D window. The window has a 3D camera and a flat 2D camera, and
+Ctrl and t changes between them. Install it with one command, and then start a game
+against the computer:
+
+```
+python -m venv .venv
+# Linux or macOS:     source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install -e ".[play]"
+
+sl-cli window3d --scenario s01_guards_counterattack --agent hard
+```
+
+- `--agent easy`, `normal`, or `hard` sets the computer opponent (agent v5, v6, or v7).
+  `--agent-side german` gives the computer the German side. The default is the second
+  side. With no `--agent` two persons play at one screen. `--agents v7,v6` lets two
+  computer opponents play, and the window shows the game.
+- The scenarios are `s01_guards_counterattack`, `s02_tractor_works`,
+  `s03a_streets_of_stalingrad`, and `s04_armor_probe` (the armor game).
+
+The window first shows the scenario card: the situation, the forces of each side, the turn
+record, and the victory conditions. Press Begin, Space, or Enter to start the game.
+`--no-briefing` starts the game with no card.
+
+How to play:
+
+- Click a hex to put its top unit in focus. A second click gets the next unit of the
+  stack. The overlay shades where the unit can move and what it can fire at. Click a
+  shaded hex to give that command. When the hex has more than one command, the list on
+  the right shows them.
+- The list on the right has the legal commands. Click a row, or move with Tab and press
+  Enter. Type letters to make the list shorter. Ctrl and a sets up your side for you, and
+  Ctrl and z cancels your last command when it rolled no die.
+- The pointer on a hex shades the line of sight from the unit in focus to that hex. The
+  host gives the answer.
+- Each fire has its animation: tracers in the colours of the army (red for American and
+  British fire, green and sometimes white or yellow for German and Russian fire), the
+  shell of a gun, the flame, the smoke, and the burst. A dim, dark line stays from the
+  firer to the target, and a small burst on the target shows the result.
+- The game has sound for weapons fire, explosions, footsteps, and engines. Ctrl and m
+  turns the sound off or on. `--mute` starts the game with no sound.
+- The panel gives the action log with the rule, the dice, and the modifiers of each
+  result.
+- Drag to move the board, use the wheel to zoom, and right-drag to tilt and turn the 3D
+  camera. Ctrl and r sets the view again, Ctrl and i hides the overlay, and Ctrl and q stops
+  the game.
+
+The game saves after each command to `runs/games/<game_id>.jsonl`. The window gives the
+path when it starts. To continue a game:
+
+```
+sl-cli window3d --resume runs/games/<game_id>.jsonl
+```
+>>>>>>> Stashed changes
 
 ## What it looks like
 
@@ -153,9 +212,16 @@ in the window, `s` writes a picture, Escape clears the focus, and `q` stops.
 
 When the host sets strict mode, the line of sight answer is for a fire phase only.
 
+<<<<<<< Updated upstream
 `sl-cli window3d --agents v6,v6` shows the same game in a 3D window with the same overlay,
 the same click, and the same pointer. The `view3d` extra is necessary for it (`pip install
 -e ".[view3d]"`). `i` hides the overlay, and `o` hides the marks of the focus unit.
+=======
+`sl-cli window3d --agents v6,v6` shows the same game in a 3D window. It has the same
+overlay, the same click, and the same pointer, and it adds the fire animations and the sound. The `play`
+extra installs it (`pip install -e ".[play]"`). `i` hides the overlay, and `o` hides the
+marks of the focus unit. "Play the game" above gives the options for a person.
+>>>>>>> Stashed changes
 
 `python tools/make_docs_images.py` makes the pictures that this file shows. Run it after a
 change to the board drawing. The test in `tests/docs/` compares what the tool makes with

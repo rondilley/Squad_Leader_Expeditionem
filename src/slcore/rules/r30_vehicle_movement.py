@@ -397,7 +397,12 @@ def _on_vehicle_move(engine, state: State, command: Command) -> tuple[State, lis
             return state, events
         overrun = not state.units[vehicle_id].overran
     if overrun:
+<<<<<<< Updated upstream
         state, ev = r35_overrun.resolve(engine.armor_ctx, engine.fire_ctx, state, vehicle_id, target)
+=======
+        # PR-54: the overrun waits for the Defensive Fire Phase (rule 35.6).
+        state, ev = r35_overrun.declare(state, vehicle_id, target)
+>>>>>>> Stashed changes
         events.extend(ev)
     return state, events
 

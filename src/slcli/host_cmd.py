@@ -21,8 +21,15 @@ CLIENT_BUILD = Path("client") / "dist"
 WATCHABLE_DELAY = 0.25
 
 
+<<<<<<< Updated upstream
 def build_host(args: Any) -> Host:
     """The host the arguments name, with the game of the save file when there is one."""
+=======
+def read_resume(args: Any) -> dict[str, Any]:
+    """With `--resume`, set the scenario, the seed, the board, the computer opponents, and
+    the seats of the arguments from the header of the save file, and give the header. The
+    two windows use it too."""
+>>>>>>> Stashed changes
     header: dict[str, Any] = {}
     if getattr(args, "resume", None):
         header, _ = savegame.load(args.resume)
@@ -39,6 +46,15 @@ def build_host(args: Any) -> Host:
                 args._agent_seat = seat
         if "hot_seat" in header:
             args.lan = not bool(header["hot_seat"])
+<<<<<<< Updated upstream
+=======
+    return header
+
+
+def build_host(args: Any) -> Host:
+    """The host the arguments name, with the game of the save file when there is one."""
+    read_resume(args)
+>>>>>>> Stashed changes
     engine = build_engine(args.scenario, args.board)
     root = Path(args.client) if args.client else CLIENT_BUILD
     agents = {}

@@ -59,7 +59,13 @@ def worker(kind: str, scenario: str, first_seed: int, games: int, out: Any) -> N
         started = time.perf_counter()
         for step in range(games):
             seed = first_seed + step
+<<<<<<< Updated upstream
             agents = (make_agent(kind, engine, seed, 0), make_agent(kind, engine, seed, 1))
+=======
+            # A kind "a+b" puts agent a on the first side and agent b on the second.
+            first, _, second = kind.partition("+")
+            agents = (make_agent(first, engine, seed, 0), make_agent(second or first, engine, seed, 1))
+>>>>>>> Stashed changes
             try:
                 record = play_game(engine, seed, agents)
             except Exception as exc:  # TC-15 counts an unhandled error, it does not stop
@@ -86,10 +92,25 @@ def worker(kind: str, scenario: str, first_seed: int, games: int, out: Any) -> N
 
 
 def run_gate(
+<<<<<<< Updated upstream
     games: int, first_seed: int, workers: int, scenarios: tuple[str, ...] = SCENARIOS
 ) -> artifact.RunArtifact:
     """TC-15: each agent plays `games` games of each scenario."""
     pairs = [(kind, scenario) for kind in AGENTS for scenario in scenarios]
+=======
+    games: int, first_seed: int, workers: int, scenarios: tuple[str, ...] = SCENARIOS, mixed: bool = False
+) -> artifact.RunArtifact:
+    """TC-15: each agent plays `games` games of each scenario.
+
+    With `mixed` each ordered pair of two different agents plays instead. An agent that
+    plays only itself never meets a state that another agent makes: v6 raised an error in
+    scenario 2 against another parameter set of v6, and the self play gate passed."""
+    if mixed:
+        kinds = [f"{a}+{b}" for a in AGENTS for b in AGENTS if a != b]
+    else:
+        kinds = list(AGENTS)
+    pairs = [(kind, scenario) for kind in kinds for scenario in scenarios]
+>>>>>>> Stashed changes
     art = artifact.RunArtifact(
         kind="agents",
         slug="tc15-scripted-agents",
@@ -97,6 +118,10 @@ def run_gate(
             "scenario": ",".join(scenarios),
             "board": "generated",
             "agents": list(AGENTS),
+<<<<<<< Updated upstream
+=======
+            "mixed": mixed,
+>>>>>>> Stashed changes
             "games": games,
             "first_seed": first_seed,
             "workers": workers,
@@ -167,7 +192,11 @@ def print_list() -> int:
 def run(args: Any) -> int:
     if args.list:
         return print_list()
+<<<<<<< Updated upstream
     art = run_gate(args.games, args.seed, args.workers)
+=======
+    art = run_gate(args.games, args.seed, args.workers, mixed=args.mixed)
+>>>>>>> Stashed changes
     stats = art.stats
     for row in sorted(stats["pairs"], key=lambda r: (r.get("agent", ""), r.get("scenario", ""))):
         if "fatal" in row:
@@ -196,5 +225,9 @@ def add_parser(subparsers: Any) -> None:
     from slcli.worker_limit import workers_argument
 
     p.add_argument("--workers", type=workers_argument, default=9, help="how many pairs run at the same time")
+<<<<<<< Updated upstream
+=======
+    p.add_argument("--mixed", action="store_true", help="play each ordered pair of two different agents, not each agent against itself")
+>>>>>>> Stashed changes
     p.add_argument("--runs", default="runs")
     p.set_defaults(func=run)

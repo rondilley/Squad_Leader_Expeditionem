@@ -4,7 +4,13 @@ With no address the command starts a host inside the same process and connects t
 to it over the loopback address. With `--connect` the window joins a host that is already
 running, which is the LAN game of rule set FR-33. With no computer opponent the game is hot
 seat: the window plays the two sides. `--agent v7` gives one side to a computer opponent,
+<<<<<<< Updated upstream
 and `--agents v4,v1` gives it both. `--lan` gives one seat to each connection.
+=======
+and `--agents v4,v1` gives it both. `--agent easy`, `normal`, or `hard` names the
+opponent by difficulty (`DIFFICULTY`). Each game saves to `--save-dir`, and `--resume FILE`
+goes on with a saved game. `--lan` gives one seat to each connection.
+>>>>>>> Stashed changes
 
 The window needs the `desktop` extra:
 
@@ -20,6 +26,15 @@ from slcli.play import build_engine, make_agent
 from slhost.server import Host
 
 WATCHABLE_DELAY = 0.4
+
+# The difficulty names of `--agent`, from the weakest to the strongest computer opponent:
+# v5 (the doctrine of fire), v6 (the attack on a schedule), and v7 (the odds).
+DIFFICULTY = {"easy": "v5", "normal": "v6", "hard": "v7"}
+
+
+def agent_name(name: str) -> str:
+    """An agent name, with a difficulty name turned into its agent."""
+    return DIFFICULTY.get(name.strip().lower(), name.strip())
 
 
 class DesktopNotInstalled(Exception):
@@ -55,17 +70,39 @@ def connect_or_start(args: Any, title: str = "Squad Leader Expeditionem"):
         url = str(args.connect)
         room_code = str(args.room_code or "")
         return None, url, room_code, f"{title} - {url}"
+<<<<<<< Updated upstream
     engine = build_engine(args.scenario, args.board)
     agents = {}
     if args.agents:
         names = [name.strip() for name in args.agents.split(",")]
+=======
+    from slcli.host_cmd import read_resume
+    from slhost import savegame
+
+    read_resume(args)
+    engine = build_engine(args.scenario, args.board)
+    agents = {}
+    recorded: dict[str, str] = {}
+    if args.agents:
+        names = [agent_name(name) for name in args.agents.split(",")]
+>>>>>>> Stashed changes
         if len(names) != 2:
             raise ValueError(f"--agents takes two names, and {args.agents!r} has {len(names)}")
         for seat, name in enumerate(names):
             agents[seat] = make_agent(name, engine, args.seed, seat)
+<<<<<<< Updated upstream
     elif args.agent:
         seat = engine.scenario.side_index(args.agent_side) if args.agent_side else 1
         agents[seat] = make_agent(args.agent, engine, args.seed, seat)
+=======
+            recorded[str(seat)] = name
+    elif args.agent:
+        seat = getattr(args, "_agent_seat", None)
+        if seat is None:
+            seat = engine.scenario.side_index(args.agent_side) if args.agent_side else 1
+        agents[seat] = make_agent(agent_name(args.agent), engine, args.seed, seat)
+        recorded[str(seat)] = agent_name(args.agent)
+>>>>>>> Stashed changes
     delay = args.agent_delay
     if delay is None:
         delay = WATCHABLE_DELAY if args.agents else 0.0
@@ -77,7 +114,18 @@ def connect_or_start(args: Any, title: str = "Squad Leader Expeditionem"):
         agents=agents,
         agent_delay=delay,
         traces=args.traces,
+<<<<<<< Updated upstream
     )
+=======
+        save_dir=None if (args.no_save or args.resume) else Path(args.save_dir),
+        save_header={"board": args.board, "agents": recorded},
+    )
+    if args.resume:
+        count = host.resume_from(args.resume)
+        print(f"resumed {args.resume}: {count} commands, each hash the same as the record")
+    if host.game.save is not None:
+        print(f"the game saves to {host.game.save.path}; go on with it: --resume {host.game.save.path}")
+>>>>>>> Stashed changes
     from slwindow.embedded import start
 
     embedded = start(host)
@@ -140,6 +188,14 @@ def add_play_options(p: Any) -> None:
         help=f"seconds between two commands of a game that plays itself. The default is {WATCHABLE_DELAY} with --agents",
     )
     p.add_argument("--traces", default=None, help="directory for the trace records of the game (FR-60)")
+<<<<<<< Updated upstream
+=======
+    from slhost.savegame import DEFAULT_DIRECTORY
+
+    p.add_argument("--save-dir", default=str(DEFAULT_DIRECTORY), help="the directory of the save files; each game is <game_id>.jsonl")
+    p.add_argument("--no-save", action="store_true", help="do not write a save file")
+    p.add_argument("--resume", default=None, help="a save file: play its commands again, check each hash, and go on with the game")
+>>>>>>> Stashed changes
 
 
 def add_parser(subparsers: Any) -> None:

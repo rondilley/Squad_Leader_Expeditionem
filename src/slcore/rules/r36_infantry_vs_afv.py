@@ -79,6 +79,8 @@ def attackers_for(
             continue
         if location_key(board, types, unit) is None:
             continue
+        if r35_overrun.stops_infantry_attack(board, vehicle, unit):
+            continue
         out.append(unit)
     return out
 

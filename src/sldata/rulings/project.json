@@ -1,6 +1,10 @@
 {
   "table": "project_rulings",
+<<<<<<< Updated upstream
   "version": 12,
+=======
+  "version": 13,
+>>>>>>> Stashed changes
   "note": "Project rulings fill gaps that the rules text leaves open. Each names the rule it extends and its cause. The official Q and A rulings live in qa.json (slice 3). The owner can change a ruling here, and the change is a data change with a new version.",
   "rulings": [
     {
@@ -373,6 +377,16 @@
       "ruling": "The defender may return a unit to a hex of its track only when a unit of the defender has a line of sight to that hex: an unbroken infantry unit on foot on the board or a vehicle that is not a wreck. The line of sight is that of the Defensive Fire Phase, with the vehicles of rule 32.3 and rule 32.6.",
       "cause": "Rule 16.1 lets the defender return units that moved through a hex in the line of sight of one of his units, a hex his units could fire on. The core offered each hex of each track with no line of sight test. A broken unit cannot fire, so its line of sight gives no target hex.",
       "decided": "2026-09-23"
+<<<<<<< Updated upstream
+=======
+    },
+    {
+      "id": "PR-54",
+      "extends": "35.6",
+      "ruling": "A vehicle that enters a hex of enemy infantry in the Movement Phase declares its overrun there and rolls no dice. At the end of the Defensive Fire Phase that follows, the overrun resolves on the Infantry Fire Table against the infantry then in that hex, with the modifiers of rule 35.4, if the vehicle is not a wreck. A wreck makes no overrun. The push-out of rule 35.8 comes after the overruns resolve. Infantry in an open-terrain overrun hex makes no rule 36 attack on that vehicle, also when its crew is exposed (rule 35.7); an anti-tank weapon may still fire.",
+      "cause": "Rule 35.1 says the overrun resolves as the vehicle enters the hex, and rule 35.6 says the vehicle must first survive all defensive fire from any source before it enters. Defensive fire comes only in the Defensive Fire Phase after the Movement Phase (rule 4), so the two cannot both hold at the moment of entry. The Advanced Sequence of Play puts 'resolve Overruns (35.6)' in step 4.1 of the Defensive Fire Phase, after the fire, so the project follows that order. Fire at the vehicle anywhere on its track in that phase counts as fire before it entered, because the core returns moved units along their track for defensive fire (rule 16) and does not record which hex of the track a shot came from. Before this ruling the core resolved the overrun at entry, and the defender had no fire at the vehicle first. A concealment counter of the other side in the hex is an opposing squad here too (PR-31), so the overrun of a counter resolves.",
+      "decided": "2026-10-10"
+>>>>>>> Stashed changes
     }
   ]
 }
