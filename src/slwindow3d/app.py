@@ -725,6 +725,14 @@ class Board3DApp(ShowBase):
         pygame = _ensure_pygame()
         win_w, win_h = self._window_size()
         panel_w = self._hud_width
+        if self._panel_font is not None:
+            # A `pygame.quit()` elsewhere in the process makes a kept font invalid, also when
+            # pygame starts again after it, so test the fonts with one small call.
+            try:
+                self._panel_font.size("M")
+                self._panel_small.size("M")
+            except pygame.error:
+                self._panel_font = None
         if self._panel_font is None:
             self._panel_font = pygame.font.SysFont("dejavusans,arial,helvetica", 15)
             self._panel_small = pygame.font.SysFont("dejavusansmono,consolas,couriernew", 12)

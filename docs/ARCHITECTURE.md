@@ -716,9 +716,17 @@ Squad_Leader_AI/
       units.py                   UnitType and Unit
       scenario.py                Scenario, groups, set up areas, victory records
       engine.py                  Engine: new_game, legal_commands, apply, hash_state, replay
+      api.py                     the public surface of the core; tests/arch checks that each
+                                 consumer reads the core only through it (AR-05)
+      actions.py                 the table of command handlers, one for each command action
+      handlers.py                the modules that register a handler in actions.py
+      turn.py                    the turn sequence and its automatic steps (AUTO_STEPS)
+      windows.py                 the legal commands of each command window of PHASE_STEPS
+      fire_window.py             the legal commands of the fire window of the three fire phases
+      player_state.py            the state as one player may know it, for the agents (AR-09)
       commands.py                Command payloads and their canonical bytes and IDs
       frame.py                   the decision frame
-      phases.py                  the phase state machine and the sub-step table
+      phases.py                  the phases and their sub-steps (PHASE_STEPS)
       rules/                     one module for each rule section, rule IDs in names
         r05_movement.py            movement, portage, and the Advance Phase
         r06_stacking.py            the stacking limits
@@ -745,7 +753,8 @@ Squad_Leader_AI/
         r32_afv_cover.py           the hull as a wall on the line of sight and as cover in a hex
         r33_afv_combat.py          the to-hit table, the kill table, the crew, and immobilization
         r34_afv_vs_infantry.py     the gun and the machine guns against infantry
-        r35_overrun.py             the attack a vehicle makes as it drives into a hex
+        r35_overrun.py             the overrun: declared when the vehicle enters the hex, and
+                                   resolved at the end of the Defensive Fire Phase (PR-54)
         r36_infantry_vs_afv.py     the morale check, the immobilize roll, and close combat
         r37_at_weapons.py          the flamethrower, the panzerfaust, and the bazooka
         r38_fate.py                malfunction and repair, the wreck push, and smoke
@@ -779,11 +788,18 @@ Squad_Leader_AI/
       server.py                  WebSocket host, the static file server, the computer opponent
       protocol.py                message types and the parser at the trust boundary
       rooms.py                   room codes, seats, join limits, the origin check
+      annotate.py                the unit names, the labels, the hexes, and the odds of each
+                                 legal entry, for a person to read
+      savegame.py                the save file of each host game (runs/games), and the resume
     slagents/                    the four families behind one interface
-      base.py
+      base.py                    the Agent interface, and decide(), the one way an agent decides
+      registry.py                the agents by name and the engine of a scenario by name
       scripted/                  v0.py (the baseline), v1.py (rules 1 to 21), v2.py (the engineer),
-                                 v3.py (the tanker), v4.py, v5.py, v6.py (the tempo agent),
-                                 v7.py (the doctrine agent), odds.py, evolve.py (the parameter search)
+                                 v3.py (the tanker), v4.py (the doctrine agent), v5.py (the
+                                 doctrine of fire), v6.py (the tempo agent), v7.py (the odds
+                                 agent), armor.py (how the vehicles of v3, v6, and v7 drive
+                                 and fire), engineer.py (rules 22, 23, and 27 for v4 to v7),
+                                 odds.py, evolve.py (the parameter search)
       learned/                   encoding.py (the tensors and the composed command), env.py
                                  (PettingZoo AEC), nets.py (the four heads), ppo.py, league.py
       prompted/                  harness.py (the text, the guard), oddsview.py (the odds), keys.py, schema.py, router.py, providers/
@@ -799,11 +815,27 @@ Squad_Leader_AI/
                                  roads, the hills and their crest lines, the grain, the shell
                                  holes, and the wall, hedge, and cliff hexsides
       counters.py                the counters, the vehicle facing, and the covered arc
+      silhouettes.py             the figures, the weapon icons, and the vehicle plans of a counter
       panel.py                   the scenario, the turn, the legal list, and the action log
+      choice.py                  the command choice (Chooser) of the two windows, with no game library
+      overlay.py                 the tactical overlay of the two windows; marks.py draws it in 2D
+      logtext.py                 the text of one action log entry in the two windows
       theme.py                   the colours. The browser client holds the base tone of each
                                  terrain, and a test compares the two files
+    slwindow3d/                  the 3D window (Panda3D), the MVP front end; it uses the
+                                 client, the overlay, the choice, and the theme of slwindow
+      app.py                     the window, the camera, the keys, the pointer, and the panel
+      mesh.py                    the hex prisms, lifted by the elevation of each hex
+      counters.py                the 3D counters, from the same chit art as the 2D window
+      indicators.py              the overlay in 3D, and the new log lines for the effects
+      briefing.py                the scenario card before the game; the host starts on Begin
+      firekinds.py               the kind of weapon that a log line shows
+      effects.py                 a short animation for each kind of fire
+      sounds.py                  each sound, made by code with no audio file
+      audio.py                   the sound board: plays the sounds of the new events
+    slcards/                     card.py, the printable scenario cards
     slcampaign/                  the design-your-own tools and the campaign game of Game Set IV
-    slcli/                       main.py, play.py, bench.py, tournament.py, gates.py, host_cmd.py, runs_cmd.py, boards_cmd.py, agents_cmd.py, train.py, traces_cmd.py, finetune_cmd.py, campaign_cmd.py, window_cmd.py
+    slcli/                       main.py, play.py, bench.py, tournament.py, gauntlet.py, gates.py, host_cmd.py, runs_cmd.py, boards_cmd.py, agents_cmd.py, cards_cmd.py, train.py, imitate_cmd.py, evolve.py, shape_cmd.py, traces_cmd.py, finetune_cmd.py, campaign_cmd.py, window_cmd.py, window3d_cmd.py, worker_limit.py
   client/                        TypeScript, Vite, PixiJS or Canvas
     src/
       board/                     render the polygons in the 1977 look, with the base tones of
@@ -824,6 +856,9 @@ Squad_Leader_AI/
     agents/
     armor/                       the covered arc, and games that play rules 28 to 41
     window/                      the desktop window, with a pixel check on each test
+    window3d/                    the 3D window offscreen: the board, the briefing, the effects, the sounds
+    arch/                        the consumers read the core only through slcore.api
+    host/                        the annotations, the save file, and the log streams
     campaign/
     docs/                        the pictures of the documentation are made again and compared
   docs/images/                   the pictures of the documentation, and a manifest with the

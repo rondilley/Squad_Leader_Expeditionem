@@ -123,3 +123,26 @@ def test_the_card_and_its_button_draw_over_the_status_panel(app):
             app._hud.destroy()
             app._hud = None
             app._hud_key = None
+
+
+def test_the_status_panel_draws_after_pygame_quit(app):
+    """The panel kept its fonts, and a `pygame.quit()` elsewhere in the process made them
+    invalid: the panel stopped drawing, with 'Invalid font' (2026-10-10)."""
+    from slwindow.client import GameView
+    from slwindow3d.counters import _ensure_pygame
+
+    pygame = _ensure_pygame()
+    app._update_hud(GameView())
+    assert app._hud is not None
+    pygame.quit()
+    pygame.init()
+    app._hud.destroy()
+    app._hud = None
+    app._update_hud(GameView())
+    try:
+        assert app._hud is not None, "the panel did not draw after pygame.quit()"
+    finally:
+        if app._hud is not None:
+            app._hud.destroy()
+            app._hud = None
+            app._hud_key = None

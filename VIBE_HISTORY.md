@@ -4,6 +4,53 @@ The session log, newest entry first. This file gives the next session, human or 
 
 ---
 
+## 2026-10-10 - Documentation after the merge
+
+- `docs/ARCHITECTURE.md` section 11 (the module layout) had the tree of slice 18. It now
+  names the engine split of the GitHub line (`api.py`, `actions.py`, `handlers.py`,
+  `turn.py`, `windows.py`, `fire_window.py`, `player_state.py`), `slhost/annotate.py` and
+  `savegame.py`, `slagents/registry.py`, `scripted/armor.py` and `engineer.py`, the shared
+  window modules (`choice.py`, `overlay.py`, `marks.py`, `logtext.py`, `silhouettes.py`),
+  the whole `slwindow3d/` package, `slcards/`, the newer `slcli` commands, and the test
+  directories `window3d/`, `arch/`, and `host/`. v7 was "the doctrine agent" in the list; it
+  is the odds agent (v4 is the doctrine agent). The r35 line gives PR-54.
+- `tasks/lessons.md`: the lesson of the panel fonts and `pygame.quit()`.
+- The STE check of ARCHITECTURE.md gives the same 214 lines of findings before and after
+  the change; they are older than this pass.
+- Two computer games (scenario 4, v7 against v6) ran in the live window for the owner.
+
+---
+
+## 2026-10-10 - The merged tree on main: the test pass
+
+After the owner committed the merge (`cac0de5`), the tests ran in the project folder.
+
+- Full suite: 1,882 passed, 29 failed, 7 skipped. Each failure compares the Python tables
+  with the browser client: the 28 of the GitHub baseline, and one more that runs only where
+  node and the client's esbuild are installed. The client of this tree is the older one.
+- Gate tests (`-m gate`): 10 passed (the mixed gate of each ordered pair of the eight
+  scripted agents, one game of each agent on scenarios 2 and 3A, ten thousand PPO steps,
+  and the secrecy games of six scenarios); 3 skipped because playwright is not installed.
+- Defect found and fixed: the 3D panel kept its two fonts, and a `pygame.quit()` elsewhere
+  in the process made them invalid, so the panel stopped drawing ("Invalid font"). Today's
+  line had the same fix; the GitHub window did not. `Board3DApp._update_hud` now tests the
+  fonts and makes them again. `test_the_status_panel_draws_after_pygame_quit` fails on the
+  old code and passes on the new.
+- Five whole computer games through the real host and the real 3D window, offscreen
+  (scenario 1 v7 against v6, 2 v6 against v7, 3A v7 against v5, 4 v7 against v6 and v3
+  against v7): each ended, with the animations and the sounds of each weapon kind (tank
+  guns and engines in scenario 4, a demolition blast in 3A) and no window error.
+- Four whole games with a person's seat against v7 on scenarios 1, 2, 3A, and 4: a v5
+  agent chose, and the window sent each command through `Board3DApp.send` (228, 462, 1,047,
+  and 115 commands). Each command was in the list of the window, each game ended, and the
+  window gave no error.
+- Gauntlet of v7 against v3, v5, and v6 on the four scenarios (20 games a pair a scenario,
+  480 games): Elo v7 1651, v3 1529, v6 1526, v5 1293. So easy v5, normal v6, and hard v7
+  hold. Scenario 4 still favours the Allied side (side term of the Axis -294 Elo), and
+  scenario 2 the Russian side (-240 for the German side).
+
+---
+
 ## 2026-10-10 - The GitHub line and the 3D line come together (built in scratch)
 
 The owner found that this machine's `main` and `origin/main` had split. The two lines start
