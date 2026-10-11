@@ -1,7 +1,7 @@
 """Rule 35.8: each agent answers the push out window of an overrun with a legal command.
 
 The window is `defensive_fire/push_out`, and its commands have the action `push_out`. A
-real game of scenario 4 (v7 or the tanker v3 on each side) reaches it. Each scripted agent
+real game of scenario 4 (v6, v7, or the tanker v3 on each side) reaches it. Each scripted agent
 v1 to v7 and the learned agent (an untrained policy of the real network) take the frame
 and give an ID of the frame, and the encoding of the learner has the action.
 """
@@ -21,7 +21,11 @@ SCENARIO = "s04_armor_probe"
 
 # The games that the fixture reads, in sequence, until one reaches the window. The agents
 # change their play from slice to slice, so the fixture reads more than one game.
-GAMES = tuple((seed, pair) for seed in range(1, 13) for pair in (("v7", "v3"), ("v3", "v3"), ("v3", "v7")))
+# Since the armor policy (2026-10-10) a tank overruns only a weak target, and the window
+# comes in about one game in sixty; the first two games are ones that reach it.
+GAMES = ((24, ("v6", "v6")), (30, ("v7", "v3"))) + tuple(
+    (seed, pair) for seed in range(1, 13) for pair in (("v7", "v3"), ("v3", "v3"), ("v3", "v7"))
+)
 
 
 @pytest.fixture(scope="module")

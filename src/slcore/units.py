@@ -226,12 +226,9 @@ class Unit:
     mg_fired: bool = False
     boarded: bool = False
     overran: bool = False
-<<<<<<< Updated upstream
-=======
     # PR-54: the hex of an overrun this vehicle declared in the Movement Phase. It resolves
     # at the end of the Defensive Fire Phase that follows (rule 35.6).
     overrun_hex: HexRef | None = None
->>>>>>> Stashed changes
     dischargers_used: bool = False
     canister_spent: bool = False
     # Rule 63.32: a gun marked H6 that rolled 6 or more on a HEAT shot has no HEAT left.
@@ -340,17 +337,11 @@ class Unit:
             routed=bool(d.get("routed", False)),
             hidden=bool(d.get("hidden", False)),
             manned_mg=bool(d.get("manned_mg", False)),
-<<<<<<< Updated upstream
-            **{key: d[key] for key in _VEHICLE_DEFAULTS if key in d},
-=======
             **{key: _vehicle_value(key, d[key]) for key in _VEHICLE_DEFAULTS if key in d},
->>>>>>> Stashed changes
         )
 
     def with_(self, **changes: Any) -> "Unit":
         return copy_with(self, UNIT_FIELDS, changes)
-<<<<<<< Updated upstream
-=======
 
 
 UNIT_FIELDS = frozenset(f.name for f in fields(Unit))
@@ -387,43 +378,13 @@ def copy_with(record: Any, names: frozenset[str], changes: Mapping[str, Any]) ->
     out = object.__new__(type(record))
     object.__setattr__(out, "__dict__", values)
     return out
->>>>>>> Stashed changes
 
 
-UNIT_FIELDS = frozenset(f.name for f in fields(Unit))
-
-# The memo attributes that the core keeps on a frozen record. None of them is a field,
-# so none is in the state document, the equality, or a copy. `copy_with` drops each of
-# them, and `tests/perf/test_fast_copy.py` fails when a game leaves an attribute that is
-# not a field and not in this list.
-MEMO_ATTRIBUTES = (
-    "_hash_memo",  # slcore.hashing.CACHE_ATTRIBUTE: the state hash
-    "_unit_index",  # slcore.game.INDEX_ATTRIBUTE: the units by hex and by carrier
-    "_rout_memo",  # slcore.rules.r13_rout.ROUT_MEMO_ATTRIBUTE: the rout searches
-    "_json_memo",  # slcore.hashing.UNIT_JSON_ATTRIBUTE: the JSON text of a unit
-    "_load_memo",  # slcore.rules.r06_stacking.LOAD_MEMO_ATTRIBUTE: the loads of the hexes
-    "_off_board_memo",  # slcore.player_state.OFF_BOARD_ATTRIBUTE: the masked copy of a unit
-)
-
-
-def copy_with(record: Any, names: frozenset[str], changes: Mapping[str, Any]) -> Any:
-    """A copy of a frozen record with the changed fields, and with no memo.
-
-    It gives what `dataclasses.replace` gives for these records, which have no
-    `__post_init__` and no field that `__init__` does not take. It does not call
-    `__init__`, which is the larger part of the cost of `replace` (NFR-01).
-    """
-    for name in changes:
-        if name not in names:
-            raise TypeError(f"{type(record).__name__} has no field {name!r}")
-    values = record.__dict__.copy()
-    if len(values) != len(names):
-        for name in MEMO_ATTRIBUTES:
-            values.pop(name, None)
-    values.update(changes)
-    out = object.__new__(type(record))
-    object.__setattr__(out, "__dict__", values)
-    return out
+def _vehicle_value(key: str, value: Any) -> Any:
+    """A vehicle field from a state document: a hex comes back as a tuple."""
+    if key == "overrun_hex" and value is not None:
+        return (int(value[0]), int(value[1]))
+    return value
 
 
 # The vehicle fields of rules 28 to 41 with their default. `to_dict` writes a field only
@@ -443,6 +404,7 @@ _VEHICLE_DEFAULTS: dict[str, Any] = {
     "mg_fired": False,
     "boarded": False,
     "overran": False,
+    "overrun_hex": None,
     "dischargers_used": False,
     "canister_spent": False,
     "heat_spent": False,

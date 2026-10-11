@@ -1463,11 +1463,7 @@
       "id": "r35.1-a-vehicle-overruns-the-infantry-of-the-hex-it-enters",
       "rule": "35.1",
       "type": "valid",
-<<<<<<< Updated upstream
-      "citation": "Rule 35.1 and rule 35.3: an overrun is resolved on the Infantry Fire Table as the vehicle enters the hex, and a tank overruns with the equivalent of 16 firepower factors.",
-=======
       "citation": "Rule 35.1 and rule 35.3: an overrun is resolved on the Infantry Fire Table as the vehicle enters the hex, and a tank overruns with the equivalent of 16 firepower factors. PR-54: the overrun resolves at the end of the Defensive Fire Phase that follows (rule 35.6), so the case ends the Movement Phase and the Defensive Fire Phase.",
->>>>>>> Stashed changes
       "check": "effect",
       "phase": "movement",
       "sub_step": "move_window",
@@ -1500,15 +1496,12 @@
           ],
           "hex": "C2",
           "facing": 2
-<<<<<<< Updated upstream
-=======
         },
         {
           "action": "end_phase"
         },
         {
           "action": "end_phase"
->>>>>>> Stashed changes
         }
       ],
       "expect_events": [
@@ -1576,11 +1569,7 @@
       "id": "r38.3-a-twelve-in-an-overrun-detracks-the-vehicle",
       "rule": "38.3",
       "type": "boundary",
-<<<<<<< Updated upstream
-      "citation": "Rule 38.3: if while executing an overrun attack a vehicle rolls a twelve before modifiers, the infantry planted a grenade bundle and the vehicle is immobilized for the rest of the scenario.",
-=======
       "citation": "Rule 38.3: if while executing an overrun attack a vehicle rolls a twelve before modifiers, the infantry planted a grenade bundle and the vehicle is immobilized for the rest of the scenario. PR-54: the overrun resolves at the end of the Defensive Fire Phase that follows (rule 35.6), so the case ends the Movement Phase and the Defensive Fire Phase.",
->>>>>>> Stashed changes
       "check": "effect",
       "phase": "movement",
       "sub_step": "move_window",
@@ -1613,15 +1602,12 @@
           ],
           "hex": "C2",
           "facing": 2
-<<<<<<< Updated upstream
-=======
         },
         {
           "action": "end_phase"
         },
         {
           "action": "end_phase"
->>>>>>> Stashed changes
         }
       ],
       "expect_events": [
@@ -2972,11 +2958,7 @@
       "id": "r35.3-a-broken-gun-halves-the-overrun",
       "rule": "35.3",
       "type": "boundary",
-<<<<<<< Updated upstream
-      "citation": "Rule 35.3: should a vehicle lose either its main armament or its machine gun firepower to a malfunction, its overrun firepower factor is halved.",
-=======
       "citation": "Rule 35.3: should a vehicle lose either its main armament or its machine gun firepower to a malfunction, its overrun firepower factor is halved. PR-54: the overrun resolves at the end of the Defensive Fire Phase that follows (rule 35.6), so the case ends the Movement Phase and the Defensive Fire Phase.",
->>>>>>> Stashed changes
       "check": "effect",
       "phase": "movement",
       "sub_step": "move_window",
@@ -3010,15 +2992,12 @@
           ],
           "hex": "C2",
           "facing": 2
-<<<<<<< Updated upstream
-=======
         },
         {
           "action": "end_phase"
         },
         {
           "action": "end_phase"
->>>>>>> Stashed changes
         }
       ],
       "expect_events": [
@@ -3083,8 +3062,8 @@
           "kind": "dismount"
         },
         {
-          "rule_id": "35.1",
-          "kind": "overrun"
+          "rule_id": "35.6",
+          "kind": "overrun_declared"
         }
       ],
       "expect_units": {
@@ -4197,8 +4176,6 @@
           "ammo": "he"
         }
       ]
-<<<<<<< Updated upstream
-=======
     },
     {
       "id": "r35.6-an-overrun-waits-for-the-defensive-fire-phase",
@@ -4346,7 +4323,6 @@
           "hex": "C2"
         }
       ]
->>>>>>> Stashed changes
     }
   ]
 }

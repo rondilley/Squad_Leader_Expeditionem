@@ -406,8 +406,10 @@ def render_card(scenario: dict[str, Any]) -> pygame.Surface:
     left_w = int(inner * 0.56)
     right_x = MARGIN + left_w + 24
     right_w = inner - left_w - 24
-    notes = scenario.get("notes", "")
-    left_bottom = _blit_paragraph(surface, notes, fonts["body"], MARGIN, y, left_w, theme.CARD_INK)
+    # The situation is the text for the players. The notes are the project's record of
+    # where the scenario comes from, so a scenario with no situation shows them instead.
+    situation = scenario.get("situation") or scenario.get("notes", "")
+    left_bottom = _blit_paragraph(surface, situation, fonts["body"], MARGIN, y, left_w, theme.CARD_INK)
     right_y = _board_diagram(surface, scenario, fonts, right_x, y, right_w)
     right_y = _rules_introduced(surface, scenario, fonts, right_x, right_y + 14, right_w)
 

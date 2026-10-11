@@ -65,7 +65,9 @@ from slcore.rules import (
     r25_concealment,
     r26_fanaticism,
     r28_vehicles,
+    r30_vehicle_movement,
     r34_afv_vs_infantry,
+    r37_at_weapons,
     victory,
 )
 from slcore.scenario import Group, Scenario, SetupArea, SideSpec, UnitEntry, VictoryCondition, scenario_from_dict
@@ -200,8 +202,12 @@ SURFACE: dict[str, tuple[str, ...]] = {
     "slcore.rules.r24_smoke": ("blocks_path",),
     "slcore.rules.r25_concealment": ("halves_for",),
     "slcore.rules.r26_fanaticism": ("modifier_for",),
-    "slcore.rules.r28_vehicles": ("in_covered_arc", "vehicle_in"),
+    "slcore.rules.r28_vehicles": ("facing_towards", "in_covered_arc", "vehicle_in"),
+    # The route and the firing positions of the armor policy (`slagents/scripted/armor.py`,
+    # 2026-10-10): the entry cost of a hex, the stops of rule 30.8, and the AT weapons.
+    "slcore.rules.r30_vehicle_movement": ("enemy_infantry_in", "enemy_vehicle_in", "entry_cost_halves", "must_leave"),
     "slcore.rules.r34_afv_vs_infantry": ("firepower_halves",),
+    "slcore.rules.r37_at_weapons": ("anti_tank_weapons",),
     "slcore.rules.victory": (
         "KIND_BUILDING_COUNT",
         "KIND_BUILDING_SWING",
@@ -243,7 +249,9 @@ __all__ = [
     "r25_concealment",
     "r26_fanaticism",
     "r28_vehicles",
+    "r30_vehicle_movement",
     "r34_afv_vs_infantry",
+    "r37_at_weapons",
     "victory",
     # The engine and its data types.
     "Command",

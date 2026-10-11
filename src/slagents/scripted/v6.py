@@ -119,6 +119,7 @@ from slcore.rules.victory import (
 from slcore.units import KIND_LEADER, KIND_SW, Unit
 from slcore.view import visible_to
 
+from slagents.scripted.armor import ArmorParameters, ArmorPolicy
 from slagents.scripted.v5 import Parameters as V5Parameters
 from slagents.scripted.v5 import ScriptedV5
 
@@ -184,7 +185,9 @@ def with_parameters(**changes: object) -> Parameters:
 
 class ScriptedV6(ScriptedV5):
     name = "scripted"
-    version = "6"
+    # 6.2 (2026-10-10): its vehicles drive and fire with the armor policy of `armor.py`;
+    # before, v6 had no policy for a vehicle, and its tanks stood and never fired.
+    version = "6.2"
 
     def __init__(self, engine: Engine, player: int, params: Parameters | None = None) -> None:
         self.v6 = params or Parameters()
@@ -221,12 +224,22 @@ class ScriptedV6(ScriptedV5):
         self._picture: tuple = ()
         self._threat_map: dict[HexRef, int] = {}
         self._fields: dict[tuple[tuple[HexRef, ...], bool], dict[HexRef, int]] = {}
+        # The vehicles of this side drive and fire with the shared armor policy.
+        self._has_vehicles = bool(engine.has_vehicles)
+        self.armor = ArmorPolicy(engine, player, ArmorParameters(), objectives=lambda: self.open_objectives or self.objectives)
 
     # ---------------------------------------------------------- the objectives
 
     def select(self, state: State, frame: DecisionFrame) -> str:
         self._refresh_routes(state)
         self._refresh_objectives(state)
+        if self._has_vehicles:
+            by_action: dict[str, list] = {}
+            for lc in frame.commands:
+                by_action.setdefault(lc.command.action, []).append(lc)
+            choice = self.armor.choose(state, frame, by_action)
+            if choice is not None:
+                return choice
         return super().select(state, frame)
 
     def _targets_wanted(self) -> int:

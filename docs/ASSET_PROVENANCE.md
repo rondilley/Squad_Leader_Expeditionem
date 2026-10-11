@@ -84,10 +84,7 @@ two hexes of a hexside make the same picture.
 | Scenario card | `src/slcards/card.py` and `src/slwindow/theme.py` `CARD_*` | A printable card for one scenario. It holds a title, a scenario number, the notes text, a board diagram, a turn record chart, and the victory conditions. It holds an order of battle area for each side | The layout is the project's own. A person looked at the 1977 scenario card and wrote down where each part sits. Every word on the card comes from the scenario JSON, the project's own text (FR-22). The mini-counters come from `slwindow.counters`. The side marks are simple project shapes. No card text and no card art of the 1977 game is in the module or in its output (SR-07, DR-01). |
 | Card palette | `src/slwindow/theme.py` `CARD_PAPER`, `CARD_INK`, `CARD_RED`, `CARD_RULE`, `CARD_SHADE` | A cream paper, a dark ink, a red accent, a rule line, and a diagram fill | A scenario card is a paper document and not the green board. A person saw that the 1977 card is cream stock with black text and a red accent. The five values are the project's own. |
 | 3D board view | `src/slwindow3d/mesh.py` and `src/slwindow3d/app.py` | The board as a set of hex prisms. The elevation of a hex lifts its prism a small step, so a hill stands up. The top of each prism shows the same 2D board picture the pygame window makes, and a light from above shades each side | Made for this project. The height comes from the elevation number of the hex. The top face reads the 2D board art of `slwindow.render` as a texture. So the woods, the buildings, and the roads are one drawing and not two. The counter cards use the same chit art. No scan and no printed board is the source of the shape. |
-<<<<<<< Updated upstream
-=======
 | Fire animations | `src/slwindow3d/effects.py` and `src/slwindow3d/firekinds.py` | A thin tracer line with a fading tail for each round of rifle, submachine gun, and machine gun fire. A gun fires a thin shell, and there is a flame, a rocket trail, a burst, smoke, and grenades. The tracer colour follows the army. It is red for American and British fire and green for German and Russian fire. One round in five of the green fire is white or yellow | The tracer colours of each army in the Second World War, as the owner gave them (2026-10-10). The shapes are the project's own and are not a copy of a picture. |
->>>>>>> Stashed changes
 
 ## 2. The pictures in this repository
 
@@ -115,9 +112,6 @@ Two things hold the rule that no scan gets in:
   compares it with the file in the tree. A picture that a person put there by hand does not
   pass.
 
-<<<<<<< Updated upstream
-## 3. What the project does not have
-=======
 ## 3. The sounds
 
 The project ships no recorded audio. Code makes each sound when the 3D window opens
@@ -144,7 +138,6 @@ The random parts of each sound come from a generator with a fixed seed, so each 
 the same sounds.
 
 ## 4. What the project does not have
->>>>>>> Stashed changes
 
 - No scan, photograph, or screenshot of a 1977 component is in the repository, in a
   fixture, in a test, or in a run artifact.
@@ -156,26 +149,16 @@ the same sounds.
   photographs of the owner's boards are in that directory, and the code holds no pixel of
   them.
 
-<<<<<<< Updated upstream
-## 4. Where the reference material is
-=======
 ## 5. Where the reference material is
->>>>>>> Stashed changes
 
 `background/` holds the owner's copy of the rules and the photographs the owner took. It is
 on the owner's machine, and git does not record it. `background/reference/` holds the text
 that the research documents gave before. The project moved that text out of the tree, so
 that no rulebook text and no card text ships (SR-07).
 
-<<<<<<< Updated upstream
-## 5. When to change this record
-
-Add a row when the window or the client draws something new. Say where the look comes from
-=======
 ## 6. When to change this record
 
 Add a row when the window or the client draws or plays something new. Say where the look comes from
->>>>>>> Stashed changes
 before you write the code. A change to a colour or a shape does not make a new row
 necessary. A new type of mark does. The counter rubric in `docs/SUCCESS_CRITERIA.md` scores this record, so
 an asset with no row is an unsatisfactory item.

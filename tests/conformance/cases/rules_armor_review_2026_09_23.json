@@ -1262,7 +1262,7 @@
    "id": "r35.5-the-passengers-get-off-before-the-overrun",
    "rule": "35.5",
    "type": "interaction",
-   "citation": "Rule 35.5: the passengers do not ride into the overrun hex. They stay in the hex the vehicle leaves (review A12).",
+   "citation": "Rule 35.5: the passengers do not ride into the overrun hex. They stay in the hex the vehicle leaves (review A12). PR-54: the vehicle declares the overrun as it enters, and the attack resolves after the Defensive Fire Phase.",
    "phase": "movement",
    "sub_step": "move_window",
    "phasing": "german",
@@ -1304,8 +1304,8 @@
      "kind": "dismount"
     },
     {
-     "rule_id": "35.1",
-     "kind": "overrun"
+     "rule_id": "35.6",
+     "kind": "overrun_declared"
     }
    ],
    "expect_units": {
@@ -1318,7 +1318,7 @@
    "id": "r35.1-a-dummy-counter-is-overrun-as-a-stack-is",
    "rule": "35.1",
    "type": "boundary",
-   "citation": "PR-31 with rule 35.1: the hex of an enemy counter is overrun whether a unit is below it or not.",
+   "citation": "PR-31 with rule 35.1: the hex of an enemy counter is overrun whether a unit is below it or not. PR-54: the overrun resolves at the end of the Defensive Fire Phase that follows (rule 35.6), so the case ends the Movement Phase and the Defensive Fire Phase.",
    "phase": "movement",
    "sub_step": "move_window",
    "phasing": "german",
@@ -1346,6 +1346,12 @@
      ],
      "hex": "B3",
      "facing": 3
+    },
+    {
+     "action": "end_phase"
+    },
+    {
+     "action": "end_phase"
     }
    ],
    "expect_events": [

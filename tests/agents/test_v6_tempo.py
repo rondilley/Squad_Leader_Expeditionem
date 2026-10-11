@@ -236,8 +236,6 @@ def test_with_parameters_changes_one_named_field():
     p = with_parameters(route_risk=5)
     assert p.route_risk == 5
     assert p.aggression == 2, "the other fields keep the default"
-<<<<<<< Updated upstream
-=======
 
 
 def test_v6_plays_a_side_that_has_no_objective_hex():
@@ -249,4 +247,3 @@ def test_v6_plays_a_side_that_has_no_objective_hex():
     defender = ScriptedV6(engine, 1)
     record = play_game(engine, 90000, (attacker, defender))
     assert record.result
->>>>>>> Stashed changes

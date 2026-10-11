@@ -5,8 +5,6 @@ The repository name is `Squad_Leader_AI`. The public title of the game is Squad 
 An edition of the 1977 Avalon Hill board game Squad Leader, with the 4th edition rules. It has a rules engine that shows the rule number for each result, and computer opponents that learn. It plays in a browser or in a window of its own on Windows and on Unix.
 
 This project is not affiliated with, sponsored by, or endorsed by Hasbro or Multi-Man Publishing. It ships no Avalon Hill art, scans, board layouts, or rulebook text.
-<<<<<<< Updated upstream
-=======
 
 ## Play the game
 
@@ -63,7 +61,6 @@ path when it starts. To continue a game:
 ```
 sl-cli window3d --resume runs/games/<game_id>.jsonl
 ```
->>>>>>> Stashed changes
 
 ## What it looks like
 
@@ -212,16 +209,10 @@ in the window, `s` writes a picture, Escape clears the focus, and `q` stops.
 
 When the host sets strict mode, the line of sight answer is for a fire phase only.
 
-<<<<<<< Updated upstream
-`sl-cli window3d --agents v6,v6` shows the same game in a 3D window with the same overlay,
-the same click, and the same pointer. The `view3d` extra is necessary for it (`pip install
--e ".[view3d]"`). `i` hides the overlay, and `o` hides the marks of the focus unit.
-=======
 `sl-cli window3d --agents v6,v6` shows the same game in a 3D window. It has the same
 overlay, the same click, and the same pointer, and it adds the fire animations and the sound. The `play`
 extra installs it (`pip install -e ".[play]"`). `i` hides the overlay, and `o` hides the
 marks of the focus unit. "Play the game" above gives the options for a person.
->>>>>>> Stashed changes
 
 `python tools/make_docs_images.py` makes the pictures that this file shows. Run it after a
 change to the board drawing. The test in `tests/docs/` compares what the tool makes with

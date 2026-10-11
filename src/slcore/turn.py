@@ -191,6 +191,16 @@ def _end_fire_phase(engine: Any, state: State, phase: str, step: SubStep, events
     return state
 
 
+def _resolve_overruns(engine: Any, state: State, phase: str, step: SubStep, events: list[Event]) -> State:
+    """PR-54 and rule 35.6: each overrun the phasing side declared in the Movement Phase
+    resolves now, after the defensive fire, for each vehicle that survived it."""
+    if not engine.has_vehicles:
+        return state
+    state, ev = r35_overrun.resolve_pending(engine.armor_ctx, engine.fire_ctx, state, state.phasing)
+    events.extend(ev)
+    return state
+
+
 def _expire_smoke(engine: Any, state: State, phase: str, step: SubStep, events: list[Event]) -> State:
     state, ev = r24_smoke.expire(state, state.phasing)
     events.extend(ev)
@@ -305,6 +315,7 @@ AUTO_STEPS: dict[str, AutoStep] = {
     "return_units": _return_units,
     "place_prep_fire": _place_prep_fire,
     "end_fire_phase": _end_fire_phase,
+    "resolve_overruns": _resolve_overruns,
     "expire_smoke": _expire_smoke,
     "arm_demo": _arm_demo,
     "concealment_adjacency": _concealment_adjacency,

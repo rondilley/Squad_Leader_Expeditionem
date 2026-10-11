@@ -115,13 +115,10 @@ EVENT_TEXT: dict[str, str] = {
     "wreck_pushed": "a vehicle pushes a wreck out of its way",
     "overrun": "a vehicle overruns the infantry of a hex",
     "overrun_unarmed": "a vehicle with no weapon drives through the infantry of a hex",
-<<<<<<< Updated upstream
-=======
     # PR-54: the overrun is declared on entry and resolves after the Defensive Fire Phase.
     "overrun_declared": "a vehicle drives into the infantry of a hex and will overrun it after the defensive fire",
     "overrun_stopped": "the defensive fire stopped the vehicle, and it makes no overrun",
     "overrun_empty": "no enemy infantry is left in the hex, so the vehicle makes no overrun",
->>>>>>> Stashed changes
     "grenade_bundle": "a grenade bundle immobilizes the overrunning vehicle",
     "pushed_out": "a unit steps out from below an enemy vehicle",
     "crushed": "a unit that cannot step out from below a vehicle is crushed",

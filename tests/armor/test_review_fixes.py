@@ -544,7 +544,8 @@ def test_the_passengers_get_off_before_an_overrun():
     )
     events = apply(cs, {"action": "vehicle_move", "units": ["t"], "hex": "B3", "facing": 3})
     assert ("35.5", "dismount") in kinds(events)
-    assert ("35.1", "overrun") in kinds(events)
+    # PR-54: the vehicle declares the overrun as it enters; it resolves after the fire.
+    assert ("35.6", "overrun_declared") in kinds(events)
     assert cs.unit("p").hex == P("B2") and not cs.unit("p").riding
 
 
@@ -560,8 +561,11 @@ def test_a_vehicle_overruns_a_dummy_counter_as_it_would_a_stack():
         }
     )
     events = apply(cs, {"action": "vehicle_move", "units": ["t"], "hex": "B3", "facing": 3})
-    assert ("35.1", "overrun") in kinds(events)
     assert cs.unit("t").overran
+    # PR-54: the attack resolves at the end of the Defensive Fire Phase that follows.
+    events = apply(cs, {"action": "end_phase"})
+    events += apply(cs, {"action": "end_phase"})
+    assert ("35.1", "overrun") in kinds(events)
 
 
 def push_case(extra: list[dict] | None = None) -> dict:

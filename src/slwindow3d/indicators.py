@@ -5,15 +5,10 @@ overlay in the two windows. This module turns it into flat geometry on the hex t
 
 - A shade is a translucent hexagon a little above the top of its hex, in the tone of the
   model. The tones are quiet, the way a pencil wash sits on a field map.
-<<<<<<< Updated upstream
-- A tracer is a narrow dashed ribbon from the firer to the target, in the tone of the fire
-  phase, and it stops short of the two counters.
-=======
 - A fire is first its animation (`effects.py`: the tracers, the shell, the flame, the
   smoke, by the weapon and the army), and then a faint, dark, narrow dashed line from the
   firer to the target, in a deep tone of the fire phase, that stops short of the two
   counters (owner, 2026-10-10: the animation shows the shot, so the line is quiet).
->>>>>>> Stashed changes
 - A burst is a few short spokes on the target hex in the tone of the result.
 - A ghost is a translucent card with a dark outline on the track hex where the defensive
   fire catches a moved unit (rule 16.1). The counter itself stays at its end hex.
@@ -55,11 +50,8 @@ from slwindow.overlay import (
     Overlay,
     Tracker,
 )
-<<<<<<< Updated upstream
-=======
 from slwindow3d.effects import Effects
 from slwindow3d.firekinds import shots_for
->>>>>>> Stashed changes
 from slwindow3d.mesh import HEIGHT_PER_LEVEL, WORLD_CORNERS, hex_world
 
 # The heights above the top of a hex, in world units. A shade lies on the ground under the
@@ -70,14 +62,10 @@ MARK_LIFT = 0.6
 # A shade pulls in from the hex corners by this share, so the grid line stays visible.
 SHADE_INSET = 0.94
 # The width of a tracer and of a spoke, in world units. A hex is four units wide.
-<<<<<<< Updated upstream
-TRACER_WIDTH = 0.09
-=======
 TRACER_WIDTH = 0.045
 # The tracer line is a deep share of its phase tone, and translucent.
 TRACER_DEPTH = 0.55
 TRACER_ALPHA = 0.5
->>>>>>> Stashed changes
 SPOKE_WIDTH = 0.07
 FOCUS_WIDTH = 0.12
 # A tracer starts and stops this far from the centres of the two hexes.
@@ -126,8 +114,6 @@ class Indicators:
         # The window sets these: the unit a person clicked, and the hex under the pointer.
         self.pinned: int | None = None
         self.pointer_hex: str | None = None
-<<<<<<< Updated upstream
-=======
         # The animations of fire, one kind for each weapon (`effects.py`). They hang under
         # the overlay root, so Ctrl and i hides them with the rest.
         self.effects = Effects(self.root, self._ground)
@@ -138,7 +124,6 @@ class Indicators:
         # Called with the new log lines of each read and the units of the view by id (the
         # window gives it to the sound board).
         self.on_new_events: Callable[[list[dict[str, Any]], dict[Any, Any]], None] | None = None
->>>>>>> Stashed changes
 
     # ------------------------------------------------------------------ setup
 
@@ -158,11 +143,8 @@ class Indicators:
         self.tracker.reset()
         self._asked = set()
         self._key = None
-<<<<<<< Updated upstream
-=======
         self.effects.clear()
         self._log_seq = None
->>>>>>> Stashed changes
         if not board_doc:
             return
         for hexagon in board_doc.get("hexes", []):
@@ -173,14 +155,11 @@ class Indicators:
     def _top(self, hex_id: Any) -> tuple[float, float, float] | None:
         return None if hex_id is None else self._tops.get(str(hex_id))
 
-<<<<<<< Updated upstream
-=======
     def _ground(self, hex_id: Any) -> tuple[float, float, float] | None:
         """The centre of a hex top, just over its face: where an animation starts or lands."""
         top = self._top(hex_id)
         return None if top is None else (top[0], top[1], top[2] + SHADE_LIFT)
 
->>>>>>> Stashed changes
     # ---------------------------------------------------------------- toggles
 
     def toggle(self) -> bool:
@@ -208,10 +187,7 @@ class Indicators:
         self.shade_root.node().removeAllChildren()
         self.mark_root.node().removeAllChildren()
         self._key = None
-<<<<<<< Updated upstream
-=======
         self.effects.clear()
->>>>>>> Stashed changes
 
     # ------------------------------------------------------------- the update
 
@@ -228,21 +204,15 @@ class Indicators:
         """Each frame: let a mark that lingered past its time go. Never raise."""
         if self._snapshot is not None:
             self.update(self._snapshot, now)
-<<<<<<< Updated upstream
-=======
         try:
             self.effects.step(time.monotonic() if now is None else now)
         except Exception as error:  # an animation bug must not end the game window
             print(f"indicators: an animation step failed: {error!r}")
->>>>>>> Stashed changes
 
     def _update(self, snapshot: Any, now: float) -> Overlay:
         if snapshot is None or not self._tops:
             return self.overlay
-<<<<<<< Updated upstream
-=======
         self._read_log(snapshot)
->>>>>>> Stashed changes
         los = getattr(snapshot, "los", None)
         overlay = self.tracker.update(
             snapshot, now, self.pinned, self.pointer_hex, los if isinstance(los, dict) else None
@@ -260,8 +230,6 @@ class Indicators:
         self._draw(overlay, snapshot)
         return overlay
 
-<<<<<<< Updated upstream
-=======
     # ------------------------------------------------------------ the new lines
 
     def _read_log(self, snapshot: Any) -> None:
@@ -287,7 +255,6 @@ class Indicators:
             for shot in shots_for(line, units):
                 self.effects.launch(shot, key=f"{line.get('seq')}")
 
->>>>>>> Stashed changes
     # ------------------------------------------------------------ the drawing
 
     def _draw(self, overlay: Overlay, snapshot: Any) -> None:
@@ -313,12 +280,8 @@ class Indicators:
             target = self._top(tracer.target)
             if source is None or target is None:
                 continue
-<<<<<<< Updated upstream
-            colour = rgba(theme.TRACER.get(tracer.kind, theme.TRACER["other"]))
-=======
             tone = theme.TRACER.get(tracer.kind, theme.TRACER["other"])
             colour = (tone[0] / 255.0 * TRACER_DEPTH, tone[1] / 255.0 * TRACER_DEPTH, tone[2] / 255.0 * TRACER_DEPTH, TRACER_ALPHA)
->>>>>>> Stashed changes
             self._tracer(source, target, colour)
         for burst in overlay.bursts:
             top = self._top(burst.hex)

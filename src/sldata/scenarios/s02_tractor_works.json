@@ -2,6 +2,7 @@
  "id": "s02_tractor_works",
  "title": "The Tractor Works",
  "notes": "Scenario 2 of the 1977 game, in the project's own words (FR-22). Stalingrad, October 1942. A German company attacks a Russian garrison in a factory, and a Russian relief force attacks from the city. The force lists, the turn count, and the victory conditions come from the scenario card as docs/research/2026-09-07_RV-2_boards_scenarios.md section 3 records them. The card text is not reproduced. Rules 22 to 26 come in with this scenario: flamethrowers, demolition charges, smoke, concealment, and fanaticism. The set up areas use zones, because the printed board layout is not in this repository (DR-06). The board is the east part of a generated city board. The Russians hold the factory in the middle band and the relief force starts in the west band. The Germans start in the east band. The card says to roll a die for the first mover, and project ruling PR-12 gives that roll to the core generator.",
+ "situation": "Stalingrad, October 1942. A Russian garrison holds a factory. A German company, with engineers who carry flamethrowers and demolition charges, attacks it, and Russian relief forces come in from the city. The side that ends the game in sole control of six factory hexes wins, and so does the side that is the only one with an unbroken unit in the factory. Smoke, concealment, and fanatic defenders are in play. The Germans move first. Eight turns.",
  "board": "city",
  "board_generator": {
   "seed": 19421122,

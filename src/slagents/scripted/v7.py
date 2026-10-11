@@ -70,8 +70,8 @@ panel of three German records on paired seeds:
 5. `search_iterations`: a tree search over the macro of each own player turn, with
    rollouts on the player state. Off by default for its cost; the report has its measure.
 
-What v7 does not do yet: it has no reserve (P19), and it has no policy for a vehicle, so
-the tanker v3 drives them.
+What v7 does not do yet: it has no reserve (P19). Its vehicles drive and fire with the
+armor policy that it takes from v6 (`armor.py`, 2026-10-10).
 """
 
 from __future__ import annotations

@@ -75,11 +75,8 @@ PHASE_STEPS: dict[str, tuple[SubStep, ...]] = {
         SubStep("return_units", AUTO, ACTOR_NONE, "16.3"),
         SubStep("arm_demo", AUTO, ACTOR_NONE, "23.3"),
         SubStep("end_fire_phase", AUTO, ACTOR_NONE, "8.5"),
-<<<<<<< Updated upstream
-=======
         # PR-54 and rule 35.6: the overruns of the Movement Phase resolve after the fire.
         SubStep("resolve_overruns", AUTO, ACTOR_NONE, "35.6"),
->>>>>>> Stashed changes
         # Rule 35.8 and PR-51: the infantry below an enemy vehicle steps to one side.
         SubStep("push_out", WINDOW, ACTOR_DEFENDER, "35.8", CONDITION_PUSH),
         SubStep("clear_tracks", AUTO, ACTOR_NONE, "16.3"),

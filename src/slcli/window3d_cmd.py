@@ -10,14 +10,11 @@ game is hot seat, and the window plays the two sides. `--agent v7` gives one sid
 computer opponent (`--agent-side` names it), `--agents v4,v1` watches a game of two
 computer opponents, `--lan` gives one seat to each connection, and `--connect ws://...`
 with `--room-code` joins a host that already runs.
-<<<<<<< Updated upstream
-=======
 
 Before the game the window shows the scenario card (`slwindow3d/briefing.py`), and the
 host starts the game when the person presses Begin; `--no-briefing` skips the card. The
 window plays the sounds of fire and movement through OpenAL; `--mute` loads no audio
 library, and Ctrl and m turns the sound off and on.
->>>>>>> Stashed changes
 
 With `--screenshot PATH` it renders one board offscreen, writes the PNG, and exits. That is
 the path a test and a verification run take, and it needs no display.
@@ -71,13 +68,9 @@ def _load_interactive(args: Any = None):
 
     width = getattr(args, "width", None) or 1500
     height = getattr(args, "height", None) or 950
-<<<<<<< Updated upstream
-    loadPrcFileData("", "audio-library-name null")
-=======
     # The sounds play through OpenAL. With `--mute` the window loads no audio library.
     audio = "null" if getattr(args, "mute", False) else "p3openal_audio"
     loadPrcFileData("", f"audio-library-name {audio}")
->>>>>>> Stashed changes
     loadPrcFileData("", f"win-size {int(width)} {int(height)}")
     loadPrcFileData(
         "",
@@ -152,8 +145,6 @@ def _screenshot(args: Any) -> int:
     return 0
 
 
-<<<<<<< Updated upstream
-=======
 def briefing_document(scenario: str) -> dict[str, Any] | None:
     """The scenario JSON for the briefing card, or None for a scenario that has no file (a
     random scenario of Game Set IV is built from its seed)."""
@@ -166,7 +157,6 @@ def briefing_document(scenario: str) -> dict[str, Any] | None:
         return None
 
 
->>>>>>> Stashed changes
 def _interactive(args: Any) -> int:
     """Play or watch in the 3D window (H2).
 
@@ -180,15 +170,11 @@ def _interactive(args: Any) -> int:
     Board3DApp = _load_interactive(args)
     embedded, url, room_code, _caption = connect_or_start(args, title="Squad Leader Expeditionem 3D")
     client = HostClient(url, room_code, display_name="3D window")
-<<<<<<< Updated upstream
-    client.start()
-=======
     # The scenario card comes first, and the game starts on Begin. A window that joins a
     # host that already runs shows no card, because its game has started.
     briefing = None if (args.no_briefing or args.connect) else briefing_document(args.scenario)
     if briefing is None:
         client.start()
->>>>>>> Stashed changes
     board_doc = None
     if embedded is not None:
         from slcore.view import board_document
@@ -196,9 +182,6 @@ def _interactive(args: Any) -> int:
         board_doc = board_document(embedded.host.engine.board)
         if args.hills:
             _synthesize_hill(board_doc)
-<<<<<<< Updated upstream
-    app = Board3DApp(board_doc, client=client)
-=======
     app = Board3DApp(
         board_doc,
         client=client,
@@ -207,7 +190,6 @@ def _interactive(args: Any) -> int:
         sound=True,
         muted=bool(args.mute),
     )
->>>>>>> Stashed changes
     try:
         app.run()
     finally:
