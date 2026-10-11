@@ -4,6 +4,49 @@ The session log, newest entry first. This file gives the next session, human or 
 
 ---
 
+## 2026-10-10 - Two German tanks that stood: the armor route, and the card's "columns"
+
+The owner watched v7 (Axis) against v6 on scenario 4: "Two of the tanks on the AXIS side
+appear to move once, then never move again during the game and never fire." Also: "the
+scenario calls for some units to be in collumns, but the two computer sides do not appear
+to set up the units on a road in a column."
+
+- Seed 1 showed it at once. The two MkIVF2 drove into woods on turn 1 (D8, D4), took the
+  breakdown die of rule 39.1 (a 5 or a 6 for a German vehicle), and were immobilized; in the
+  west woods they had no line of sight, so they never fired. The core was right.
+- Cause one, `armor.py`: `_best_step` compared only the route cost from the next hex. The
+  field holds the cost from a hex to a goal, not the cost of entering it, so a step into a
+  wood (12 halves and the breakdown risk) looked as good as a step on open ground (2). A
+  tie went to the lower command ID, which was the wood. Now each step adds its own entry
+  cost and the risk (`_step_cost`), and the risk is `BREAKDOWN_PENALTY` (12) for each face
+  of the die that breaks the vehicle: 24 for a German vehicle, 12 for another army.
+- Cause two, found by the trace after the first fix: the route field went through a hex
+  that held a vehicle of the same side, and `_best_step` does not enter one. With the step
+  cost counted, no other step was as good, and the StuG stood at G6 for four turns. The
+  field now does not route through the hexes the step refuses (own vehicles, enemy
+  infantry), and those hexes are in the cache key.
+- `breakdown_number` of rule 30 is now in `slcore.api.SURFACE`.
+- Measured over 30 seeds each of v7-v6, v6-v7, v7-v7, and v3-v6 (120 games): breakdown
+  rolls 514 before, 0 after. Axis wins 3 before, 10 after; scenario 4 still favours the
+  Allied side, which stays a balance item.
+- New tests: each German vehicle of v7 against v6 (seeds 1 to 3) drives at least five
+  hexes, fires, and takes no breakdown die (it fails on the old code at seed 1, vehicle 9);
+  the step cost of a wood carries twice the risk for a German vehicle. The old route test
+  now allows 2 percent breakdown rolls, not 10.
+- The "columns": the zone `columns` is a band of hex columns (A to C for the Axis
+  vehicles), not a march column, and the scenario has no column order. The card said
+  "In a columns". `slcards.card._group_label` now says "Anywhere in columns A to C, not in
+  buildings or woods", in two lines; a building group keeps its short label. Test added.
+- `docs/images/window_armor_probe.png` made again: v3's tanks take another route now.
+- The push out fixture (`tests/agents/test_push_out_frame.py`) found no game: the window of
+  rule 35.8 comes after an overrun, and now one game in 540 (seeds 1 to 60, nine pairs)
+  reaches it. Seed 7, v6 against v3, is first in `GAMES`.
+- Full suite after the change: 1,877 passed, 7 skipped; the failures were the client
+  comparisons, the nine push out errors (fixed above), and `test_workers` once, which
+  passes alone and in its file.
+
+---
+
 ## 2026-10-10 - Documentation after the merge
 
 - `docs/ARCHITECTURE.md` section 11 (the module layout) had the tree of slice 18. It now

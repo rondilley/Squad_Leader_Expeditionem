@@ -27,6 +27,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 import pygame  # noqa: E402
 
+from slcore.scenario import band_text  # noqa: E402
 from slwindow import theme  # noqa: E402
 from slwindow.counters import _counter  # noqa: E402
 
@@ -264,19 +265,43 @@ def _turn_chart(surface: pygame.Surface, scenario: dict[str, Any], fonts: dict[s
     return max(ly, y + box_h) + 4
 
 
+def _terrain_words(value: Any) -> str:
+    kinds = [value] if isinstance(value, str) else list(value)
+    # The card has two lines for a set up area, so the two building kinds are one word.
+    if "stone_building" in kinds and "wooden_building" in kinds:
+        kinds = ["buildings"] + [k for k in kinds if k not in ("stone_building", "wooden_building")]
+    words = [str(k).replace("_", " ") for k in kinds]
+    if len(words) <= 2:
+        return " or ".join(words)
+    return ", ".join(words[:-1]) + f", or {words[-1]}"
+
+
 def _group_label(group: dict[str, Any]) -> str:
     """The set up area of one group, in the words of the scenario.
 
     A group names a zone, a band of columns, and a rank by building size. The card says the
     rank in plain words, because the printed board layout is not in this repository (DR-06).
+    The zone `columns` is a band of hex columns, and not a march column: the card said "In a
+    columns", and the owner read it as an order to set up on a road in a column.
     """
     area = group.get("area", {})
-    zone = str(area.get("zone", "")).replace("_", " ")
-    rank = area.get("rank")
-    if rank is None:
-        return f"In a {zone}"
-    ordinals = {0: "largest", 1: "second largest", 2: "third largest", 3: "fourth largest", 4: "fifth largest"}
-    return f"In the {ordinals.get(rank, str(rank) + 'th')} {zone}"
+    zone = str(area.get("zone", ""))
+    if zone == "stone_building":
+        rank = area.get("rank")
+        ordinals = {0: "largest", 1: "second largest", 2: "third largest", 3: "fourth largest", 4: "fifth largest"}
+        size = "a" if rank is None else "the " + ordinals.get(rank, str(rank) + "th")
+        return f"In {size} stone building"
+    if zone == "edge":
+        text = f"Within {int(area.get('depth', 1))} hexes of the {area.get('side', 'west')} edge"
+    else:
+        text = f"Anywhere {band_text(area)}"
+    if area.get("terrain") is not None:
+        text += f", in {_terrain_words(area['terrain'])}"
+    if area.get("not_terrain") is not None:
+        text += f", not in {_terrain_words(area['not_terrain'])}"
+    if area.get("road") is not None:
+        text += ", on a road" if area["road"] else ", off the roads"
+    return text
 
 
 GROUP_COLS = 3        # how many group cells sit across the block, like the 1977 card

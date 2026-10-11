@@ -91,3 +91,18 @@ def test_every_scenario_renders() -> None:
     """No scenario in the data raises when it renders."""
     for name in SCENARIOS:
         card.render_card(_load(name))
+
+
+def test_a_band_of_columns_reads_as_a_place_and_fits_two_lines() -> None:
+    """The zone `columns` is a band of hex columns. The card said "In a columns", and the
+    owner read it as an order to set up the tanks on a road in a march column."""
+    pygame.font.init()
+    data = json.loads(resources.files("sldata.scenarios").joinpath("s04_armor_probe.json").read_text(encoding="utf-8"))
+    labels = {g["id"]: card._group_label(g) for side in data["sides"] for g in side["groups"]}
+    assert labels["a_tanks"] == "Anywhere in columns A to C, not in buildings or woods"
+    assert labels["l_tanks"] == "Anywhere in columns W to Y, not in buildings or woods"
+    assert labels["a_stahler"] == "In the largest stone building"
+    font = pygame.font.SysFont("dejavusans,arial,helvetica", 13, bold=True)
+    for text in labels.values():
+        assert "a columns" not in text
+        assert len(card._wrap(text, font, 260)) <= card.TITLE_LINES

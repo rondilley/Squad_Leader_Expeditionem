@@ -52,11 +52,13 @@ from slcore.rules import r28_vehicles, r30_vehicle_movement, r37_at_weapons
 
 ARMOR_FIRE_ACTIONS = ("at_fire", "afv_fire", "afv_mg", "afv_attack")
 UNREACHABLE = 10**9
-# The extra cost, in movement halves, of a hex that needs the breakdown die of rule 39.1. A
-# German vehicle breaks down on a 5 or a 6 there, and an assault gun of the first version of
-# this policy drove into one on its first turn and stood for the rest of the game. A tank
-# goes around rough ground unless the way around is much longer.
-BREAKDOWN_PENALTY = 8
+# The extra cost, in movement halves, of a hex that needs the breakdown die of rule 39.1,
+# for each face of the die that breaks the vehicle there: a German vehicle breaks on a 5 or
+# a 6 (two faces, 24 halves, two turns of a tank's movement), another army's on a 6 (12).
+# An assault gun of the first version of this policy drove into a wood on its first turn
+# and stood for the rest of the game. A tank goes around rough ground unless the way around
+# is much longer.
+BREAKDOWN_PENALTY = 12
 
 
 @dataclass(frozen=True)
@@ -185,14 +187,18 @@ class ArmorPolicy:
         self._positions = {key: found}
         return found
 
-    def _field(self, state: State, vehicle, goals: frozenset[HexRef]) -> dict[HexRef, int]:
+    def _field(self, state: State, vehicle, goals: frozenset[HexRef], blocked: frozenset[HexRef] = frozenset()) -> dict[HexRef, int]:
         """The cost in movement halves from each hex to the nearest goal, over the vehicle
-        entry costs of the core, for a vehicle of this type."""
-        key = (self._picture(state), vehicle.type_key, goals)
+        entry costs of the core, for a vehicle of this type.
+
+        A route does not go through a hex of `blocked`, the hexes that `_best_step` does not
+        enter. A route through one gave a hex a cost that no step could reach, and an
+        assault gun behind a tank of its own side stood there for four turns.
+        """
+        key = (self._picture(state), vehicle.type_key, goals, blocked)
         found = self._fields.get(key)
         if found is not None:
             return found
-        ctx = self.engine.vehicle_ctx
         board = self.engine.board
         dist: dict[HexRef, int] = {}
         heap = [(0, g) for g in sorted(goals)]
@@ -202,20 +208,33 @@ class ArmorPolicy:
             if here in dist:
                 continue
             dist[here] = d
+            if here in blocked:
+                continue
             for there in board.neighbors(here):
                 if there in dist:
                     continue
                 if r30_vehicle_movement.enemy_vehicle_in(state, self.player, there) is not None:
                     continue
-                probe = vehicle.with_(hex=there, facing=r28_vehicles.facing_towards(there, here))
-                cost, _, breakdown = r30_vehicle_movement.entry_cost_halves(ctx, state, probe, here)
+                cost = self._step_cost(state, vehicle, there, here)
                 if cost is None:
                     continue
-                heapq.heappush(heap, (d + cost + (BREAKDOWN_PENALTY if breakdown else 0), there))
+                heapq.heappush(heap, (d + cost, there))
         if len(self._fields) > 32:
             self._fields.clear()
         self._fields[key] = dist
         return dist
+
+    def _step_cost(self, state: State, vehicle, src: HexRef, dst: HexRef) -> int | None:
+        """The cost in movement halves of one step from src to dst, with the risk of the
+        breakdown die of rule 39.1 as extra cost, or None when the vehicle cannot enter."""
+        probe = vehicle.with_(hex=src, facing=r28_vehicles.facing_towards(src, dst))
+        cost, _, breakdown = r30_vehicle_movement.entry_cost_halves(self.engine.vehicle_ctx, state, probe, dst)
+        if cost is None:
+            return None
+        if breakdown:
+            faces = 7 - r30_vehicle_movement.breakdown_number(self.engine.types, vehicle)
+            cost += BREAKDOWN_PENALTY * faces
+        return cost
 
     # ------------------------------------------------------------------- drive
 
@@ -268,14 +287,22 @@ class ArmorPolicy:
             if u.is_vehicle and u.id != vehicle.id and u.hex is not None and not u.wreck and not u.eliminated
         )
         goals = (positions or frozenset(self._objectives())) - taken
-        field = self._field(state, vehicle, goals) if goals else {}
+        blocked = taken | frozenset(self._enemy_infantry(state))
+        field = self._field(state, vehicle, goals, blocked) if goals else {}
+        # The cost of a move is the step itself (its entry cost and the risk of the breakdown
+        # die) and the route from where it ends. The field holds only the route, so a step
+        # into a wood that ended one hex nearer looked as good as a step on open ground, and
+        # two German tanks drove into the woods on their first turn and broke down.
         best: LegalCommand | None = None
-        best_cost = UNREACHABLE + 1 if leaving else field.get(vehicle.hex, UNREACHABLE)
+        here = field.get(vehicle.hex, UNREACHABLE)
+        best_cost = 2 * UNREACHABLE + 1 if leaving else (here + 1 if here < UNREACHABLE else UNREACHABLE)
         for lc in sorted(moves, key=lambda lc: lc.id):
             dst = lc.command.hex
             if dst is None or dst in taken or r30_vehicle_movement.enemy_infantry_in(state, self.player, dst):
                 continue
-            cost = field.get(dst, UNREACHABLE)
+            rest = field.get(dst, UNREACHABLE)
+            step = self._step_cost(state, vehicle, vehicle.hex, dst)
+            cost = rest + (UNREACHABLE if step is None else step)
             if cost < best_cost:
                 best, best_cost = lc, cost
         return best

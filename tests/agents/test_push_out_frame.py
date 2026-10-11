@@ -22,8 +22,10 @@ SCENARIO = "s04_armor_probe"
 # The games that the fixture reads, in sequence, until one reaches the window. The agents
 # change their play from slice to slice, so the fixture reads more than one game.
 # Since the armor policy (2026-10-10) a tank overruns only a weak target, and the window
-# comes in about one game in sixty; the first two games are ones that reach it.
-GAMES = ((24, ("v6", "v6")), (30, ("v7", "v3"))) + tuple(
+# comes in about one game in sixty; the first two games are ones that reach it. Since the
+# armor step pays for the ground it enters (2026-10-10), the tanks keep out of the woods and
+# one game in 540 of seeds 1 to 60 reaches it: seed 7, v6 against v3.
+GAMES = ((7, ("v6", "v3")), (24, ("v6", "v6")), (30, ("v7", "v3"))) + tuple(
     (seed, pair) for seed in range(1, 13) for pair in (("v7", "v3"), ("v3", "v3"), ("v3", "v7"))
 )
 

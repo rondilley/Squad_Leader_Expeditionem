@@ -117,4 +117,58 @@ def test_the_route_avoids_ground_that_needs_the_breakdown_die():
                 if event.kind == "vehicle_move":
                     vehicle_moves += 1
     assert vehicle_moves >= 40
-    assert breakdowns <= 0.1 * vehicle_moves, f"{breakdowns} breakdown rolls in {vehicle_moves} moves"
+    assert breakdowns <= 0.02 * vehicle_moves, f"{breakdowns} breakdown rolls in {vehicle_moves} moves"
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3])
+def test_each_german_vehicle_of_v7_drives_and_fires(seed):
+    """The owner watched v7 against v6 on scenario 4: "Two of the tanks on the AXIS side
+    appear to move once, then never move again during the game and never fire." The route
+    compared only the cost from the next hex, so a step into a wood looked free, and two
+    MkIVs drove into the woods on turn 1 and broke down (rule 39.1). Then an assault gun
+    whose route went through the hex of its own tank stood for four turns. Each German
+    vehicle now drives on and fires, and none enters ground that needs the breakdown die."""
+    engine = build_engine(SCENARIO)
+    state = engine.new_game(seed)
+    agents = {0: make_agent("v7", engine, seed, 0), 1: make_agent("v6", engine, seed, 1)}
+    fired: Counter = Counter()
+    moved: Counter = Counter()
+    breakdowns: Counter = Counter()
+    while not state.game_over:
+        frame = engine.legal_commands(state)
+        chosen = frame.by_id(decide(agents[state.active], state, frame))
+        state, events = engine.apply(state, chosen.command, frame)
+        for event in events:
+            if event.kind in ("to_hit", "afv_fire", "afv_mg_fire"):
+                fired[event.data["unit"]] += 1
+            if event.kind == "vehicle_move":
+                moved[event.data["unit"]] += 1
+            if event.kind == "breakdown_roll":
+                breakdowns[event.data["unit"]] += 1
+    german = [u for u in state.units if u.is_vehicle and u.player == 0]
+    assert len(german) == 3
+    for unit in german:
+        assert breakdowns[unit.id] == 0, f"vehicle {unit.id} took the breakdown die (seed {seed})"
+        assert moved[unit.id] >= 5, f"vehicle {unit.id} drove {moved[unit.id]} hexes (seed {seed})"
+        assert fired[unit.id] > 0, f"vehicle {unit.id} never fired (seed {seed})"
+
+
+def test_a_step_pays_for_the_ground_it_enters():
+    """The cost of a step into a wood is its entry cost and the risk of rule 39.1, and the
+    risk of a German vehicle (a 5 or a 6) is twice that of a Russian one (a 6)."""
+    from slagents.scripted.armor import BREAKDOWN_PENALTY, ArmorPolicy
+
+    engine = build_engine(SCENARIO)
+    state = engine.new_game(1)
+    board = engine.board
+    wood = next(h for h in board.order if board.hex(h).terrain == "woods")
+    src = next(n for n in board.neighbors(wood) if board.hex(n).terrain == "open")
+    from slcore.rules.r28_vehicles import facing_towards
+
+    risk = {}
+    for player in (0, 1):
+        vehicle = next(u for u in state.units if u.is_vehicle and u.player == player)
+        probe = vehicle.with_(hex=src, facing=facing_towards(src, wood))
+        entry = r30_vehicle_movement.entry_cost_halves(engine.vehicle_ctx, state, probe, wood)[0]
+        risk[player] = ArmorPolicy(engine, player)._step_cost(state, probe, src, wood) - entry
+    assert risk == {0: 2 * BREAKDOWN_PENALTY, 1: BREAKDOWN_PENALTY}
