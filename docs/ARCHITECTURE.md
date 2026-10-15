@@ -749,7 +749,8 @@ Squad_Leader_AI/
         r27_sewer.py               sewer movement, the lost stack, and the closed entrance
         r28_vehicles.py            the vehicle counter, the covered arc, and the target facing
         r30_vehicle_movement.py    the vehicle movement chart and the breakdown die
-        r31_transport.py           passengers on a vehicle counter
+        r31_transport.py           passengers on a vehicle counter: one board or debark for
+                                   each unit in a Movement Phase (PR-55)
         r32_afv_cover.py           the hull as a wall on the line of sight and as cover in a hex
         r33_afv_combat.py          the to-hit table, the kill table, the crew, and immobilization
         r34_afv_vs_infantry.py     the gun and the machine guns against infantry
@@ -831,7 +832,8 @@ Squad_Leader_AI/
       briefing.py                the scenario card before the game; the host starts on Begin
       firekinds.py               the kind of weapon that a log line shows
       effects.py                 a short animation for each kind of fire
-      sounds.py                  each sound, made by code with no audio file
+      sounds.py                  each sound, made by code; the vehicle is the owner's tank recording
+      assets/tank_drive.wav      that recording; tools/make_tank_sound.py makes it from background/
       audio.py                   the sound board: plays the sounds of the new events
     slcards/                     card.py, the printable scenario cards
     slcampaign/                  the design-your-own tools and the campaign game of Game Set IV

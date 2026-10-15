@@ -55,6 +55,17 @@ principles of RV-9 into the policy:
 - A tank in a firing position holds there unless another position is `hold_margin` halves
   better by the route, so a tank does not leave a good position for a small gain.
 
+The base of fire (2026-10-14, `base_of_fire`, off by default). In scenario 4 the Russian
+infantry sets up below concealment counters, and the policy saw only the units it can see.
+So no hex was a firing position, each tank drove towards the objective, and it fired in the
+Advancing Fire Phase after its move, with the case F penalty of rule 33.3 (plus 5 in the
+trace of 2026-10-14). With `base_of_fire`, each enemy counter that covers no unit the
+player sees is an enemy infantry position: a target that makes a hex a firing position, a
+hex the standoff keeps away from, and a target of one unit for a shot. A tank thus stops in a
+firing position and holds, and a tank that holds fires in the Prep Fire Phase, before the
+infantry moves (rule 33.2 keeps it there). Rule 25.2 makes the counter public, and the policy
+does not read what is below it.
+
 The policy reads the state and the frame and picks one legal command, or None so that the
 infantry policy of the agent decides. It keeps one record between decisions: the hexes its
 tanks fired at in the phase in hand, for the section fire.
@@ -124,6 +135,7 @@ class ArmorParameters:
     flank_bonus: int = 8  # movement halves off a position that sees an enemy side or rear
     gun_exposure: int = 6  # movement halves on a position for each enemy gun that sees it
     hold_margin: int = 4  # movement halves another position must gain before a tank leaves its own
+    base_of_fire: bool = False  # an enemy counter with no unit this player sees is an enemy infantry position
 
 
 class ArmorPolicy:
@@ -188,6 +200,10 @@ class ArmorPolicy:
         vehicle = r28_vehicles.vehicle_in(state, target)
         hostile = vehicle is not None and vehicle.player != self.player and not vehicle.wreck
         occupants = [u for u in state.infantry_in(target) if u.player != self.player and not u.broken]
+        if not occupants and target in self._enemy_counters(state):
+            # The base of fire: the counter is worth one unit, the stand-in of the threat
+            # model, at the firepower that rule 25.8 halves.
+            occupants = [None]
         focus = self._focus(state, target)
         if action == "at_fire":
             # Rule 37: the weapon has no other target, so it fires when it can.
@@ -213,7 +229,7 @@ class ArmorPolicy:
             return 0
         value = 0
         types = self.engine.types
-        if any(r37_at_weapons.anti_tank_weapons(state, types, u) for u in occupants):
+        if any(u is not None and r37_at_weapons.anti_tank_weapons(state, types, u) for u in occupants):
             value += self.params.threat_bonus
         if any(geometry.distance(target, f) <= SUPPORT_RADIUS for f in self._friends(state)):
             value += self.params.support_bonus
@@ -254,7 +270,16 @@ class ArmorPolicy:
         return [u for u in state.player_units(1 - self.player) if u.hex is not None and not u.eliminated and not u.hidden and not u.wreck]
 
     def _enemy_infantry(self, state: State) -> list[HexRef]:
-        return sorted({u.hex for u in self._enemies(state) if u.is_infantry and not u.riding})
+        seen = {u.hex for u in self._enemies(state) if u.is_infantry and not u.riding}
+        return sorted(seen | self._enemy_counters(state))
+
+    def _enemy_counters(self, state: State) -> frozenset[HexRef]:
+        """With `base_of_fire`, the hexes of the enemy concealment counters that cover no
+        enemy unit this player sees. Without it, none."""
+        if not self.params.base_of_fire:
+            return frozenset()
+        seen = {u.hex for u in self._enemies(state)}
+        return frozenset(c.hex for c in state.concealment if c.player != self.player and c.hex is not None and c.hex not in seen)
 
     def _enemy_guns(self, state: State) -> list:
         """The enemy vehicles with a working main armament."""
@@ -278,7 +303,7 @@ class ArmorPolicy:
         return any(geometry.distance(here, f) <= 1 for f in friends)
 
     def _picture(self, state: State) -> tuple:
-        return tuple(sorted((u.id, u.hex) for u in self._enemies(state)))
+        return (tuple(sorted((u.id, u.hex) for u in self._enemies(state))), tuple(sorted(self._enemy_counters(state))))
 
     def _key(self, state: State) -> tuple:
         """The enemy picture and the own infantry: the things a position and a route read."""
@@ -293,7 +318,7 @@ class ArmorPolicy:
         if found is not None:
             return found
         engine = self.engine
-        enemies = sorted({u.hex for u in self._enemies(state)})
+        enemies = sorted({u.hex for u in self._enemies(state)} | self._enemy_counters(state))
         infantry = self._enemy_infantry(state)
         friends = key[1]
         out = set()
@@ -491,6 +516,11 @@ class ArmorPolicy:
             # P13: a tank in the anti-tank range of enemy infantry with no escort pulls
             # back now; it does not wait for the turn of its half.
             return True
+        if all(u.moved for u in mobile if u.id != vehicle.id):
+            # The last tank that stands is the watch of the section. In turn 8 of the
+            # balanced scenario 4 (2026-10-14) tank 13 bounded while tank 11 watched, and then
+            # tank 11 left its position in the turn of its half, so no tank watched.
+            return False
         ids = [u.id for u in mobile]
         index = ids.index(vehicle.id) if vehicle.id in ids else 0
         if index % 2 == state.turn % 2:
@@ -539,8 +569,11 @@ class ArmorPolicy:
                     continue  # it holds here and fires
                 if not self._may_bound(state, vehicle, mobile):
                     continue  # it watches the other half of the section bound
+                # PR-54: the overrun is declared on entry and resolves at the end of the
+                # Defensive Fire Phase. A vehicle that has one declared gains nothing from a
+                # second entry; a T-34 of v6 drove into and out of one hex 12 times in a phase.
                 for lc in sorted(moves[vehicle_id], key=lambda lc: lc.id):
-                    if lc.command.hex is not None and self._weak_overrun(state, lc.command.hex):
+                    if vehicle.overrun_hex is None and lc.command.hex is not None and self._weak_overrun(state, lc.command.hex):
                         return lc.id
                 watchers = self._watchers(state, vehicle, mobile) if self.params.bound else []
                 best = self._best_step(state, vehicle, moves[vehicle_id], watchers=watchers)

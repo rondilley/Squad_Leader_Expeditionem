@@ -24,8 +24,11 @@ SCENARIO = "s04_armor_probe"
 # Since the armor policy (2026-10-10) a tank overruns only a weak target, and the window
 # comes in about one game in sixty; the first two games are ones that reach it. Since the
 # armor step pays for the ground it enters (2026-10-10), the tanks keep out of the woods and
-# one game in 540 of seeds 1 to 60 reaches it: seed 7, v6 against v3.
-GAMES = ((7, ("v6", "v3")), (24, ("v6", "v6")), (30, ("v7", "v3"))) + tuple(
+# one game in 540 of seeds 1 to 60 reaches it: seed 7, v6 against v3. The balance of
+# scenario 4 (2026-10-14) changed the forces, and 2 games in 480 of seeds 1 to 60 reach it:
+# seed 26, v3 against v7, and seed 39, v3 against v3. The German 8-0 of the same day changed
+# the unit ids, and 2 games in 480 reach it: seed 11, v6 against v3, and seed 29, v7 against v7.
+GAMES = ((11, ("v6", "v3")), (29, ("v7", "v7")), (26, ("v3", "v7")), (39, ("v3", "v3")), (7, ("v6", "v3")), (24, ("v6", "v6")), (30, ("v7", "v3"))) + tuple(
     (seed, pair) for seed in range(1, 13) for pair in (("v7", "v3"), ("v3", "v3"), ("v3", "v7"))
 )
 

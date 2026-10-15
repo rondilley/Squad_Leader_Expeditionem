@@ -157,3 +157,36 @@ def test_the_parallel_evaluation_gives_the_rows_of_the_one_process_evaluation():
         assert row["results"]["truncated"] + row["results"]["repeated"] == 2
     with pytest.raises(ValueError, match="scenario"):
         evaluate(env, policy, league, 0, 2, workers=2)
+
+
+def _end_the_worker_on_the_first_try(task):
+    """One task of the dead worker test: (directory, index, mode). `die` ends its worker
+    process the first time (a marker file records the try), `always` ends it each time,
+    and the others give their index."""
+    import os
+    from pathlib import Path
+
+    directory, index, mode = task
+    marker = Path(directory) / f"tried-{index}"
+    if mode == "always" or (mode == "die" and not marker.exists()):
+        marker.write_text("1")
+        os._exit(3)
+    return index
+
+
+def test_a_dead_worker_process_does_not_stop_the_imitation_pool(tmp_path):
+    """multiprocessing.Pool.imap waited for ever for the game of a dead worker (2026-10-12)."""
+    from slagents.learned.workers import WorkerDied, play_in_order
+
+    modes = ["ok", "die", "ok", "ok", "die", "ok", "ok", "ok"]
+    tasks = [(str(tmp_path), index, mode) for index, mode in enumerate(modes)]
+    delivered: list[tuple[int, int]] = []
+    play_in_order(_end_the_worker_on_the_first_try, tasks, 3, None, (), lambda i, v: delivered.append((i, v)))
+    assert delivered == [(i, i) for i in range(len(tasks))], "each result, once, in task order"
+
+    always = [(str(tmp_path / "b"), 0, "ok"), (str(tmp_path / "b"), 1, "always"), (str(tmp_path / "b"), 2, "ok")]
+    (tmp_path / "b").mkdir()
+    delivered.clear()
+    with pytest.raises(WorkerDied, match="task 1"):
+        play_in_order(_end_the_worker_on_the_first_try, always, 2, None, (), lambda i, v: delivered.append((i, v)))
+    assert (0, 0) in delivered

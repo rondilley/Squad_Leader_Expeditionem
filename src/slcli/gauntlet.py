@@ -37,13 +37,25 @@ the two agents of each) is fixed before the first game, and the results come bac
 order, so a run with workers gives the same artifact as a run without them (TR-02). Each
 pair row also counts the wins of each agent on each side, because a scenario that one side
 wins from set up hides an agent that cannot attack behind an agent that can defend.
+
+The side baseline (2026-10-14): a scenario can be one sided. On s04 an equal pair gives the
+Axis attacker about 6 percent of the games, so "the candidate won 0 attacks against v7" says
+little alone. For each scenario, each panel agent, and each side, the artifact gives the wins
+of the candidate on that side against that agent, the wins of the other panel agents on that
+side against it (from the round-robin, so it costs no game), and with `--mirror` the wins of
+that side when the agent plays itself. The mirror games use a seed each, because the two
+games of a paired seed are the same game when one agent plays the two sides. They are not in
+the Elo fit or the leaderboard. A draw is not a win in the baseline.
 """
 
 from __future__ import annotations
 
+import json
 import sys
 import time
-from multiprocessing import Pool, Value
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures.process import BrokenProcessPool
+from multiprocessing import Value
 from pathlib import Path
 from typing import Any
 
@@ -76,10 +88,12 @@ _ENGINES: dict[str, Any] = {}
 def _play_job(job: tuple[str, int, str, str]) -> dict[str, Any]:
     """One game in a worker: the winner side name, or the error that stopped it."""
     scenario, game_seed, first, second = job
-    engine = _ENGINES.get(scenario)
+    # A farm host gets a variant as its document (a dict), and the document is the key.
+    key = scenario if isinstance(scenario, str) else json.dumps(scenario, sort_keys=True)
+    engine = _ENGINES.get(key)
     if engine is None:
         engine = build_engine(scenario, None)
-        _ENGINES[scenario] = engine
+        _ENGINES[key] = engine
     agents = (make_agent(first, engine, game_seed, 0), make_agent(second, engine, game_seed, 1))
     try:
         record = play_game(engine, game_seed, agents)
@@ -121,26 +135,83 @@ def _progress(done: int, total: int, job: tuple[str, int, str, str], outcome: di
     print(f"game {done} of {total}: {first} vs {second} seed {game_seed} -> {result} ({minutes:.1f} min)", file=sys.stderr, flush=True)
 
 
-def _play_all(jobs: list[tuple[str, int, str, str]], workers: int, progress: bool = False) -> list[dict[str, Any]]:
-    """The results of the jobs, in the order of the jobs."""
+def _play_all(
+    jobs: list[tuple[str, int, str, str]],
+    workers: int,
+    progress: bool = False,
+    play: Any = None,
+    farm: Any = None,
+) -> list[dict[str, Any]]:
+    """The results of the jobs, in the order of the jobs. `play` is the function of one
+    game, `_play_job` unless a test gives one that ends its worker process.
+
+    With `farm` (an `slfarm.client.Farm`) the hosts of the farm play the games too, next
+    to `workers` local processes, and the list comes back in the same order (TR-02).
+    """
+    play = play or _play_job
     started = time.perf_counter()
     outcomes: list[dict[str, Any]] = []
     from slcli.worker_limit import limit_workers
 
     workers = limit_workers(workers)
+    if farm is not None:
+        from slfarm import client as farm_client
+
+        def report(done: int, total: int, job: tuple[str, int, str, str], outcome: dict[str, Any]) -> None:
+            _progress(done, total, job, outcome, started)
+
+        return farm_client.play_all(jobs, farm.addresses, farm.key, local_workers=workers, play=play, progress=report if progress else None)
     if workers <= 1 or len(jobs) < 2:
         for job in jobs:
-            outcomes.append(_play_job(job))
+            outcomes.append(play(job))
             if progress:
                 _progress(len(outcomes), len(jobs), job, outcomes[-1], started)
         return outcomes
+    # A worker process that dies (a native fault, not a Python exception) loses its game.
+    # `multiprocessing.Pool` then waits for that result for ever; the 2026-10-12 s04
+    # gauntlet stood 40 minutes with all workers idle. The executor marks the pool broken,
+    # and the games with no result play again in a new pool while each pass gives a new
+    # result. A game is its seed, so the second play gives the same result. After a pass
+    # with no new result, each game left plays in a pool of its own, so that a game that
+    # ends its worker each time does not stop the others.
+    results: dict[int, dict[str, Any]] = {}
+    while True:
+        waiting = [index for index in range(len(jobs)) if index not in results]
+        if not waiting:
+            break
+        before = len(results)
+        _pool_pass(jobs, waiting, min(workers, len(waiting)), results, play, progress, started)
+        if len(results) == before:
+            break
+    for index in [index for index in range(len(jobs)) if index not in results]:
+        _pool_pass(jobs, [index], 1, results, play, progress, started)
+        if index not in results:
+            results[index] = {"winner": None, "error": "BrokenProcessPool", "message": "the worker process died while it played this game"}
+    return [results[index] for index in range(len(jobs))]
+
+
+def _pool_pass(
+    jobs: list[tuple[str, int, str, str]],
+    indexes: list[int],
+    workers: int,
+    results: dict[int, dict[str, Any]],
+    play: Any,
+    progress: bool,
+    started: float,
+) -> None:
+    """Play the jobs of `indexes` in one pool and put each result that comes back in `results`."""
     counter = Value("i", 0)
-    with Pool(processes=min(workers, len(jobs)), initializer=_bind_worker, initargs=(counter,)) as pool:
-        for job, outcome in zip(jobs, pool.imap(_play_job, jobs, chunksize=1)):
-            outcomes.append(outcome)
+    with ProcessPoolExecutor(max_workers=workers, initializer=_bind_worker, initargs=(counter,)) as executor:
+        futures = {executor.submit(play, jobs[index]): index for index in indexes}
+        for future in as_completed(futures):
+            try:
+                outcome = future.result()
+            except BrokenProcessPool:
+                continue
+            index = futures[future]
+            results[index] = outcome
             if progress:
-                _progress(len(outcomes), len(jobs), job, outcome, started)
-    return outcomes
+                _progress(len(results), len(jobs), jobs[index], outcome, started)
 
 
 def _field(candidate: str, panel: list[str]) -> list[str]:
@@ -161,10 +232,13 @@ def run_gauntlet(
     balance: bool = True,
     workers: int = 1,
     progress: bool = False,
+    mirror: bool = False,
+    farm: Any = None,
 ) -> artifact.RunArtifact:
     """Play the gauntlet and return the run artifact with the leaderboard in its stats.
 
-    With `progress` each game that ends prints one line on the error stream.
+    With `progress` each game that ends prints one line on the error stream. With `mirror`
+    each panel agent also plays itself `games` times on each scenario, for the side baseline.
     """
     field = _field(candidate, panel)
     if len(field) < 2:
@@ -191,6 +265,8 @@ def run_gauntlet(
             "anchor_only": anchor_only,
             "balance_sides": balance,
             "workers": workers,
+            "mirror": mirror,
+            "farm": [str(a) for a in farm.addresses] if farm is not None else [],
         },
     )
 
@@ -225,7 +301,20 @@ def run_gauntlet(
                     pair_jobs.append((len(jobs), order))
                     jobs.append((scenario, game_seed, order[0], order[1]))
                 pairs.append((scenario, first, second, pair_jobs))
-    outcomes = _play_all(jobs, workers, progress=progress)
+    # The mirror games go after the round-robin, so their seeds do not change its seeds.
+    mirrors: list[tuple[str, str, list[int]]] = []
+    if mirror:
+        for scenario in scenarios:
+            for name in field:
+                if name == candidate:
+                    continue
+                indexes = []
+                for _g in range(games):
+                    indexes.append(len(jobs))
+                    jobs.append((scenario, family_seed("gauntlet", seed, seeds_used), name, name))
+                    seeds_used += 1
+                mirrors.append((scenario, name, indexes))
+    outcomes = _play_all(jobs, workers, progress=progress, farm=farm)
 
     for scenario, first, second, pair_jobs in pairs:
         sides = sides_of[scenario]
@@ -233,6 +322,7 @@ def run_gauntlet(
         # The wins of each agent as each side, so the row says who can attack and who can
         # only defend.
         by_side = {first: [0, 0], second: [0, 0]}
+        played = {first: [0, 0], second: [0, 0]}
         failed = 0
         for index, order in pair_jobs:
             game_seed = jobs[index][1]
@@ -254,6 +344,8 @@ def run_gauntlet(
                 art.seeds.append(game_seed)
             for row in outcome.get("harness", []):
                 harness_rows.append({"scenario": scenario, "seed": game_seed, "side": sides[row["player"]], **row})
+            played[order[0]][0] += 1
+            played[order[1]][1] += 1
             winner = outcome["winner"]
             if winner == sides[0]:
                 outcome_first_in_order = 1.0
@@ -287,9 +379,34 @@ def run_gauntlet(
                 "draws": wins["draw"],
                 "a_wins_by_side": {sides[0]: by_side[first][0], sides[1]: by_side[first][1]},
                 "b_wins_by_side": {sides[0]: by_side[second][0], sides[1]: by_side[second][1]},
+                "a_games_by_side": {sides[0]: played[first][0], sides[1]: played[first][1]},
+                "b_games_by_side": {sides[0]: played[second][0], sides[1]: played[second][1]},
                 "games": games,
                 "completed": games - failed,
                 "errors": failed,
+            }
+        )
+
+    mirror_rows: list[dict[str, Any]] = []
+    for scenario, name, indexes in mirrors:
+        sides = sides_of[scenario]
+        side_wins = {sides[0]: 0, sides[1]: 0}
+        failed = 0
+        for index in indexes:
+            outcome = outcomes[index]
+            if outcome["error"] is not None:
+                failed += 1
+                continue
+            if outcome["winner"] in side_wins:
+                side_wins[outcome["winner"]] += 1
+        mirror_rows.append(
+            {
+                "scenario": scenario,
+                "agent": name,
+                "games": len(indexes),
+                "completed": len(indexes) - failed,
+                "errors": failed,
+                "wins_by_side": side_wins,
             }
         )
 
@@ -320,14 +437,64 @@ def run_gauntlet(
             for scenario, value in fit.to_dict().items()
         },
         "pairs": rows,
+        "side_baseline": side_baseline(rows, mirror_rows, candidate, sides_of),
         "per_scenario": {
             name: {sc: rec.to_dict() for sc, rec in by_sc.items()} for name, by_sc in per_scenario.items()
         },
     }
+    if mirror_rows:
+        art.stats["mirror"] = mirror_rows
     if harness_rows:
         art.stats["harness"] = harness_rows
     art.versions = {"candidate": candidate, "panel": ",".join(panel)}
     return art
+
+
+def side_baseline(
+    rows: list[dict[str, Any]],
+    mirror_rows: list[dict[str, Any]],
+    candidate: str,
+    sides_of: dict[str, tuple[str, ...]],
+) -> list[dict[str, Any]]:
+    """For each scenario, opponent, and side: the wins and the games of the candidate, of
+    the other panel agents, and of the opponent against itself, on that side against that
+    opponent. A rate is the wins over the games; `mirror` is absent with no mirror games."""
+    out: list[dict[str, Any]] = []
+    for scenario, sides in sides_of.items():
+        opponents: list[str] = []
+        for row in rows:
+            if row["scenario"] != scenario:
+                continue
+            for name in (row["agent_a"], row["agent_b"]):
+                if name != candidate and name not in opponents:
+                    opponents.append(name)
+        for opponent in opponents:
+            for side in sides:
+                entry: dict[str, Any] = {
+                    "scenario": scenario,
+                    "opponent": opponent,
+                    "side": side,
+                    "candidate": {"wins": 0, "games": 0},
+                    "panel": {"wins": 0, "games": 0},
+                }
+                for row in rows:
+                    if row["scenario"] != scenario or opponent not in (row["agent_a"], row["agent_b"]):
+                        continue
+                    mine = "b" if row["agent_a"] == opponent else "a"
+                    key = "candidate" if row[f"agent_{mine}"] == candidate else "panel"
+                    entry[key]["wins"] += row[f"{mine}_wins_by_side"][side]
+                    entry[key]["games"] += row[f"{mine}_games_by_side"][side]
+                for row in mirror_rows:
+                    if row["scenario"] == scenario and row["agent"] == opponent:
+                        entry["mirror"] = {"wins": row["wins_by_side"][side], "games": row["completed"]}
+                out.append(entry)
+    return out
+
+
+def _share(cell: dict[str, Any] | None) -> str:
+    if not cell or not cell["games"]:
+        return "no games"
+    return f"{cell['wins']} of {cell['games']} ({cell['wins'] * 100.0 / cell['games']:.1f} percent)"
 
 
 def _print_leaderboard(art: artifact.RunArtifact, candidate: str) -> None:
@@ -361,6 +528,15 @@ def _print_leaderboard(art: artifact.RunArtifact, candidate: str) -> None:
             f"  {row['scenario']:30s} against {row[f'agent_{other}']:8s} "
             f"{rate_text(score, row['completed'])}  ({sides})"
         )
+    baseline = art.stats.get("side_baseline", [])
+    if baseline:
+        print()
+        print("the side baseline, wins on each side against each opponent (candidate; other panel agents; the opponent against itself):")
+        for entry in baseline:
+            print(
+                f"  {entry['scenario']:30s} against {entry['opponent']:8s} as {entry['side']:8s} "
+                f"{_share(entry['candidate'])}; {_share(entry['panel'])}; {_share(entry.get('mirror'))}"
+            )
     advantage = art.stats.get("side_advantage", {})
     if advantage:
         print()
@@ -383,6 +559,30 @@ def _print_leaderboard(art: artifact.RunArtifact, candidate: str) -> None:
             f"in the rates. First: {first['agent_a']} against {first['agent_b']} "
             f"on {first['scenario']} ({first['error']})."
         )
+
+
+def farm_of(args: Any) -> Any:
+    """The farm of `--remote` and `--remote-key`, or None."""
+    text = getattr(args, "remote", "") or ""
+    if not text:
+        return None
+    from slfarm import protocol as farm_protocol
+    from slfarm.client import Farm, parse_addresses
+
+    try:
+        key = farm_protocol.read_key(args.remote_key)
+    except farm_protocol.FarmKeyError as exc:
+        raise RuntimeError(str(exc)) from exc
+    return Farm(tuple(parse_addresses(text)), key)
+
+
+def add_farm_arguments(p: Any) -> None:
+    p.add_argument(
+        "--remote",
+        default="",
+        help="farm hosts that play games too, as tars,case:5160 (sl-cli farm serve on each); the scripted agents only",
+    )
+    p.add_argument("--remote-key", default="farm.key.txt", help="the file with the farm key (sl-cli farm key)")
 
 
 def split_agent_names(text: str) -> list[str]:
@@ -420,6 +620,8 @@ def run(args: Any) -> int:
         balance=not args.no_balance,
         workers=args.workers,
         progress=bool(args.progress),
+        mirror=bool(args.mirror),
+        farm=farm_of(args),
     )
     directory = art.write(args.runs)
     conn = connect(Path(args.runs) / "runs.sqlite")
@@ -466,4 +668,10 @@ def add_parser(subparsers: Any) -> None:
 
     p.add_argument("--workers", type=workers_argument, default=1, help="processes that play the games; the results do not change")
     p.add_argument("--progress", action="store_true", help="print one line on the error stream for each game that ends")
+    add_farm_arguments(p)
+    p.add_argument(
+        "--mirror",
+        action="store_true",
+        help="also play each panel agent against itself for the side baseline; not in the Elo",
+    )
     p.set_defaults(func=run)

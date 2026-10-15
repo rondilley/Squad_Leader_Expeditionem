@@ -4,6 +4,526 @@ The session log, newest entry first. This file gives the next session, human or 
 
 ---
 
+## 2026-10-14 - PPO workers on the farm
+
+The owner said to add PPO rollout workers to the farm.
+
+- A local PPO worker is a process with one environment, which sends to the trainer and receives from it through a pipe (`slagents.learned.workers.worker_main`). The trainer batches the decisions of each worker into one forward pass on the GPU. A remote worker is the same loop on a farm host.
+- `slfarm/envwire.py`: the commands of the trainer (`reset`, `act`, `stop`) and the decisions of the worker as JSON. The arrays of an observation go as base64 with a dtype and a shape. Pickle runs code, so it does not go on the network. The host checks each command, and the workstation checks each decision.
+- The server: an `env_open` message makes the connection hold one environment, in a process of its own, for its life. Each environment takes one slot. A host with no `train` extra refuses an environment. The farm plays random and scripted opponents only, and it refuses a snapshot opponent, because a snapshot is a file of the workstation.
+- The client: `open_env`, `bridge`, and `host_bridge_main`. For each host, a bridge process on the workstation opens the environments and gives the trainer one pipe end for each. The trainer reads a remote worker as it reads a local one, so `ppo.collect_parallel` does not change.
+- `WorkerPool` has the arguments `farm` and `remote_envs`. `sl-cli train` has the options `--remote`, `--remote-key`, and `--remote-envs`. A run on the farm must have `--opponents`. The artifact records the hosts and the count of remote workers.
+- The worker script installs the `train` extra on each host, with the CPU build of torch.
+- One observation of s04 is about 32 KB of arrays (the board 24 by 25 by 11, the units, the masks), and about 50 KB as JSON. The longest line that each side reads is 4 MiB.
+- Tests (`tests/farm/test_envs.py`, 7 tests at first, 9 now): a remote worker gives the decisions of a local worker with the same seed, array for array. A training run of 128 steps on a server in the process completes. The host refuses a snapshot opponent, a bad command, an environment when its slots are full, and an environment on a host with no `train` extra. The wire refuses an array with an incorrect shape or dtype.
+- The farm, worker, PPO, Jump-Start, and architecture tests: 126 pass. The one failure is the known failure of the browser client.
+- The first measure on the four hosts (s04, `--opponents v7`, 40,000 decisions, 16 local workers): 288.5 steps/s with no farm.
+- With the farm, the run stopped with `need at most 63 handles`. On Windows, one `multiprocessing.connection.wait` call accepts 63 pipes or fewer, and the farm gives the trainer 136. `ppo.wait_any` looks at groups of 60 pipes. Test: `test_the_trainer_waits_on_more_pipes_than_one_windows_wait_takes`, with 130 real pipes.
+- With 16 local and 44 remote workers (11 on each host), the run gave 244 steps/s. That is less than with 16 local workers. One remote worker alone uses 12 ms for each decision, and one local worker uses 29 ms. The GPU batch went from 4.3 decisions to 48.7. Thus the limit was in the trainer process.
+- The cause: a bridge thread for each remote worker decoded the JSON in the trainer process, and the 44 threads and the trainer used the same interpreter lock. A shorter switch interval of the lock gave 114 steps/s.
+- The fix: one bridge process for each host. Test: `test_a_bridge_process_says_why_a_host_did_not_open_its_environments`. The farm tests: 25 pass.
+- The measure after the deploy (16 local and 120 remote workers). The rate of a run includes the start, and the farm opens its 120 workers in 20 s. Thus the table gives the rate between the reports too.
+
+| Rollout | Workers | Steps/s of the run | Steps/s between the reports |
+|---|---|---|---|
+| 512 | 16 local | 288.5 | 285 to 366 |
+| 512 | 16 local and 120 remote | 257.5 | 359 to 361 |
+| 4096 | 16 local | 344.2 | 359 to 407 |
+| 4096 | 16 local and 120 remote | 541.6 | 767 |
+| 16384 | 16 local and 120 remote | 655.9 | 794 to 815 |
+
+- At a rollout of 512, each of 136 workers gives approximately four decisions in a rollout, and then all workers wait during the update. Use `--rollout 4096` or more on the farm. Then the farm gives two times the rate of 16 local workers. A larger rollout gives fewer updates for each decision, so the training is not the same.
+- The owner wanted to know if the GPUs of the hosts can help. They cannot help one run: the GPU work is small, and an update across the LAN is slower than the 5090. They can train runs of their own. That needs a training task on the farm. The owner said that llama.cpp on the hosts can stop if that helps.
+- The update share at a rollout of 4096 (16 local and 120 remote workers): with `--minibatch 128`, the update took 34.8 s of 116 s. With 512, it took 10.2 s, and with 1024, 6.4 s. The run went from 424 to 579 steps/s.
+- The hosts are not the limit. With 1 local worker, 15 workers on each host gave a collection of 37.5 s, and 30 on each host gave 30.0 s. The trainer waited for a worker for only 4.5 s in each. Thus llama.cpp can continue on the hosts. The limit is the primary thread of the trainer: the GPU choice uses 17 ms for each batch of 50 decisions, and the pipes and the rollout use approximately 9 s more.
+- The start of a farm run opened the hosts one after the other, and that took 20 s. Now all the bridge processes start before the pool waits for one, and each bridge opens 8 workers at a time. The farm tests: 25 pass.
+- After the deploy, the open of the 120 farm workers took 5.2 s in two runs (20 s before). A run of 49,152 decisions with `--rollout 4096 --minibatch 1024` and the full farm gave 877.1 steps/s for the full run. Without the farm, 16 local workers give 288.5 steps/s with the default rollout and minibatch.
+- The owner said to make the GPU choice faster. `choose_batch` made a `torch.distributions.Categorical` for each head, and each one checked its arguments. `ppo._pick` uses `log_softmax` and the same sample on the processor with the generator of the trainer. One NaN check of the log probabilities of the batch replaces the checks. The masks read the legal list directly, and not a new dict for each decision.
+- The function before and after the change chose the same command in each of 10,240 s04 decisions. That is correct on the GPU and on the processor, with a sample and with argmax. The largest difference of a log probability was 1e-6. A batch of 50 decisions went from 17.7 ms to 9.3 ms.
+- Two tests of `tests/agents` were older than PR-55, and they did not pass: a second board or debark of a unit in a phase cannot occur after PR-55. The changed tests examine that the core and the mask do not offer it. The worker, PPO, learned, imitation, and farm tests: 95 pass.
+- After the deploy, two farm runs of 49,152 decisions (`--rollout 4096 --minibatch 1024`) gave 983.8 and 976.4 steps/s (877.1 before). A run of 196,608 decisions gave 1,454.4 steps/s, and 1,726 steps/s between its two reports. 16 local workers give 288.5 steps/s.
+- The owner said to start a long s04 training run on the farm. `runs/chain_20261014c_s04farm/chain.sh` started at 02:21Z on 2026-10-15. Step 1 is a new imitation start of v7 on the new s04 (`runs/imitate_s04_new`, the command of `runs/imitate_s04_large`). It stopped at 02:39Z.
+- Step 2 is PPO of the Axis attacker against v7 on the farm (`runs/ppo_s04_farm`): 40,000,000 decisions or 10 hours, `--rollout 4096 --minibatch 1024 --anchor-kl 0.5 --value-warmup 100000`, a snapshot at each 2,000,000. Step 3 is the gauntlet of the newest snapshot against v3, v5, v6, and v7.
+- At 540,672 decisions the run gave 1,559 steps/s, and the learner won 0.3 percent of its games against v7.
+
+## 2026-10-14 - The game farm
+
+The owner wanted to know how the four local model hosts (`tars`, `case`, `kipp`, `plex`, Ubuntu, a Ryzen AI Max+ 395 each) can make the training and the evolution faster. Their OpenAI API gives text and cannot play a game step. The cost of a run is the game simulation on the processor, and each host has 16 cores that llama-server does not use. The owner said to make a Linux server that plays games on each host, with control from the workstation through a TCP socket.
+
+- `src/slfarm/protocol.py`: one JSON object on each line. The server sends a challenge with a nonce, the protocol, the code hash, and its slots. The client answers with an HMAC-SHA256 of the nonce, so the key does not go on the network.
+- A job is a scenario, a seed, and two agent names. `check_job` refuses a scenario that the host does not have and a seed that is not in the range 0 to 2**63. It also refuses each agent name that is not a scripted agent.
+- The farm refuses a learned agent, because it reads a file, and a model agent, because it uses the network.
+- `src/slfarm/server.py`: an asyncio server with a process pool of `slots` workers. A worker that dies gives a `refused` answer and a new pool. The server listens on 127.0.0.1 unless it gets `--host`.
+- `src/slfarm/client.py`: one thread for each host and one for the local workers, with one queue of games. A result goes in the slot of its game, so the list comes back in the order of the jobs. A host that fails puts its games in flight back on the queue. A run with games and no host left stops with `FarmError`.
+- The code hash is a hash of the `.py` and `.json` files of `src/`, with LF line ends. Thus a Windows tree and an Ubuntu tree give the same hash. A client refuses a host with a different hash.
+- `sl-cli farm serve`, `sl-cli farm ping`, and `sl-cli farm key`. `sl-cli gauntlet` and `sl-cli evolve` have `--remote` and `--remote-key`. The artifact records the hosts in `farm`.
+- The tests (`tests/farm/test_farm.py`, 11 tests) start a real server in the process and play real games of the drill scenario. The gauntlet with the farm gives the same pairs, seeds, and leaderboard as the gauntlet without it. The tests also examine an incorrect key, different code, the refused game messages, a line that is not JSON, and a host that stops.
+- A test found a defect of the first client. The client took a game from the queue before the send, so a send with an error removed the game from the run. The client puts the game in flight before the send.
+- `slfarm` is a library in the layering test. `slcore.api.SURFACE` has `r05_movement.allowance_halves`, which the hop of v7 reads.
+- A real run on the workstation: `sl-cli farm serve` on 127.0.0.1, `sl-cli farm ping`, and a gauntlet of v7, v3, and v6 on s04 with `--remote` gave the same output as the gauntlet without the farm.
+- An error of this session: to stop a test that did not end, a command stopped each `python.exe` on the workstation. That included the mnemond bridge. The bridge started again. Stop a process by its ID only.
+- The owner said to write the deploy script, and then to make it simple: one command copies a script to the worker through ssh and runs it there.
+- `python tools/farm_deploy.py [host ...]` (default: tars, case, kipp, plex) makes a tar of `src/`, `pyproject.toml`, `README.md`, `farm.key.txt` (mode 600), and `tools/farm_worker.sh`. For each host, one `ssh rdilley@<host>.uberadmin.com` unpacks it in `~/squad_leader` and runs `farm_worker.sh`. The owner's ssh keys do the login, and ssh asks for a passphrase when it is necessary.
+- `tools/farm_worker.sh` stops the worker that `farm.pid` names, with its process group. It checks Python 3.12 or newer, makes `.venv`, runs `pip install -e .`, and starts `sl-cli farm serve` on port 5160 with `setsid`, with the processor count less two as the slots.
+- Tests (`tests/farm/test_deploy.py`, 3 tests): the unpacked tar gives the code hash of the tree. The tar holds the worker key with mode 600 and no other key. `bash -n` accepts the worker script. The 14 farm tests pass.
+- The owner runs the deploy. A host needs `python3-venv` and a firewall rule for port 5160 one time.
+- The owner put the worker on tars. `sl-cli farm ping --remote tars.uberadmin.com` gave 30 slots and the code hash of the workstation tree.
+- A gauntlet of v7, v3, and v6 on s04 (60 games) with tars and 1 local worker took 19 s, and with 16 local workers it took 46 s. The two outputs are the same.
+- The owner put the worker on case, kipp, and plex too. The four hosts have 30 slots each, 120 in all, with the code hash of the workstation tree.
+- A gauntlet of 300 games on s04 with the four hosts and 16 local workers took 27 s, and with 16 local workers alone it took 113 s (4.2 times faster). The two outputs are the same.
+- The short names (`tars`) connect, but the workstation uses 2 to 3 s to resolve each one. With the full names (`tars.uberadmin.com`), a ping uses less than 0.04 s.
+
+## 2026-10-14 - The side baseline in the gauntlet
+
+The owner wanted to know the balance of each scenario. Only s01 has a good balance. The side term of the 14 gauntlets of 2026-10-13 gives the first side of each scenario this Elo: s01 Russian -32, s02 German -293 to -329, s03a Russian +185 to +196, s04 Axis -420 to -499.
+
+Only s01 has an external record: 49.8 percent German wins in 219 games (RV-2, [ASA-GCA]). s04 is a project scenario. The boards of s02 and s03a come from the generator, so the balance of the printed card does not apply to them.
+
+The owner said to measure each net against a baseline and not against 0, and to balance s04 after the Jump-Start run.
+
+- `run_gauntlet` and `sl-cli gauntlet` give `side_baseline` (`src/slcli/gauntlet.py`). It has a line for each scenario, panel agent, and side. The line has the wins and the games of the candidate and of the other panel agents on that side against that agent. The panel numbers come from the round-robin, so they cost no game. Each pair row has `a_games_by_side` and `b_games_by_side`.
+- `--mirror` also plays each panel agent against itself `games` times on each scenario. Each mirror game has a seed of its own. A paired seed gives the same game two times when one agent plays the two sides. The mirror games go after the round-robin, so the seeds, the rows, and the Elo of the round-robin do not change. They are not in the Elo fit.
+- Test: `test_the_side_baseline_counts_the_panel_and_the_mirror_games_on_each_side`. The 9 gauntlet tests pass.
+
+The panel baseline from the artifacts of `runs/chain_20261013e_rule/` (the panel agents on the attack side against the opponent, 60 games):
+
+| Scenario, attacker | Against v3 | Against v5 | Against v6 | Against v7 | Best net against v7 |
+|---|---|---|---|---|---|
+| s01, Russian | 48 | 45 | 18 | 9 | 2 of 20 (`imitate_s01_best`) |
+| s01, German | 40 | 31 | 40 | 9 | 8 of 20 (`imitate_s01_best`) |
+| s02, German | 11 | 28 | 14 | 0 | 1 of 20 (`imitate_s02_best`) |
+| s03a, Russian | 4 | 60 | 39 | 22 | 9 of 20 (`ppo_s03a_v3`) |
+| s04, Axis | 4 | 40 | 5 | 3 | 0 of 20 (each net) |
+
+- Against v7, the panel won 3 of 60 Axis attacks on s04 and 0 of 60 German attacks on s02. So "no attack win against v7" in these two scenarios is near the result of the scripted agents. It does not show that a net learned nothing.
+- On s03a the PPO net won 9 of 20 Russian attacks against v7, and the panel won 22 of 60. On s01 the clone won 8 of 20 German games against v7, and the panel won 9 of 60.
+- The mirror baseline (`runs/chain_20261014a_baseline/`) ran from 04:13Z to 04:36Z. Each agent played itself 40 times on each scenario. The table gives the wins of the first side of each scenario. The second side wins the other games, or no side wins them.
+
+| Agent | s01 Russian | s02 German | s03a Russian | s04 Axis |
+|---|---|---|---|---|
+| v3 | 19 | 1 | 3 (2 German, 35 with no winner) | 1 |
+| v5 | 18 | 0 | 27 | 0 |
+| v6 | 9 | 5 | 39 | 5 |
+| v7 | 7 | 6 | 29 | 5 |
+
+- s01 gives each side approximately 50 percent with v3 and v5. With v6 and v7, the German defender wins approximately 80 percent. The defence of these agents is better than their attack.
+- v7 against v7 gives the s04 Axis attacker 5 of 40 games (12.5 percent), and the s02 German attacker 6 of 40. These numbers are the baselines for a net against v7.
+
+The first s04 balance tests (v7 against v7, scenario files in the scratch directory, the tree has no change):
+
+| Variant | Axis wins |
+|---|---|
+| The scenario as it is | 6 of 80 |
+| 7 turns | 3 of 80 |
+| 8 turns | 11 of 80 |
+| 5 German squads | 13 of 80 |
+| No SU-122 | 3 of 80 |
+| 8 turns, 4 German squads | 19 of 80 |
+| 2 Russian squads | 16 of 80 |
+| 5 German squads, 2 Russian squads | 22 of 80 |
+| German set up 4 columns nearer, 5 German squads, 2 Russian squads | 17 of 64 |
+| The same with 8 turns | 20 of 64 |
+| No Russian vehicle | 7 of 48 |
+| 6 German smoke counters | 5 of 48 |
+
+- In the scenario as it is, the German side starts with 5 unbroken infantry units. At the end of turn 1 it has 3.9, and at the end of turn 2 it has 1.7. No German unit comes in 2 hexes of the Russian building before turn 5. The Russian infantry keeps approximately 4 unbroken units in the building.
+- In 48 games, no vehicle of the two sides is eliminated.
+- Without the Russian vehicles, the German infantry breaks as before. The fire of the Russian infantry from the stone building breaks the German attack.
+- With 5 German squads against 2 Russian squads, v7 wins 27 percent of the attacks. The cause of the low rate is mostly the attack of the scripted agents, not the forces. In s01, v7 against v7 also gives the attacker only 7 of 40.
+
+The owner said to make the v7 attack better first, and then to balance s04 with a small change.
+
+- A trace of one game: the German squads and the engineer squad move as a stack of 3 into the open hex I8. One shot of the Russian LMG at 1 firepower breaks 2 squads. The 9-2 leader moves forward alone to L4, so the leader modifier is not in their morale checks.
+- The cause in v7: `_seen_enemies` does not include a concealed unit. The Russian squads set up below concealment counters. Thus the threat model of the attacker has no enemy infantry, and each open hex has no threat.
+- The change: the v7 parameter `counter_threat` (`src/slagents/scripted/v7.py`, off by default). In the threat model (`_threat`), each enemy counter that covers no unit the player sees holds one unbroken stand-in squad. The sight, the enemy fire groups, the loss, and the route field read it. `_tool_odds` uses the same stand-in. Rule 25.2 makes the counter public, and the agent does not read what is below it.
+- Test: `test_a_counter_threat_puts_a_stand_in_below_each_enemy_counter`. The 96 tests of v7, the odds, the evolution, and the scripted agents pass.
+- The measure (Axis record against `v7` on s04, 80 games): `v7` 6, `v7[counter_threat=1]` 1, with `open_moves=1` 5, with `open_moves=1,mass=1` 9, with `share_fire=1` 0, with `lookahead=4` 0. With `counter_threat`, the German infantry has 4.9 unbroken units at the end of turn 2 (before: 1.7), but no unit comes in 2 hexes of the target.
+- The evolution (`runs/chain_20261014b_evolve_s04/`, from `v7[counter_threat=1,open_moves=1,mass=1]`, the Axis side against `v7`, 12 generations of 11, 32 games each, 6,680 games in 34 minutes). The best of a generation was between 6 and 19 percent, and the scores did not go up. The last stage gave 15 of 200 for the start record and for the two best candidates. The confirm stage gave 14 of 200 for the pick and 16 of 200 for the start record.
+- So no parameter set of v7 makes the s04 attack better. The cause is the plan of the attack. It must have a route across 10 hexes of open ground, smoke, the leader with the stack, and tank fire before the move.
+
+The owner said to start with two of the four items: the leader with the stack, and the tank fire before the move. Each is a parameter, off by default.
+
+- `leader_with_stack` and `leader_bonus` (v7). A step of a leader into a hex with an own unbroken squad earns `leader_bonus` for each squad, up to two. A step forward alone earns no progress. The stand value of a leader has the same bonus. Test: `test_a_leader_with_the_stack_moves_forward_only_with_a_squad`.
+- `base_of_fire` (`src/slagents/scripted/armor.py`), mapped as `tank_base_of_fire` in v7. An enemy counter that covers no unit the player sees is an enemy infantry position. It is a target that makes a hex a firing position, a hex for the standoff, and a target of one unit for a shot. Test: `test_the_base_of_fire_makes_an_enemy_counter_a_target_of_the_tanks`.
+- The test shows a second fault of the tanks. Without `base_of_fire`, some firing positions are next to the concealed Russian infantry, in the range of its anti-tank weapons.
+- In a trace, the leader stays with a squad, and the morale check has the leadership of -2. A tank fires in the Prep Fire Phase in turn 3, from 12 hexes.
+
+The measure: each record as the attacker (player 0) against `v7`, 200 games on the same seeds, attacker wins.
+
+| Attacker record | s04 Axis | s01 Russian | s02 German |
+|---|---|---|---|
+| `v7` | 16 | 61 | 45 |
+| `v7[leader_with_stack=1]` | 5 | 59 | 30 |
+| `v7[tank_base_of_fire=1]` | 14 | 61 | 45 |
+| The two together | 2 | 59 | 30 |
+
+- `leader_with_stack` gives fewer wins on s04 and on s02. A leader that waits for a squad comes forward late, and the squads go forward without it.
+- `tank_base_of_fire` gives no change. s01 and s02 have no concealed infantry for the tanks, so the games are the same. On s04 the change is in the interval.
+- The two parameters stay off by default.
+
+The owner said to do item 4 (the covered route) with item 2 (one unit in each open hex). The two are one v7 parameter, `covered_approach`, off by default.
+
+- With `open_moves` false, v7 holds each step into an open hex that an enemy sees. With `covered_approach`, one unit may do a hop (`_hop`). From the open hex, the unit can enter cover or smoke that is nearer the target, with the movement that remains.
+- A stack move into a seen open hex is held. A unit does not go into a seen open hex that holds an own unit. In the trace of turn 1, three single moves made a stack in I8.
+- Test: `test_the_covered_approach_hops_across_the_open_alone`.
+- In a trace with `counter_threat`, the squads went to K9 in turn 1 and then back to J9 and J8. The press level was 0 in turns 1 and 2, so the agent took the safer hex. With `schedule_margin=8` the squads go forward in hops through the woods (K9, M9, O9, O6, O7). In one of two traces a squad took S9 and S10.
+
+The measure: each record as the attacker against `v7`, 200 games on the seeds of the measure above, attacker wins.
+
+| Attacker record | s04 Axis | s01 Russian | s02 German |
+|---|---|---|---|
+| `v7` | 16 | 61 | 45 |
+| `v7[covered_approach=1]` | 12 | 72 | 39 |
+| `v7[counter_threat=1,covered_approach=1]` | 3 | 66 | 16 |
+| The same with `schedule_margin=8` | 17 | 14 | 7 |
+| `v7[schedule_margin=8]` | 6 | 7 | 11 |
+
+- No record is better than `v7` on the three scenarios. `covered_approach` alone gives 11 more wins on s01 and fewer wins on s04 and s02. Each difference is in the interval of 200 games.
+- The press from turn 1 helps the covered route on s04 only. On s01 and s02 it sends the attacker forward before the time is correct.
+- `covered_approach` stays off by default.
+- The four items and the evolution did not give a better v7 attack on s04. The route works in the traces, but the fire from the stone building breaks the squads in the woods, and the leader goes forward alone.
+
+The owner said to balance s04 with a change to the scenario, before more agent work.
+
+- The victory condition alone did not help. With the control of 2 of the 3 Russian building hexes, v7 against v7 gave the Axis 8 of 120. With 1 of 3 hexes it gave 13 of 120, and with 8 turns 22 of 120.
+- The forces and the Russian leader have the largest effect. 6 German squads are more than the stacking limit of the German set up building permits, so the maximum is 5.
+- The selected variant has 5 German squads against 2 Russian squads, and a Russian 7-0 leader in place of the 9-1. It has 8 turns, and the Axis must control 1 of the 3 hexes of the Russian building (`hex_control`). The board is the same.
+- No Russian leader name has the 7-0 rating, so the leader has no name. The group ID `l_dubovich` stays.
+- The measure on seeds that no search read: v7 against v7 gave the Axis 203 of 400 (50.8 percent). The same variant with 9 turns and an 8-0 leader gave 193 of 400.
+- The other agents: v3 against v3 gave 57 of 120 (before: 9), v6 against v6 111 of 120 (before: 16), and v5 against v5 0 of 120 (before: 0). The v6 defence is weak, and the v5 attack does not capture a building.
+- The scenario notes record the change and its cause. The situation text of the briefing has the new forces and the new condition.
+- The new forces showed a fault of the armor policy. `test_the_tanks_do_not_drive_back_and_forth` counted 19 reversals in 294 tank moves (limit 5 percent). A T-34 of v6 went into and out of R8 12 times in one Movement Phase. Each entry was a new overrun of a weak target.
+- PR-54 declares the overrun on entry, and the field `overrun_hex` holds it. So `_drive` declares no second overrun for a vehicle that has one. The count is 7 reversals in 280 moves, and on the scenario before the change it stays 7 in 346. With the fix, v7 against v7 gave the Axis 202 of 400.
+- `test_the_section_never_moves_all_its_tanks_in_contact` found a second fault in turn 8, which the scenario did not have before. Tank 13 moved while tank 11 held, and then tank 11 moved in the turn of its half. Thus no tank held. `_may_bound` keeps the last tank that has not moved in its hex. The 84 armor tests pass.
+- With the two fixes, v7 against v7 gave the Axis 170 of 400 (42.5 percent), v3 against v3 58 of 120, and v6 against v6 117 of 120. With 9 turns, v7 against v7 gave 157 of 400.
+- The push out tests read games of s04. Seed 26 (v3 against v7) and seed 39 (v3 against v3) get to the push out window of rule 35.8 with the new forces, so they are first in the list.
+- The owner said to continue the balance with the farm. The farm took a variant file of the workstation (`--scenarios file:<path>`), so `slfarm` sends the scenario document with the job. The host checks it with the checks of a scenario file (`sldata.loaders.scenario_from_document`). A game that cannot start on a host is a game error of the run. Tests: `test_a_scenario_file_of_the_workstation_plays_on_the_farm` and `test_the_server_refuses_a_scenario_document_that_is_not_valid`.
+- Two rounds of v7 against v7 on the farm, Axis wins. The first round played 4,000 games in 109 s. The second round used new seeds.
+
+| Variant | Round 1, of 400 | Round 2, of 800 |
+|---|---|---|
+| The scenario as it was | 172 | 311 |
+| 9 turns | | 319 |
+| 10 turns | 193 | 362 |
+| No SU-122 | 223 | 460 |
+| No SU-122, 7 turns | | 362 |
+| One T-34 | 247 | |
+| A German 7-0 | | 386 |
+| A German 8-0 | | 409 |
+| A German 8-1 | 245 | |
+| 4 German smoke counters | 176 | |
+| 2 Russian concealment counters | 170 | |
+| 2 German LMGs | 148 | |
+| 3 panzerfausts | 146 | |
+| No Russian LMG | 124 | |
+
+- The selected change: a German 8-0 leader, the last unit of `a_stahler`. On new seeds v7 against v7 gave the Axis 832 of 1,600 (52 percent). v3 against v3 gave 282 of 400 (before: 175), v6 against v6 396 of 400 (before: 387), and v5 against v5 0 of 400.
+- The s04 tests after the 8-0 (armor, window, briefing, player state, push out, v7, conformance, engine, farm): 786 pass. The push out tests had no game that gets to the window of rule 35.8. Seed 11 (v6 against v3) and seed 29 (v7 against v7) get to it, and the 9 tests pass with them.
+- In the full run, torch did not load its DLL (WinError 1114) for `test_the_repeat_guard_of_the_learned_agent_keys_on_the_view`. Alone, that test is correct. `test_road_sides` is the known failure of the browser client.
+- The order of the units sets the unit ids, so it changes the games of a seed. With the 8-0 after the 9-2, the same 400 seeds gave 227 in place of 206. The file has the order that the measure used.
+- Each s04 result before this change is a result of the scenario before the change. The s04 nets learned the forces and the condition before the change.
+
+The result of Jump-Start PPO on the s04 attacker against v7 (`runs/ppo_s04_jsrl3`, chain `runs/chain_20261013g_jsrl/`):
+
+- It ran from 00:39Z to 04:08Z on 2026-10-14: 2,000,000 steps at 160 steps/s, 977 updates, 43,144 games.
+- v7 played the Axis side in the first 3 of the 6 turns, and the learner played the last 3. The learner won between 0 and 1 percent of the last 100 games at each measurement (TensorBoard `jump_start/win_rate`). The threshold is 30 percent, so the guide did not give a turn to the learner.
+- The evaluation at 2,000,000 steps against v7: 0 of 20 games as the Axis, 16 of 20 as the Allies.
+- The gauntlet of the 2,000,000-step snapshot: 46.2 percent, Elo 1425. Axis attack wins against v3, v5, v6, v7: 0, 3, 1, 0. The panel baseline against v7 is 3 of 60.
+- So a start of 3 turns of v7 play does not put the attacker near a win on s04. The side term is -461 Elo. The win reward did not pay, so this run does not test the method. Balance s04 before more attack training on it.
+
+## 2026-10-13 - The action-first choice rule, PR-55, Jump-Start RL, and the value warm-up
+
+The owner said to change the choice rule and to measure the nets again with the gauntlet. The owner also gave these instructions:
+
+- Add the board and debark limit to the training environment.
+- Make the rule 31 ruling, and correct the core.
+- Add Jump-Start RL to PPO, and start Jump-Start PPO on the s04 attacker against v7.
+- Add the warm-up of the value head.
+
+The changes:
+
+
+- The choice rule. `LearnedAgent._by_score` (`src/slagents/learned/agent.py`) adds the probability of the legal commands of each action. It plays the best command of the action with the highest sum. With a seed, the agent samples from the joint score as before. Test: `test_the_choice_is_the_action_with_the_most_probability_first`.
+- The board and debark limit. The agent puts a second board or debark of one unit in a phase after each other command (`RIDE_ACTIONS`, `_rides_handled_last`). The environment masks leave it out (`SquadLeaderEnv.rode`). Tests: `test_a_policy_that_likes_to_ride_does_not_board_and_debark_without_end` and `test_the_mask_offers_no_second_board_or_debark_of_a_unit_in_one_phase`.
+- PR-55 (rule 31.4 and rule 31.3). An infantry unit boards or debarks one time in each Movement Phase. A passenger debarks only when its vehicle has 2 movement points left. The unit field `rode` holds it until the end of the player turn. `to_dict` writes it only when it is set, so the hash of a game with no board or debark stays the same.
+- The tests of PR-55: four conformance cases `pr55-*` in `tests/conformance/cases/rules_28_41.json`. Outside `tests/agents`, 1,674 tests pass. The 16 failures are the tests of the older browser client.
+- Jump-Start RL (`src/slagents/learned/jumpstart.py`). `sl-cli train --jump-start v7 --jump-start-turns N` gives the learner's side in the first N turns to the guide, but not the last turn. The guide plays one turn less when the learner wins `--jump-start-threshold` of the last `--jump-start-window` games at that horizon. The worker plays the guide, and the rewards of the guide's turns go to no decision. It works only with `--workers 2` or more.
+- The tests of Jump-Start RL: `tests/agents/test_jumpstart.py`. One of six short runs stopped with a broken pipe and no run artifact. The other five ended correctly, and the fault did not occur again.
+- The value warm-up. `sl-cli train --value-warmup N` trains the value head alone in the first N decisions. The trunk is read with no gradient, so the policy stays the same. `PpoConfig.value_warmup_steps`, and `value_warmup_updates` in the run artifact. Tests: `test_the_value_warm_up_changes_the_value_head_alone` and `test_the_run_trains_the_value_head_alone_in_the_warm_up`.
+
+The gauntlets with the action first (`runs/chain_20261013e_rule/`, panel v3, v5, v6, v7, 40 games a pair). The s04 results:
+
+| Net | Before: rate, Elo | Action first: rate, Elo | Axis attack wins (v3, v5, v6, v7) |
+|---|---|---|---|
+| `imitate_s04_large` | 44.4, 1381 | 49.4, 1476 | 2, 8, 0, 0 |
+| `imitate_s04_best` | 42.5, 1357 | 44.4, 1406 | 0, 2, 2, 0 |
+| `imitate_s04_attack` | 18.8, 1025 | 27.5, 1180 | 0, 0, 0, 0 |
+| `ppo_s04_best` 1M | 42.5, 1361 | 46.9, 1428 | 0, 2, 1, 0 |
+| `ppo_s04_attack` 2M | 41.9, 1349 | 42.5, 1363 | 0, 2, 0, 0 |
+| curriculum part 1 | not measured | 50.6, 1485 | 0, 7, 0, 0 |
+| curriculum part 2 | not measured | 48.8, 1457 | 0, 6, 0, 0 |
+| curriculum part 3 | 43.4, 1362 | 46.2, 1417 | 0, 3, 0, 0 |
+
+- At this time each s04 net wins attacks, but not the attacker-only fit. No net wins an attack against v7. PPO and the curriculum did not add attack wins to the clone.
+- The gauntlets of the three curriculum nets started after the PR-55 change of the core. The other five s04 gauntlets ran on the core before it.
+
+The other scenarios, in the same chain:
+
+| Net | Before: rate, Elo | Action first: rate, Elo | Attacker wins (v3, v5, v6, v7) |
+|---|---|---|---|
+| `imitate_s01_best` | 34.4, 1394 | 36.9, 1415 | Russian: 11, 5, 4, 2 |
+| `imitate_s02_best` | 19.1, 1030 | 44.7, 1443 | German: 1, 3, 0, 1 |
+| `imitate_s02_attack` | 22.5, 1100 | 36.2, 1347 | German: 0, 0, 1, 0 |
+| `ppo_s02_best` 1M | 28.7, 1196 | 42.8, 1426 | German: 0, 2, 2, 0 |
+| `imitate_s03a_v3` | 51.6, 1514 | 56.9, 1555 | Russian: 1, 20, 14, 7; German: 0, 5, 0, 0 |
+| `ppo_s03a_v3` 1M | not measured | 55.9, 1546 | Russian: 1, 20, 12, 9; German: 1, 4, 0, 0 |
+
+- The s01 and s02 nets win attacks against v7 at this time. The s03a clone wins 7 games against v7 as the Russians.
+- The last gauntlet of the chain (`ppo_s03a_v3` 1M, `s03a_ppo`) stopped at the restart of the workstation. It ran again from 23:41Z to 00:38Z (`runs/chain_20261013e_rule/resume.sh`). PPO did not change the clone: 55.9 percent against 56.9 percent, in the 95 percent interval 48.2 to 63.4. It won 9 attacks against v7, and the clone won 7.
+
+The state at the restart of the workstation (2026-10-13, about 23:00Z):
+
+- The gauntlet `s03a_ppo` and the chain `runs/chain_20261013g_jsrl/`, which waits for it, stopped. The Jump-Start run did not start.
+- The two jobs started again at 23:41Z. The gauntlet ended at 00:38Z on 2026-10-14, and the Jump-Start run `ppo_s04_jsrl3` started at 00:39Z.
+
+Jump-Start PPO on the s04 attacker against v7 (`runs/chain_20261013f_jsrl/`). It started at 18:32Z from `runs/imitate_s04_large/snapshot-0.pt`, with the parameters of `runs/chain_20261013c/`. v7 plays 4 of the 6 turns at the start (threshold 0.3, window 100).
+
+- At 51,200 steps it ran at 18 steps/s. The gauntlet chain used half of the processor, and v7 plays the two sides for 4 turns.
+- The learner won 2 percent of the recent games at 4 turns. At this rate the 6-hour limit stops it near 400,000 steps.
+- The owner said to stop it and to start it again after the gauntlets. It stopped at 20:27Z with no snapshot. `runs/chain_20261013g_jsrl/` waits for the gauntlet chain, then starts it with 3 turns, `--value-warmup 100000`, and a limit of 8 hours.
+
+## 2026-10-13 - Review of the training: the choice rule of the agent
+
+The owner said that the attacker learned almost nothing in 24 hours of training. The owner gave an instruction to examine the training and to find the methods that work best. The report is `docs/reports/2026-10-13_training_review.md`.
+
+- `LearnedAgent.select` plays the command with the highest joint probability. The policy divides a move between many units and hexes, and `end_phase` is one command. So the agent stopped each Movement Phase and Advance Phase with no infantry move. An attacker cannot win with no move. Each gauntlet, each TC-18 evaluation, and each DAgger evaluation used this rule.
+- Against random, the s04 clone won 0 of 10 attacks with the joint argmax and 0 of 10 with the unit first. It won 6 of 10 with the action first, and 0 of 10 with a sample. With the action first it won 3 of 10 against v5 and 0 of 10 against v7.
+- PPO samples, and the sampled clone does not win, so the win term did not pay in the runs. The research names a fixed anchor, no warm-up of the value head, small rollouts, and no start near a win as the differences from practice.
+- A squad got on a tank and off it 250 times in one phase. The masks and the agent guard stop only the weapons (`board` and `debark` are not in the limit).
+- The tree had no change for this at the time of the review. The entry above records the changes that followed.
+
+## 2026-10-13 - A fit of the attacker side only on scenarios 2 and 4
+
+The owner said to try a fit of the attacker side only on s02 and s04. After imitation and
+PPO, the nets of the two scenarios won no game as the attacker.
+
+- `FitConfig.side_weights` (`src/slagents/learned/imitate.py`) weighs the decisions of each
+  player in the cross entropy and the value error. A side with weight 0 is out of the fit
+  and of the holdout, so the kept epoch is the best epoch for the other side.
+- `sl-cli imitate --side-weights 0=1,1=0` sets it. It has no effect when it is not given.
+  The run record has the weights in `fit`.
+- Tests: `test_the_side_weights_parse_with_a_weight_for_each_side` and
+  `test_a_side_of_weight_zero_is_out_of_the_fit_and_the_holdout`. The 15 imitation tests
+  pass.
+- The chain (`runs/chain_20261013a/`) uses the options of `runs/chain_20261012c/` (v7
+  labels, 400 games, 6 epochs, 2 DAgger rounds) with the weights `0=1,1=0`. Player 0 is the
+  attacker in the two scenarios. A gauntlet of 40 games a pair follows each fit.
+- s02 (`runs/imitate_s02_attack/snapshot-0.pt`): 22.5 percent and Elo 1100 (the two sides
+  before: 19.1 percent and Elo 1030). The argmax gives 37.3 percent of
+  the attacker's holdout decisions. It won no game as the German attacker, also in the 120 DAgger games.
+- s04 (`runs/imitate_s04_attack/snapshot-0.pt`): 18.8 percent and Elo 1025 (before: 42.5
+  percent and Elo 1357). The argmax gives 44.5 percent. It won no game as the Axis attacker.
+- The attacker-only fit did not teach the attack. The nets won games as the
+  defender (33 in s02, 30 in s04) with no fit of the defence: the attack of v5 does not win
+  also against a defender with no fit.
+- The first fit of each scenario kept epoch 6 of 6, so the holdout cross entropy went
+  down until the end. The copy of v7 gets 37 to 45 percent of the attacker's decisions
+  correct, and v7 wins 56 (s02) and 39 (s04) percent of its attacks. A next step is more
+  epochs and a larger net, to make the copy more accurate.
+
+- The owner said to try more epochs and a larger net on s04 (`runs/chain_20261013b/`):
+  20 epochs, 6 epochs a DAgger round, 64 channels, and a width of 512. The other options
+  are those of `runs/imitate_s04_best/`, and the fit has the two sides.
+- The first fit kept epoch 20. The argmax gave the teacher's command in 53.1 percent of the holdout (48.3
+  before), and the holdout cross entropy went from 1.338 to 1.203. The DAgger fits kept epoch 2 and epoch 3. In
+  the policy's own games it gave it in 43 to 45 percent of the decisions.
+- The gauntlet (`runs/imitate_s04_large/snapshot-0.pt`, 40 games a pair) gave 44.4 percent
+  and Elo 1381 (before: 42.5 percent and Elo 1357). It won no game as the Axis attacker,
+  also in the 120 DAgger games. The more accurate copy did not teach the attack.
+
+- The owner said to try PPO on the s04 attacker only against v7. `sl-cli train` had no
+  choice of the opponents: the league was random, each scripted agent, and the snapshots
+  of the learner.
+- `build_league` and `run_training` (`src/slcli/train.py`) have the parameter `opponents`,
+  and `--opponents v7` sets it. Then the named agents are the only league members, and no
+  snapshot goes into the league. The run record has `fixed_opponents`. Test:
+  `test_the_named_opponents_are_the_only_league_members`. The tests of `test_ppo_smoke`,
+  `test_workers`, and `test_eval_review` pass (28).
+- The run (`runs/chain_20261013c/`): `--player 0 --opponents v7`, from
+  `runs/imitate_s04_large/snapshot-0.pt`, 2,000,000 steps or 5 hours, the anchor and the
+  rate of the earlier PPO runs, 40 evaluation games against v7, then a gauntlet.
+- It ran the 2,000,000 steps in 88 minutes (379 steps/s): 12,046 games against v7, and
+  the learner won none. The anchor KL stayed near 0.02 and the entropy went from 1.32 to
+  1.39, so the policy stayed near its start.
+- The evaluation against v7 gave 0 of 20 as the Axis attacker. The gauntlet of
+  `snapshot-2000000.pt` gave 41.9 percent and Elo 1349 (start: 44.4 percent and Elo 1381),
+  with no win as the Axis attacker. With no win in 12,046 games, the win term of the reward
+  did not pay one time, and the shaped terms did not give a win.
+
+- The owner said to try a curriculum on the s04 attacker, with random and v1 first
+  (`runs/chain_20261013d/`). Three stages of 1,000,000 steps: random and v1, then v5, then
+  v7. Each stage starts from the newest snapshot of the stage before, and the first from
+  `runs/imitate_s04_large/snapshot-0.pt`. The options are those of the v7 run.
+- The three parts ran in 2 hours 11 minutes. The learner won these training games as
+  the Axis attacker: 3.6 percent against random and 0.4 percent against v1 in part 1,
+  309 of 5,555 against v5 (5.6 percent) in part 2, and 6 of 5,484 against v7 in part 3.
+- Each TC-18 test at the end of a part gave 0 of 20 as the Axis attacker. The gauntlet
+  of `runs/curriculum_s04/stage3_v7/snapshots/snapshot-1000000.pt` gave 43.4 percent and
+  Elo 1362 (start: 44.4 percent and Elo 1381), with no win as the Axis attacker. One of
+  400 games stopped with a RuntimeError and is not in the rates.
+- The training games sample from the policy, and the TC-18 tests and the gauntlet use the
+  joint argmax. The review of the same day found that this choice rule ends each phase
+  with no infantry move. Thus the 0 wins of the tests do not show what the net knows.
+  Measure these snapshots again after the change of the choice rule.
+
+## 2026-10-12 - The attack problem: the attacker had the labels of the weakest agent
+
+The owner said to work on the attack problem and to use v3 as the teacher of 3A.
+
+- The `--labels` parameter of `sl-cli imitate` had the default `0=v5,1=v6`. The chains gave
+  `--teachers v7,v6` and no labels. Thus v7 and v6 played the games, and v5 gave each
+  label of player 0. Player 0 is the side that moves first (`Scenario.players`), and in
+  scenarios 1, 2, 3A, and 4 that side is the attacker. Each net of 2026-10-11 and the
+  first 3A net learned the attack from v5, which wins the fewest attacks of the panel.
+- The default of `--labels` is empty, so each teacher labels its own decisions.
+- `imitate.fit` keeps the weights of the epoch with the lowest holdout cross entropy, and
+  the row of that epoch has `kept` 1.0. Test:
+  `test_the_fit_keeps_the_weights_of_the_epoch_with_the_lowest_holdout`.
+- The 3A net with v3 as the label teacher of the two sides (`runs/chain_20261012b/`,
+  `--teachers v3,v7 --labels 0=v3,1=v3 --games 400 --epochs 6 --dagger-rounds 2
+  --dagger-games 120 --dagger-epochs 3`): the net gives the command of the teacher in 33.3
+  percent of the holdout decisions at epoch 6 (the first net 29.1). The two DAgger fits kept their first epoch.
+- Gauntlet `runs/20261012T154658Z-gauntlet-learned-runs-imitate-s03a-v3-snapshot-0-pt`:
+  51.6 percent, Elo 1514 (v3 1639, v7 1601, v6 1472, v5 1275). The first 3A net had 31.9
+  percent and Elo 1351. Of 160 games the net won 42 (38 as the Russian attacker, 4 as the
+  German), the opponent won 37, and 81 stopped with no winner. It won no game against v3.
+- The owner said to do the same for scenarios 1, 2, and 4. `runs/chain_20261012c/`
+  plays a round-robin of v3, v5, v6, and v7 on each scenario. Then `pick_labels.py`
+  selects the agent with the most wins on each side as its label teacher. The imitation
+  and the gauntlet then run as for 3A. v7 had the most wins on each side of the three
+  scenarios. As the attacker, v5 won 0 percent of its games on s02 and s04.
+- The gauntlets have 40 games a pair against the panel v3, v5, v6, and v7. The result of
+  the first net is in brackets.
+  - s01: 34.4 percent (26.2), Elo 1394, 23 wins as the Russian attacker.
+  - s02: 19.1 percent (24.4), Elo 1030. No win as the German attacker, and no win against
+    v6 or v7 on the two sides.
+  - s04: 42.5 percent (38.1), Elo 1357. No win as the Axis attacker.
+- The v7 labels did not teach the attack of s02 and s04. In the DAgger rounds the policy
+  won 0 or 1 of 60 games as the attacker of s01, s02, and s04.
+- The first s04 gauntlet stood for 40 minutes with each process idle. One worker process
+  stopped 24 seconds after the start with no Python error, and `multiprocessing.Pool`
+  waited for its game with no limit. `_play_all` of `slcli/gauntlet.py` uses
+  `ProcessPoolExecutor`. It plays again each game that has no result, and a game that
+  stops its worker also alone is an error row
+  (`test_a_dead_worker_process_does_not_stop_the_games`). The s04 gauntlet ran again
+  with 0 errors.
+- The owner said to put the same fix in the imitation workers.
+  `slagents.learned.workers.play_in_order` plays the demonstration, correction, and
+  evaluation games in a `ProcessPoolExecutor` and gives the results in the order of the
+  tasks. A game that stops its worker also alone is a `WorkerDied`. Test:
+  `test_a_dead_worker_process_does_not_stop_the_imitation_pool`.
+- The owner said to put the same fix in `slshape`. `record_corpus` plays its games through
+  `play_in_order`. Test: `test_a_corpus_of_worker_processes_is_the_corpus_of_one_process`.
+  `sl-cli bench` and `sl-cli agents` start their own processes and stop at a time limit.
+- The owner said to try PPO from the 3A snapshot with the shaped reward
+  (`runs/chain_20261012d/`: `--player` with the two sides, `--anchor-kl 0.5 --learning-rate 0.0001
+  --steps 1000000 --hours 5 --workers 16`, a snapshot each 100,000 steps, then a gauntlet
+  of the newest snapshot). It ran the 1,000,000 steps in 2 h 20 min (119 steps/s).
+- The gauntlet of `snapshot-1000000.pt` (`runs/20261012T213410Z-gauntlet-learned-runs-ppo-s03a-v3-snapshots-snapshot-1000000-pt`,
+  40 games a pair) gave 59.1 percent and Elo 1574, from 51.6 percent and Elo 1514 at the
+  start. That is third, after v3 (1626) and v7 (1584). It won 53 games (48 as the Russian
+  attacker, 5 as the German), the opponent won 24, and 83 stopped with no winner. It won
+  its first games against v3 (3, all as the Russian). The two 95 percent intervals overlap
+  (51.3 to 66.4 against about 44 to 59). A larger gauntlet must make sure of the increase.
+- The owner said to do PPO from the s02 and s04 snapshots with the options
+  of the 3A run (`runs/chain_20261012e/`). The two runs did the 1,000,000
+  steps in 78 and 41 minutes. The gauntlets have 40 games a pair against v3, v5, v6, v7.
+- s02 (`snapshot-1000000.pt`): 28.7 percent and Elo 1196, from 19.1 percent and Elo 1030.
+  Its Elo is again the lowest (v5 has 1206). All 42 wins are as the Russian defender, and it won
+  no game as the German attacker. Against v7 it won no game.
+- s04 (`snapshot-1000000.pt`): 42.5 percent and Elo 1361, from 42.5 percent and Elo 1357.
+  That is no change. All 68 wins are as the Allied defender, and it won no game as the
+  Axis attacker. PPO did not teach the attack in the two scenarios.
+
+## 2026-10-12 - The 3A memory fault, and the weapon loop of the learned nets
+
+The system stopped. The chain of 2026-10-11 came to its end before that.
+
+- The chain gave the gauntlets of the scenario 1, 2, and 4 nets (40 games a pair, panel v3,
+  v5, v6, v7): s01 26.2 percent, s02 24.4, s04 38.1, s04 with DAgger 33.3. Each net wins
+  only the defence side.
+- The 3A fit stopped with a MemoryError at game 40. The cause was the rule 12.22 count of
+  `odds._leader_count`: each path held the status of each unit of the stack, and each squad
+  more multiplied the time by four.
+- The count holds the joint status of the leaders and a weight of each status for each
+  other unit. The result is the same on 327 random stacks. Three leaders and ten squads use
+  0.025 s. Test: `test_the_second_check_count_of_a_large_stack_is_exact_and_finishes`. The
+  3A fit runs again (`runs/chain_20261012/`).
+- Five gauntlet games of the s02 and s04 nets did not end in 20,000 commands. The owner said
+  to find the loop. The net handed weapons between units in one Movement Phase (4,500
+  decisions, each a new position). A pickup and a drop are free (rule 5.7), and the guard
+  of `LearnedAgent` stopped only an exact repeat. Thus the guard walked through the sets of
+  holders.
+- The agent puts a second pickup or drop of a weapon in one phase after each other command.
+  The game of the fault (s02, seed 3000000026, v5) ends in turn 9 after 1,664 commands.
+- The owner said to put the same fix in the training environment. `SquadLeaderEnv.choices`
+  is the legal list less those commands, unless no other command is legal. The masks, the
+  worker keys, and the random opponents read it. `groups` stays the full legal list for
+  `step` and the scripted agents. Imitation keeps no row if its label is not in `choices`.
+  The 3A fit collected its games before this change.
+- The owner said: do not write about git in a report. The project `CLAUDE.md` line "Do not commit or push
+  unless the owner gives the instruction" made each session report what it did not commit.
+  The line says that the owner does all writes to git.
+- The 3A fit: 400 games in 73 minutes. The net gives the command of the teacher in 29.1
+  percent of the holdout decisions. The holdout cross entropy went up from epoch 2 (2.58)
+  to epoch 10 (2.91). Gauntlet 31.9 percent, Elo 1351 (v3 1693, v7 1623, v6 1520, v5 1313).
+  Of 160 games the net won 10 (all as the Russian), the opponent won 68, and 82 stopped with
+  no winner.
+- Tests: the agent and armor tests, 358 pass (4 gate tests not run). In them, 14 odds tests
+  and 86 learned tests (agent, environment, imitation, workers, PPO,
+  reward) pass.
+
+---
+
+## 2026-10-11 - The training again on MONSTER3, the 3A time, and the tank recording
+
+The owner said to continue the training of the laptop.
+
+- The laptop completed the scenario 2 fit (`runs/imitate_s02_v7v6/snapshot-0.pt`, holdout
+  40.5 percent). The evaluation did not run.
+- The Windows venv imported `G:\git\Squad_Leader_AI\src`, a previous copy that is not a
+  git checkout, and its torch was 2.14.0+cpu. Now the venv has an editable install of this
+  tree and torch 2.14.0+cu130. In Git Bash, `sl-cli` finds the previous copy through the
+  system Python. Use `.venv/Scripts/python -m slcli.main`.
+- The 3A net, the scenario 4 DAgger net, and a gauntlet of each net run as one chain
+  (`runs/chain_20261011/chain.log`). The imitation log stays empty until the process stops,
+  because Python keeps `print` to a file in a buffer. Use `python -u` in a chain.
+- The time of one 3A game of v7 against v6, alone on a free core: 150 s, 1,925 decisions,
+  seven turns (`runs/chain_20261011/time3a.log`). The fire phases of v7 use the most time
+  (to 17 s for one phase). A py-spy sample of a worker: 78 percent in the decisions of the
+  teachers, and `odds.shot` and `r08_fire.member_firepower` are the largest parts.
+- The owner gave a recording of a tank (`background/Tank_Noise.m4a`) and chose to put it in
+  the tree. `tools/make_tank_sound.py` converts it to
+  `src/slwindow3d/assets/tank_drive.wav` (22,050 Hz mono). Each engine variant of
+  `sounds.py` is 2.2 s of it from a different place, in place of the synthesized engine
+  sound.
+- The recording has a strong track rhythm, and its mean frequency (477 to 550 Hz)
+  is higher than the synthesized sound (less than 150 Hz).
+- The owner heard the window: "the tank sound is too high, add a low-pass filter". The
+  engine puts each part through a second-order low-pass filter at 600 Hz
+  (`ENGINE_CUTOFF`). The mean frequency is 153 to 177 Hz, and the track rhythm stays (0.37
+  to 0.54). A cutoff of 400 Hz or less removes the clank (rhythm 0.10 to 0.18).
+- The owner said that a vehicle breakdown and its repair each need a sound. Two new sounds
+  in `sounds.py`: `breakdown` (a clank, a grinding noise, and an engine that dies) and
+  `repair` (hammer taps and wrench clicks). The breakdown plays when the breakdown die of
+  rule 39.1 breaks the vehicle, and for `gun_malfunction` and `mg_malfunction`. The repair
+  plays for each `afv_repair` result. The rules give no repair for the immobilization of rule 39.1, so
+  only a broken gun has the repair sound.
+- The owner made the recording and holds its copyright. The project license (GPL-3)
+  applies to it (`docs/ASSET_PROVENANCE.md` section 3.1).
+
+---
+
 ## 2026-10-11 - The learned tier on scenario 4, and why one net cannot play all scenarios
 
 The owner asked to test the neural net players with vehicles.

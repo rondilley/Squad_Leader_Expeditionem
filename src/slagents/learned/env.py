@@ -25,6 +25,18 @@ v6 against v1, most of them `end_phase` and the `group_fire` of a group with one
 and each one was a step of the rollout, a row of the demonstrations, and a step cost, for
 nothing the policy could learn. The scripted agents give the same game with and without
 this, because an agent given one legal command gives that command.
+
+A pickup and a drop cost no movement factor (rule 5.7), so a policy can hand a few weapons
+between a few units and give a new set of holders at each step. No state repeats, and the
+game goes to the command limit (the scenario 2 net, 2026-10-12). So the masks leave out a
+second pickup or drop of a weapon that the side picked up or dropped in the current phase,
+unless no other command is legal. A board and a debark are the same kind of loop: the
+core lets a unit that debarked board again, and a squad got on a tank and off it 250 times
+in one phase (2026-10-13). So the masks also leave out a second board or debark of a unit
+that boarded or debarked in the current phase. `choices` is that set, and the masks come
+from it.
+`groups` stays the whole legal list, so a scripted agent, which reads the frame, plays the
+game it plays outside the environment, and `step` takes its command.
 """
 
 from __future__ import annotations
@@ -36,6 +48,7 @@ from gymnasium import spaces as gym_spaces
 from pettingzoo import AECEnv
 
 from slagents.learned import encoding
+from slagents.learned.agent import RIDE_ACTIONS, WEAPON_ACTIONS
 from slagents.learned.encoding import position_key
 from slagents.learned.reward import RewardWeights, objective_progress, result_rewards, step_rewards, weights_for_scenario
 from slcore.engine import Engine
@@ -96,6 +109,13 @@ class SquadLeaderEnv(AECEnv):
         self.state_: State | None = None
         self.frame: DecisionFrame | None = None
         self.groups: dict[tuple[int, int, int, int], Any] = {}
+        # The commands of `groups` the masks offer: no second pickup or drop of a weapon
+        # in one phase (rule 5.7), and no second board or debark of a unit, unless nothing
+        # else is legal.
+        self.choices: dict[tuple[int, int, int, int], Any] = {}
+        self.handled: set[int] = set()
+        self.rode: set[int] = set()
+        self.handled_phase: tuple[int, str, int] | None = None
         self.commands_applied = 0
         self._observation_space = gym_spaces.Dict(
             {
@@ -139,6 +159,9 @@ class SquadLeaderEnv(AECEnv):
         self.seen = {position_key(self.state_)}
         self.repeated = False
         self.repeated_by: int | None = None
+        self.handled = set()
+        self.rode = set()
+        self.handled_phase = None
         self.progress = objective_progress(self.engine, self.state_)
         self._refresh()
         self._apply_forced()
@@ -149,7 +172,7 @@ class SquadLeaderEnv(AECEnv):
         frame = self.frame
         if frame is None:
             raise RuntimeError("the environment has no frame; call reset first")
-        unit_mask, action_mask = encoding.masks_from(self.groups, self.spaces_record)
+        unit_mask, action_mask = encoding.masks_from(self.choices, self.spaces_record)
         if player != frame.player:
             unit_mask = np.zeros_like(unit_mask)
             action_mask = np.zeros_like(action_mask)
@@ -188,11 +211,11 @@ class SquadLeaderEnv(AECEnv):
 
     def target_mask(self, unit: int, action: int) -> np.ndarray:
         """The third head: which hexes this unit and this action allow (FR-50)."""
-        return encoding.target_mask_for(self.groups, self.spaces_record, unit, action)
+        return encoding.target_mask_for(self.choices, self.spaces_record, unit, action)
 
     def option_mask(self, unit: int, action: int, target: int) -> np.ndarray:
         """The fourth head: which command of this unit, action, and hex is legal."""
-        return encoding.option_mask_for(self.groups, self.spaces_record, unit, action, target)
+        return encoding.option_mask_for(self.choices, self.spaces_record, unit, action, target)
 
     def close(self) -> None:
         return None
@@ -213,6 +236,18 @@ class SquadLeaderEnv(AECEnv):
     def _apply(self, legal: Any, acted: int) -> None:
         """One legal command of the side `acted` onto the state, with its rewards and ends."""
         before = self._state()
+        weapon = legal.command.action in WEAPON_ACTIONS and legal.command.weapon is not None
+        ride = legal.command.action in RIDE_ACTIONS
+        if weapon or ride:
+            phase = (before.turn, before.phase, acted)
+            if phase != self.handled_phase:
+                self.handled = set()
+                self.rode = set()
+                self.handled_phase = phase
+            if weapon:
+                self.handled.add(legal.command.weapon)
+            if ride:
+                self.rode.update(legal.command.units)
         state, events = self.engine.apply(before, legal.command, self.frame)
         self.state_ = state
         self.commands_applied += 1
@@ -242,11 +277,25 @@ class SquadLeaderEnv(AECEnv):
         state = self._state()
         self.frame = self.engine.legal_commands(state)
         self.groups = encoding.group_commands(self.frame, self.hexes)
+        self.choices = self._without_weapons_handled(state)
         self.agent_selection = self.agent_of(self.frame.player)
         if state.game_over:
             return
         if not self.frame.commands:
             raise NoLegalCommand(f"no legal command in {state.phase}/{self.frame.sub_step}")
+
+    def _without_weapons_handled(self, state: State) -> dict[tuple[int, int, int, int], Any]:
+        """`groups` with no second pickup or drop of a weapon and no second board or debark
+        of a unit in this phase, or all of it."""
+        if not (self.handled or self.rode) or self.handled_phase != (state.turn, state.phase, self.frame.player):
+            return self.groups
+        kept = {
+            key: legal
+            for key, legal in self.groups.items()
+            if not (legal.command.action in WEAPON_ACTIONS and legal.command.weapon in self.handled)
+            and not (legal.command.action in RIDE_ACTIONS and self.rode.intersection(legal.command.units))
+        }
+        return kept or self.groups
 
     def _rewards_and_ends(self, before: State, events: list, acted: int, repeated: bool = False) -> None:
         state = self._state()

@@ -21,9 +21,11 @@ import torch
 from slagents.learned import ppo
 from slagents.learned.agent import LearnedAgent
 from slagents.learned.env import make_env
+from slagents.learned.jumpstart import JumpStart
 from slagents.learned.league import League, Member, load_snapshot
 from slagents.learned.nets import NetConfig, Policy
 from slagents.learned.workers import agent_key
+from slcli.gauntlet import add_farm_arguments, farm_of
 from slcli.play import build_engine_with_record, make_agent
 from slruns import artifact
 from slruns.elo import wilson_interval
@@ -54,11 +56,14 @@ def scripted_member(engine, kind: str, seed: int) -> Member:
     return Member(name=f"scripted-{first.name}-v{first.version}", kind="scripted", act=act, spec=kind)
 
 
-def build_league(engine, seed: int) -> League:
+def build_league(engine, seed: int, opponents: list[str] | None = None) -> League:
+    """The league of the run: random and each scripted agent, or the `opponents` alone."""
     league = League()
-    league.add(Member(name="random", kind="random", act=ppo.random_opponent))
-    for kind in SCRIPTED_KINDS:
-        league.add(scripted_member(engine, kind, seed))
+    for kind in ("random", *SCRIPTED_KINDS) if opponents is None else opponents:
+        if kind == "random":
+            league.add(Member(name="random", kind="random", act=ppo.random_opponent))
+        else:
+            league.add(scripted_member(engine, kind, seed))
     return league
 
 
@@ -86,6 +91,10 @@ def run_training(
     start_from: Path | None = None,
     workers: int = 1,
     opponent_cap: float | None = None,
+    opponents: list[str] | None = None,
+    jump_start: JumpStart | None = None,
+    farm: Any = None,
+    remote_envs: int = 0,
 ) -> artifact.RunArtifact:
     """The training loop. It gives a run artifact, whether it finished or stopped early.
 
@@ -95,10 +104,20 @@ def run_training(
     `net`, because the weights fit one shape. With `workers` above one the games play in
     that many worker processes and the policy answers them in one batch (`--workers`).
     `opponent_cap` is the largest share of the games one league member gets
-    (`--opponent-cap`).
+    (`--opponent-cap`). `opponents` names the only league members (`--opponents v7`), and
+    then no snapshot of the learner goes into the league: the s04 attacker run of
+    2026-10-13 trains against v7 alone. `jump_start` gives the first turns of the
+    learner's side of each game to a guide agent (`--jump-start v7`); it needs workers.
+    `farm` adds remote workers on the farm hosts (`--remote`), `remote_envs` on each host
+    (zero is the slots of the host); the farm plays random and scripted opponents only, so
+    it needs `opponents`.
     """
     from slagents.learned.workers import WorkerPool, member_spec
 
+    if jump_start is not None and workers < 2 and farm is None:
+        raise ValueError("--jump-start needs --workers 2 or more, because the guide plays in the worker processes")
+    if farm is not None and opponents is None:
+        raise ValueError("--remote needs --opponents: the farm plays random and scripted opponents, and a league snapshot is a file of this workstation")
     engine, board_record = build_engine_with_record(scenario)
     env = make_env(engine, seed=seed)
     compute = ppo.resolve_device(device)
@@ -119,7 +138,7 @@ def run_training(
         raise ValueError("--anchor-kl needs --start-from, because the anchor is the policy the run starts from")
     optimizer = torch.optim.Adam(policy.parameters(), lr=config.learning_rate)
     generator = torch.Generator().manual_seed(seed)
-    league = build_league(engine, seed)
+    league = build_league(engine, seed, opponents)
     league.share_cap = opponent_cap
     writer = _tensorboard(log_dir)
     art = artifact.RunArtifact(
@@ -144,7 +163,11 @@ def run_training(
             "parameters": sum(p.numel() for p in policy.parameters()),
             "opponents": [m.name for m in league.members],
             "workers": workers,
+            "farm": [str(a) for a in farm.addresses] if farm is not None else [],
+            "remote_envs": remote_envs,
             "opponent_cap": opponent_cap,
+            "fixed_opponents": opponents is not None,
+            "jump_start": None if jump_start is None else jump_start.to_dict(),
             "criteria": ["TC-13", "TC-18", "TC-19", "IR-07"],
         },
     )
@@ -152,6 +175,7 @@ def run_training(
     snapshots: list[dict[str, Any]] = []
     done = 0
     updates = 0
+    warmup_updates = 0
     started = time.perf_counter()
     deadline = started + hours * SECONDS_IN_HOUR if hours else None
     last_rate_report = started
@@ -159,8 +183,9 @@ def run_training(
     stopped = "the step count is complete"
     side = learner_player
     pool = None
-    if workers > 1:
-        pool = WorkerPool(scenario, workers, seed, env.max_commands, env.spaces_record)
+    if workers > 1 or farm is not None:
+        pool = WorkerPool(scenario, workers, seed, env.max_commands, env.spaces_record, farm=farm, remote_envs=remote_envs)
+        art.config["remote_workers"] = len(pool.workers) - workers
         # With both sides the workers start on the two sides in turn, so each rollout
         # holds the attack and the defence.
         for w in pool.workers:
@@ -208,6 +233,7 @@ def run_training(
                     next_seed,
                     record_result,
                     alternate_sides=alternate_sides,
+                    jump_start=jump_start,
                 )
             else:
                 rollout = ppo.collect(
@@ -222,18 +248,26 @@ def run_training(
                     next_opponent=next_opponent,
                 )
                 side = rollout.next_learner
-            stats = ppo.update(policy, optimizer, rollout, config, env.spaces_record, anchor)
+            stats = ppo.update(
+                policy, optimizer, rollout, config, env.spaces_record, anchor,
+                value_only=done < config.value_warmup_steps,
+            )
             done += len(rollout)
             updates += 1
+            warmup_updates += int(stats["value_only"])
             now = time.perf_counter()
             rate = done / max(1e-9, now - started)
             _log(writer, stats, league, done, rate)
+            if writer is not None and jump_start is not None:
+                writer.add_scalar("jump_start/turns", jump_start.turns, done)
+                writer.add_scalar("jump_start/win_rate", jump_start.win_rate(), done)
             if now - last_rate_report >= RATE_INTERVAL_SECONDS:
                 rates.append({"step": done, "seconds": round(now - started, 1), "steps_per_second": round(rate, 1)})
                 last_rate_report = now
             if snapshot_every and done // snapshot_every > league.snapshots - 1 and done >= snapshot_every:
                 path = league.take_snapshot(policy, out / "snapshots", done, net)
-                league.add(snapshot_member(path, policy, generator, done))
+                if opponents is None:
+                    league.add(snapshot_member(path, policy, generator, done))
                 snapshots.append({"step": done, "path": str(path)})
     except KeyboardInterrupt:
         stopped = "a keyboard interrupt"
@@ -247,6 +281,7 @@ def run_training(
     art.stats = {
         "steps": done,
         "updates": updates,
+        "value_warmup_updates": warmup_updates,
         "seconds": round(seconds, 1),
         "steps_per_second": round(done / max(1e-9, seconds), 1),
         "rate_reports": rates,
@@ -254,6 +289,7 @@ def run_training(
         "elo": league.table(LEARNER),
         "league": league.record_table(),
         "evaluation": evaluation,
+        "jump_start": None if jump_start is None else jump_start.to_dict(),
         "stopped_because": stopped,
         "passed": {
             "TC-19": _elo_complete(league),
@@ -427,6 +463,7 @@ def _log(writer, stats: dict[str, float], league: League, step: int, rate: float
     writer.add_scalar("loss/value", stats["value_loss"], step)
     writer.add_scalar("policy/entropy", stats["entropy"], step)
     writer.add_scalar("policy/anchor_kl", stats.get("anchor_kl", 0.0), step)
+    writer.add_scalar("run/value_only", stats.get("value_only", 0.0), step)
     writer.add_scalar("run/steps_per_second", rate, step)
     writer.add_scalar("elo/learner", league.elo.rating(LEARNER), step)
     for other in league.members:
@@ -445,6 +482,7 @@ def run(args: Any) -> int:
         entropy_coefficient=args.entropy,
         discount=args.discount,
         anchor_kl=args.anchor_kl,
+        value_warmup_steps=args.value_warmup,
     )
     net = NetConfig(channels=args.channels, hidden=args.hidden)
     art = run_training(
@@ -464,11 +502,21 @@ def run(args: Any) -> int:
         start_from=Path(args.start_from) if args.start_from else None,
         workers=args.workers,
         opponent_cap=args.opponent_cap,
+        opponents=[k.strip() for k in args.opponents.split(",") if k.strip()] or None,
+        jump_start=(
+            JumpStart(args.jump_start, args.jump_start_turns, args.jump_start_threshold, args.jump_start_window)
+            if args.jump_start else None
+        ),
+        farm=farm_of(args),
+        remote_envs=args.remote_envs,
     )
     stats = art.stats
     print(f"device {art.config['device']}")
     print(f"{stats['steps']} steps in {stats['seconds']} s = {stats['steps_per_second']} steps/s, {stats['updates']} updates")
     print(f"stopped because of {stats['stopped_because']}")
+    if stats.get("jump_start"):
+        js = stats["jump_start"]
+        print(f"jump start: the guide {js['guide']} plays {js['turns']} turns at the end, after {len(js['changes'])} changes in {js['games']} games")
     print("elo " + json.dumps({k: v["rating"] for k, v in sorted(stats["elo"].items())}, sort_keys=True))
     for row in stats["evaluation"]:
         print(
@@ -525,12 +573,32 @@ def add_parser(subparsers: Any) -> None:
     from slcli.worker_limit import workers_argument
 
     p.add_argument("--workers", type=workers_argument, default=1, help="worker processes that play the games; 1 plays them in this process")
+    add_farm_arguments(p)
+    p.add_argument("--remote-envs", type=int, default=0, help="PPO workers on each farm host of --remote; 0 is the slots of the host")
     p.add_argument(
         "--opponent-cap",
         type=float,
         default=None,
         help="the largest share of the games one league member gets, as 0.05; none for the loss-rate rule alone",
     )
+    p.add_argument(
+        "--opponents",
+        default="",
+        help="a comma list of the only league members, as v7 or random,v5; no snapshot of the learner joins them; default random and each scripted agent",
+    )
+    p.add_argument(
+        "--jump-start",
+        default="",
+        help="a scripted agent, as v7, that plays the learner's side in the first turns of each game (Jump-Start RL); needs --workers 2 or more",
+    )
+    p.add_argument("--jump-start-turns", type=int, default=3, help="the turns the guide plays at the start of the run")
+    p.add_argument(
+        "--jump-start-threshold",
+        type=float,
+        default=0.4,
+        help="the learner's win rate at one horizon that makes the guide play one turn less",
+    )
+    p.add_argument("--jump-start-window", type=int, default=100, help="the games at one horizon that the win rate reads")
     p.add_argument("--channels", type=int, default=32, help="convolution channels of the board encoder")
     p.add_argument("--hidden", type=int, default=256, help="width of the trunk and the heads")
     p.add_argument("--start-from", default=None, help="a snapshot the policy starts from, as sl-cli imitate writes")
@@ -539,6 +607,12 @@ def add_parser(subparsers: Any) -> None:
         type=float,
         default=0.0,
         help="the weight of the KL divergence from the start snapshot, which holds the policy near it; 0 for none",
+    )
+    p.add_argument(
+        "--value-warmup",
+        type=int,
+        default=0,
+        help="the first decisions of the run that train the value head alone, with the policy fixed; 0 for none",
     )
     p.add_argument("--snapshot-every", type=int, default=20000, help="0 for no snapshot")
     p.add_argument("--out", default="runs/train", help="directory for the snapshots")

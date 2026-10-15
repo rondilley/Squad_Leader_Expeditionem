@@ -82,7 +82,13 @@ def run_imitation(
             f"holdout cross entropy {row['holdout_cross_entropy']:.3f}, holdout accuracy {row['holdout_accuracy'] * 100:.1f} percent"
         )
 
+    def log_kept(fitted: list[dict[str, float]]) -> None:
+        kept = [row for row in fitted if row.get("kept")]
+        if kept:
+            log(f"kept the weights of epoch {kept[0]['epoch']:.0f}, holdout cross entropy {kept[0]['holdout_cross_entropy']:.3f}")
+
     rows = imitate.fit(policy, data, config, env.spaces_record, seed, on_epoch)
+    log_kept(rows)
     rounds: list[dict[str, Any]] = []
     for round_index in range(dagger_rounds):
         round_started = time.perf_counter()
@@ -111,6 +117,7 @@ def run_imitation(
         )
         round_config = imitate.FitConfig(**{**config.to_dict(), "epochs": dagger_epochs or config.epochs})
         round_rows = imitate.fit(policy, data, round_config, env.spaces_record, round_seed, on_epoch)
+        log_kept(round_rows)
         rows.extend(round_rows)
         rounds.append(
             {
@@ -187,6 +194,7 @@ def run(args: Any) -> int:
         value_coefficient=args.value_coefficient,
         holdout=args.holdout,
         stop_weight=args.stop_weight,
+        side_weights=imitate.parse_side_weights(args.side_weights),
     )
     net = NetConfig(channels=args.channels, hidden=args.hidden)
     labels = imitate.parse_labels(args.labels) if args.labels else None
@@ -240,8 +248,8 @@ def add_parser(subparsers: Any) -> None:
     p.add_argument("--teachers", default="v4,v5,v6", help="a comma list of scripted agents; each ordered pair plays")
     p.add_argument(
         "--labels",
-        default="0=v5,1=v6",
-        help="the teacher whose command labels each side, as 0=v5,1=v6; an empty value lets each teacher label its own",
+        default="",
+        help="the teacher whose command labels each side, as 0=v3,1=v3; without it each teacher labels its own decisions",
     )
     p.add_argument("--games", type=int, default=100, help="games of the teachers against each other")
     p.add_argument("--dagger-rounds", type=int, default=0, help="rounds of the policy's own games with the teachers' labels")
@@ -259,6 +267,11 @@ def add_parser(subparsers: Any) -> None:
         type=float,
         default=1.0,
         help="the weight of a decision that fires the group or ends a phase, against 1 for each other decision",
+    )
+    p.add_argument(
+        "--side-weights",
+        default="",
+        help="the weight of the decisions of each side in the fit, as 0=1,1=0 for the decisions of player 0 only; default 1 each",
     )
     p.add_argument("--device", default="auto", help="auto, cpu, cuda, or cuda:0")
     from slcli.worker_limit import workers_argument

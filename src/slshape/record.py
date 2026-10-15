@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass, field
-from multiprocessing import Pool
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -203,9 +202,13 @@ def record_corpus(
     else:
         from slagents.registry import limit_workers
 
+        from slagents.learned.workers import play_in_order
+
+        # `play_in_order` plays again each game of a worker process that died; the
+        # `multiprocessing.Pool` of before waited for that game with no limit.
         workers = limit_workers(workers)
-        with Pool(processes=min(workers, len(jobs))) as pool:
-            results = list(pool.imap(_job, jobs, chunksize=1))
+        results = []
+        play_in_order(_job, jobs, min(workers, len(jobs)), None, (), lambda _index, result: results.append(result))
     pictures: list[np.ndarray] = []
     feats: list[np.ndarray] = []
     game_index: list[int] = []

@@ -85,7 +85,8 @@ def test_the_mask_allows_each_legal_command_and_no_other(engine):
                 for target in np.flatnonzero(env.target_mask(int(unit), int(action))):
                     for option in np.flatnonzero(env.option_mask(int(unit), int(action), int(target))):
                         allowed.add((int(unit), int(action), int(target), int(option)))
-        assert allowed == set(env.groups), "the mask and the legal list are the same set"
+        assert allowed == set(env.choices), "the mask and the offered commands are the same set"
+        assert set(env.choices) <= set(env.groups), "the mask offers only legal commands"
         triple = sorted(env.groups)[0]
         env.step(triple)
         if env.terminations[env.agent_selection]:
@@ -291,3 +292,78 @@ def test_the_observation_shows_the_fire_group_the_legal_units_and_the_objective(
     other = env.observe(env.agent_of(1 - player))
     assert other["units"][:, 28].sum() == 0.0
     assert other["board"][target_plane].sum() == 1.0
+
+
+def _weapon_frame(env, engine, seed: int):
+    """Scripted play in the environment to a Movement Phase frame with a pickup or a drop."""
+    from slagents.learned.encoding import command_index
+    from slcli.play import make_agent
+
+    env.reset(seed=seed)
+    agents = (make_agent("v1", engine, seed, 0), make_agent("v1", engine, seed, 1))
+    for _ in range(20000):
+        state = env.state_
+        weapons = [k for k, c in env.groups.items() if c.command.action in ("pickup", "drop")]
+        if state.phase == "movement" and weapons:
+            return weapons
+        legal = env.frame.by_id(agents[state.active].select(state, env.frame))
+        env.step(command_index(legal, env.groups))
+    raise AssertionError("no Movement Phase with a weapon command")
+
+
+def test_the_mask_offers_no_second_pickup_or_drop_of_a_weapon_in_one_phase():
+    """A pickup and a drop are free (rule 5.7), so a policy could hand the weapons around
+    with a new set of holders at each step and never end the phase (2026-10-12). After a
+    side picks up or drops a weapon, the mask leaves out the next pickup or drop of it in
+    the same phase. The legal list keeps it, so a scripted agent can still play it, and the
+    next phase offers it again.
+    """
+    engine = build_engine("s02_tractor_works")
+    env = make_env(engine, seed=2)
+    weapons = _weapon_frame(env, engine, 2)
+    first = env.groups[weapons[0]].command
+    phase = (env.state_.turn, env.state_.phase, env.state_.active)
+    env.step(weapons[0])
+    assert (env.state_.turn, env.state_.phase, env.state_.active) == phase
+    again = {k for k, c in env.groups.items() if c.command.action in ("pickup", "drop") and c.command.weapon == first.weapon}
+    assert again, "the legal list has the next pickup or drop of the same weapon"
+    assert not again & set(env.choices), "the mask does not offer it"
+    assert set(env.choices) < set(env.groups)
+    # A scripted agent reads the frame and may still give it.
+    env.step(sorted(again)[0])
+    assert (env.state_.turn, env.state_.phase, env.state_.active) == phase
+    # The next phase of the side offers the weapon again.
+    env.handled_phase = (phase[0], "prep_fire", phase[2])
+    env._refresh()
+    assert set(env.choices) == set(env.groups)
+
+
+def test_the_mask_offers_no_second_board_or_debark_of_a_unit_in_one_phase():
+    """The core lets a unit that debarked board again, so a policy got a squad on a tank
+    and off it 250 times in one phase (2026-10-13). After a unit boards or debarks, the
+    mask leaves out its next board or debark in the same phase. Since PR-55 the core does
+    not offer it either, so the legal list and the mask both leave it out, and the mask
+    offers each command of the legal list.
+    """
+    from slagents.learned.encoding import command_index
+    from slcli.play import make_agent
+
+    engine = build_engine("s04_armor_probe")
+    env = make_env(engine, seed=2)
+    env.reset(seed=2)
+    agents = (make_agent("random", engine, 2, 0), make_agent("random", engine, 2, 1))
+    for _ in range(20000):
+        state = env.state_
+        assert not state.game_over, "the game ended before a Movement Phase with a board"
+        boards = [k for k, c in env.groups.items() if c.command.action == "board"]
+        if state.phase == "movement" and boards:
+            break
+        legal = env.frame.by_id(agents[state.active].select(state, env.frame))
+        env.step(command_index(legal, env.groups))
+    unit = env.groups[boards[0]].command.units[0]
+    phase = (env.state_.turn, env.state_.phase, env.state_.active)
+    env.step(boards[0])
+    assert (env.state_.turn, env.state_.phase, env.state_.active) == phase
+    again = {k for k, c in env.groups.items() if c.command.action in ("board", "debark") and unit in c.command.units}
+    assert not again, "PR-55: the legal list has no second board or debark of the unit"
+    assert set(env.choices) == set(env.groups)

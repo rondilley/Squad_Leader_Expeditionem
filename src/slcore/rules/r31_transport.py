@@ -62,8 +62,13 @@ def has_room(state: State, types: Mapping[str, UnitType], vehicle: Unit, rider: 
 
 
 def can_board(state: State, types: Mapping[str, UnitType], unit: Unit, vehicle: Unit) -> bool:
-    """Rules 31.4 and 31.6: an unbroken infantry unit in the vehicle's hex may get on."""
+    """Rules 31.4 and 31.6: an unbroken infantry unit in the vehicle's hex may get on.
+
+    PR-55: not a unit that boarded or debarked in this Movement Phase.
+    """
     if not unit.is_infantry or unit.riding or unit.broken or unit.carrier is not None:
+        return False
+    if unit.rode:
         return False
     if unit.hex is None or unit.hex != vehicle.hex:
         return False
@@ -92,12 +97,20 @@ def legal_boarding(state: State, types: Mapping[str, UnitType], player: int) -> 
 def legal_debarking(
     board: Board, state: State, types: Mapping[str, UnitType], player: int
 ) -> list[Command]:
-    """Rule 31.4: a passenger gets off into its own hex or an adjacent hex with no enemy."""
+    """Rule 31.4: a passenger gets off into its own hex or an adjacent hex with no enemy.
+
+    PR-55: not a passenger that boarded in this Movement Phase, and only when the vehicle
+    has the two movement points of rule 31.3 left.
+    """
     out: list[Command] = []
     for vehicle in r28_vehicles.vehicles(state, player):
         if vehicle.hex is None:
             continue
+        if types[vehicle.type_key].mp_halves - vehicle.mp_used < DEBARK_COST_HALVES:
+            continue
         for rider in riders(state, vehicle.id):
+            if rider.rode:
+                continue
             for dst in (vehicle.hex,) + board.neighbors(vehicle.hex):
                 if r05_movement.enemy_in_hex(state, player, dst):
                     continue
@@ -121,7 +134,7 @@ def apply_board(state: State, command: Command) -> tuple[State, list[Event]]:
     vehicle_id = command_vehicle(command)
     vehicle = state.units[vehicle_id]
     changed = {
-        unit.id: unit.with_(passenger_of=vehicle_id, hex=vehicle.hex, move_mode=MOVE_MODE_NONE),
+        unit.id: unit.with_(passenger_of=vehicle_id, hex=vehicle.hex, move_mode=MOVE_MODE_NONE, rode=True),
         # Rule 31.3: the vehicle may not move during the turn infantry board it.
         vehicle_id: vehicle.with_(boarded=True),
     }
@@ -146,7 +159,7 @@ def apply_debark(ctx: r05_movement.MoveContext, state: State, command: Command) 
     spent = r05_movement.allowance_halves(ctx, state, unit, leader_bonus=False)
     changed: dict[int, Unit] = {
         unit.id: unit.with_(
-            passenger_of=None, hex=dst, moved=True, mf_used=spent, track=unit.track + (dst,)
+            passenger_of=None, hex=dst, moved=True, mf_used=spent, track=unit.track + (dst,), rode=True
         )
     }
     for weapon in state.carried_by(unit.id):

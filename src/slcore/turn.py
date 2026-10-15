@@ -269,7 +269,7 @@ def _cc_resolve(engine: Any, state: State, phase: str, step: SubStep, events: li
 def _end_player_turn(engine: Any, state: State, phase: str, step: SubStep, events: list[Event]) -> State:
     changed = {}
     for u in state.units:
-        if u.moved or u.mf_used or u.move_mode or u.track or u.portage_max or u.stay or u.fired or u.directed or u.manned_mg or u.sewer_move or u.demo_placed or u.made_smoke:
+        if u.moved or u.mf_used or u.move_mode or u.track or u.portage_max or u.stay or u.fired or u.directed or u.manned_mg or u.sewer_move or u.demo_placed or u.made_smoke or u.rode:
             changed[u.id] = u.with_(
                 moved=False,
                 mf_used=0,
@@ -283,6 +283,7 @@ def _end_player_turn(engine: Any, state: State, phase: str, step: SubStep, event
                 sewer_move=False,
                 demo_placed=False,
                 made_smoke=False,
+                rode=False,
             )
     if engine.has_vehicles:
         # Rules 30.2, 33.2, 34.7, 35.8, and 31.3: what a vehicle carries into the next

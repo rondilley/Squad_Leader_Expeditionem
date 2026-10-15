@@ -248,3 +248,187 @@ def test_the_batched_scores_are_the_composed_log_probabilities_of_each_command()
                 torch.tensor([u]), torch.tensor([a]), torch.tensor([t]), torch.tensor([o]),
             )
         assert scores[quad] == pytest.approx(float(log_prob.item()), abs=1e-4)
+
+
+def _movement_with_weapons(engine, seed: int):
+    """A real scenario 2 state in a Movement Phase whose frame offers a pickup or a drop."""
+    from slagents.base import decide
+    from slcli.play import make_agent
+
+    agents = (make_agent("v1", engine, seed, 0), make_agent("v1", engine, seed, 1))
+    state = engine.new_game(seed)
+    for _ in range(20000):
+        frame = engine.legal_commands(state)
+        if state.phase == "movement" and sum(c.command.action in ("pickup", "drop") for c in frame.commands) >= 2:
+            return state
+        state, _ = engine.apply(state, frame.by_id(decide(agents[state.active], state, frame)).command, frame)
+    raise AssertionError("no Movement Phase with two weapon commands")
+
+
+def _weapon_commands_in_phase(engine, state, agent, limit: int) -> tuple[int, int, bool]:
+    """The pickups and drops the agent plays before its phase ends, the weapons, and the end."""
+    from slagents.base import decide
+
+    start = (state.turn, state.phase, state.active)
+    weapons = {u.id for u in state.units if u.kind == "sw" and u.player == state.active and not u.eliminated}
+    count = 0
+    for _ in range(limit):
+        if (state.turn, state.phase, state.active) != start or state.game_over:
+            return count, len(weapons), True
+        frame = engine.legal_commands(state)
+        legal = frame.by_id(decide(agent, state, frame))
+        if legal.command.action in ("pickup", "drop"):
+            count += 1
+        state, _ = engine.apply(state, legal.command, frame)
+    return count, len(weapons), False
+
+
+@needs_torch
+def test_a_policy_that_likes_weapons_does_not_walk_through_the_holders():
+    """A pickup and a drop are free (rule 5.7), so the guard against a repeat alone let a
+    policy hand the weapons around for thousands of commands, each with a new set of
+    holders (the scenario 2 net, 2026-10-12). The agent puts a second pickup or drop of a
+    weapon in the same phase after each other command, so the phase ends with at most two
+    such commands for each weapon.
+    """
+    import torch
+
+    from slagents.learned.agent import WEAPON_ACTIONS, LearnedAgent
+    from slagents.learned.nets import NetConfig, Policy
+
+    engine = build_engine("s02_tractor_works")
+    state = _movement_with_weapons(engine, 2)
+    spaces = encoding.spaces_for(engine.board, len(state.units))
+    torch.manual_seed(0)
+    policy = Policy(spaces, NetConfig(**SMALL_NET))
+
+    class WeaponFirst(LearnedAgent):
+        """The net's preference of the failed games: each pickup and drop over the rest."""
+
+        def _by_score(self, scores, groups):
+            ordered = LearnedAgent._by_score(scores, groups)
+            return [c for c in ordered if c.command.action in WEAPON_ACTIONS] + [
+                c for c in ordered if c.command.action not in WEAPON_ACTIONS
+            ]
+
+    fixed = WeaponFirst.from_policy(engine, policy)
+    count, weapons, ended = _weapon_commands_in_phase(engine, state, fixed, 2000)
+    assert ended, "the phase ends"
+    assert 0 < count <= 2 * weapons, (count, weapons)
+
+    class GuardOnly(WeaponFirst):
+        """The agent before the fix: the guard against an exact repeat only."""
+
+        def _weapons_handled_last(self, state, ordered, player):
+            return ordered
+
+    walked, weapons, _ended = _weapon_commands_in_phase(engine, state, GuardOnly.from_policy(engine, policy), 400)
+    assert walked > 2 * weapons, (walked, weapons)
+
+
+def _movement_with(engine, seed: int, agent_name: str, action: str, count: int):
+    """A real state in a Movement Phase whose frame offers `count` commands of `action`."""
+    from slagents.base import decide
+    from slcli.play import make_agent
+
+    agents = (make_agent(agent_name, engine, seed, 0), make_agent(agent_name, engine, seed, 1))
+    state = engine.new_game(seed)
+    for _ in range(20000):
+        assert not state.game_over, f"the game ended before a Movement Phase with {action}"
+        frame = engine.legal_commands(state)
+        if state.phase == "movement" and sum(c.command.action == action for c in frame.commands) >= count:
+            return state, frame
+        state, _ = engine.apply(state, frame.by_id(decide(agents[state.active], state, frame)).command, frame)
+    raise AssertionError(f"no Movement Phase with {count} commands of {action}")
+
+
+def test_the_choice_is_the_action_with_the_most_probability_first():
+    """The policy divides the probability of a move between many units and hexes, and the
+    probability of end_phase stays on one command. The joint argmax then ends the phase
+    with no move (s04, 2026-10-13). The agent sums the probability of each action over its
+    legal commands, and plays the best command of the action with the highest sum.
+    """
+    import math
+
+    from slagents.learned.agent import LearnedAgent
+
+    engine = build_engine("s04_armor_probe")
+    state, frame = _movement_with(engine, 2, "random", "move", 4)
+    groups = encoding.group_commands(frame, encoding.hex_slots(engine.board))
+    moves = [k for k, c in groups.items() if c.command.action == "move"]
+    others = [k for k, c in groups.items() if c.command.action not in ("move", "end_phase")]
+    end = next(k for k, c in groups.items() if c.command.action == "end_phase")
+    scores = {k: math.log(0.6 / len(moves)) for k in moves}
+    scores[moves[-1]] = math.log(0.6 / len(moves) * 1.5)
+    scores.update({k: math.log(0.1 / max(1, len(others))) for k in others})
+    scores[end] = math.log(0.3)
+    assert max(scores, key=scores.get) == end, "the joint argmax is end_phase"
+    ordered = LearnedAgent._by_score(scores, groups)
+    assert ordered[0] is groups[moves[-1]], "the best move comes first"
+    assert {c.command.action for c in ordered[: len(moves)]} == {"move"}
+    assert ordered[len(moves)] is groups[end]
+
+
+@needs_torch
+def test_a_policy_that_likes_to_ride_does_not_board_and_debark_without_end():
+    """The core lets a unit that debarked board again, so a policy that likes a board and a
+    debark got on a tank and off it 250 times in one phase (2026-10-13). The agent puts a
+    second board or debark of one unit in a phase after each other command. Since PR-55 the
+    core offers one board or debark of a unit in each Movement Phase, so the phase ends with
+    one ride of each unit at most.
+    """
+    import torch
+
+    from slagents.base import decide
+    from slagents.learned.agent import RIDE_ACTIONS, LearnedAgent
+    from slagents.learned.nets import NetConfig, Policy
+
+    engine = build_engine("s04_armor_probe")
+    state, _frame = _movement_with(engine, 2, "random", "board", 1)
+    spaces = encoding.spaces_for(engine.board, len(state.units))
+    torch.manual_seed(0)
+    policy = Policy(spaces, NetConfig(**SMALL_NET))
+
+    class RideFirst(LearnedAgent):
+        """The preference of the failed game: a board, or a debark into the hex of the
+        vehicle, over the rest, and end_phase last."""
+
+        def _weapons_handled_last(self, state, ordered, player):
+            ordered = LearnedAgent._weapons_handled_last(self, state, ordered, player)
+
+            def in_place(c):
+                return c.command.action == "board" or (
+                    c.command.action == "debark" and c.command.hex == state.units[c.command.units[0]].hex
+                )
+
+            ride = [c for c in ordered if in_place(c)]
+            end = [c for c in ordered if c.command.action == "end_phase"]
+            rest = [c for c in ordered if c not in ride and c not in end]
+            return ride + rest + end
+
+    def rides_in_phase(agent, limit: int) -> tuple[int, bool]:
+        current = state
+        start = (current.turn, current.phase, current.active)
+        count = 0
+        for _ in range(limit):
+            if (current.turn, current.phase, current.active) != start or current.game_over:
+                return count, True
+            frame = engine.legal_commands(current)
+            legal = frame.by_id(decide(agent, current, frame))
+            count += legal.command.action in RIDE_ACTIONS
+            current, _ = engine.apply(current, legal.command, frame)
+        return count, False
+
+    riders = {u.id for u in state.units if u.player == state.active and u.is_infantry and not u.eliminated}
+    count, ended = rides_in_phase(RideFirst.from_policy(engine, policy), 2000)
+    assert ended, "the phase ends"
+    assert 0 < count <= len(riders), (count, len(riders))
+
+    class GuardOnly(RideFirst):
+        """The agent with no limit of its own on a board and a debark: PR-55 holds it."""
+
+        def _rides_handled_last(self, ordered):
+            return ordered
+
+    looped, ended = rides_in_phase(GuardOnly.from_policy(engine, policy), 2000)
+    assert ended and 0 < looped <= len(riders), (looped, len(riders))

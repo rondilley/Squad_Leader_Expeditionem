@@ -225,6 +225,9 @@ class Unit:
     gun_shots: int = 0
     mg_fired: bool = False
     boarded: bool = False
+    # Rule 31.4 and PR-55: this infantry unit boarded or debarked in the current Movement
+    # Phase, so it may not board or debark again in it. `to_dict` writes it only when set.
+    rode: bool = False
     overran: bool = False
     # PR-54: the hex of an overrun this vehicle declared in the Movement Phase. It resolves
     # at the end of the Defensive Fire Phase that follows (rule 35.6).
@@ -301,6 +304,8 @@ class Unit:
                 here = getattr(self, key)
                 if here != value:
                     d[key] = here
+        if self.rode:
+            d["rode"] = True
         return d
 
     @staticmethod
@@ -337,6 +342,7 @@ class Unit:
             routed=bool(d.get("routed", False)),
             hidden=bool(d.get("hidden", False)),
             manned_mg=bool(d.get("manned_mg", False)),
+            rode=bool(d.get("rode", False)),
             **{key: _vehicle_value(key, d[key]) for key in _VEHICLE_DEFAULTS if key in d},
         )
 

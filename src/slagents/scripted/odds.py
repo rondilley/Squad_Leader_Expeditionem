@@ -388,7 +388,15 @@ def _leader_count(
     results: list[tuple[Unit, str, int]],
     index: dict[int, int],
 ) -> tuple[dict[int, int], int]:
-    """The weight of a break or a death of each unit, over one total (`_leader_raw`)."""
+    """The weight of a break or a death of each unit, over one total (`_leader_raw`).
+
+    The check of a unit that is not a leader changes no other unit: the helper set, the
+    task list, and the leaders stay the same. So a path of the count holds the joint
+    status of the leaders only, and for each other unit the weight of each of its four
+    statuses. Once the path of the leaders is known, the other units are independent, so
+    the sum of their weights over merged paths is exact, and the cost grows with the
+    number of units and not as a power of it (a 3A stack ran out of memory).
+    """
     fanatic_of = {u.id: fanatic for u, _result, fanatic, _worth in order}
     cascade_order = sorted(occupants, key=lambda u: (u.kind != KIND_LEADER, u.id))
     start = tuple(_BERSERK if u.berserk else (_BROKEN if u.broken else _OK) for u in occupants)
@@ -397,68 +405,111 @@ def _leader_count(
         ("kia" if result == RESULT_KIA else "fire", u.id, 0 if result in (RESULT_MC, RESULT_KIA) else int(result))
         for u, result, _fanatic in results
     )
+    lead = [i for i, u in enumerate(occupants) if u.kind == KIND_LEADER]
+    rank = [i for i, u in enumerate(occupants) if u.kind != KIND_LEADER]
+    lead_at = {i: n for n, i in enumerate(lead)}
+    rank_at = {i: n for n, i in enumerate(rank)}
+    start_lead = tuple(start[i] for i in lead)
+    start_rank = tuple(tuple(1 if s == start[i] else 0 for s in range(4)) for i in rank)
     # The count goes one check at a time, and each outcome of a check multiplies the
-    # weight by its ways out of 36. A state with no check at this level multiplies by
-    # 36, so each level has the one denominator 36 to the level, and equal states merge.
-    level: dict[tuple, int] = {(tasks, start, helpers): 1}
+    # weight by its ways out of 36. A path with no check at this level multiplies by
+    # 36, so each level has the one denominator 36 to the level, and equal paths merge.
+    level: dict[tuple, tuple[int, tuple[tuple[int, ...], ...]]] = {(tasks, start_lead, helpers): (1, start_rank)}
     depth = 0
-    leaves: dict[tuple[int, ...], tuple[int, int]] = {}
-    ended: list[tuple[tuple[int, ...], int, int]] = []
+    ended: list[tuple[tuple[int, ...], int, tuple[tuple[int, ...], ...], int]] = []
+
+    def scaled(ranks: tuple[tuple[int, ...], ...], factor: int) -> tuple[tuple[int, ...], ...]:
+        return tuple(tuple(w * factor for w in row) for row in ranks)
+
+    def split(unit: Unit, status: int, check_mod: int, russian: bool) -> tuple[int, int, int]:
+        """The ways to pass, to go berserk, and to fail one check, out of 36."""
+        broken = status == _BROKEN
+        morale = types[unit.type_key].broken_morale if broken else types[unit.type_key].morale
+        berserk = DICE_WAYS[BERSERK_ROLL] if russian else 0
+        fail = check_fail_ways(morale, check_mod)
+        if russian and BERSERK_ROLL + check_mod > morale:
+            fail -= DICE_WAYS[BERSERK_ROLL]
+        return WAYS - fail - berserk, berserk, fail
+
     while level:
-        following: dict[tuple, int] = {}
+        following: dict[tuple, tuple[int, tuple[tuple[int, ...], ...]]] = {}
 
-        def add(key: tuple, weight: int) -> None:
-            following[key] = following.get(key, 0) + weight
+        def add(key: tuple, weight: int, ranks: tuple[tuple[int, ...], ...]) -> None:
+            old = following.get(key)
+            if old is None:
+                following[key] = (weight, ranks)
+            else:
+                following[key] = (
+                    old[0] + weight,
+                    tuple(tuple(a + b for a, b in zip(x, y)) for x, y in zip(old[1], ranks)),
+                )
 
-        for (todo, status, mask), weight in level.items():
+        for (todo, status, mask), (weight, ranks) in level.items():
             if not todo:
-                ended.append((status, weight, depth))
+                ended.append((status, weight, ranks, depth))
                 continue
             (kind, uid, modifier), rest = todo[0], todo[1:]
             i = index[uid]
-            if kind == "kia":
-                if status[i] == _DEAD:
-                    add((rest, status, mask), weight * WAYS)
-                else:
-                    add((rest, status[:i] + (_DEAD,) + status[i + 1 :], mask - {uid}), weight * WAYS)
-                continue
             unit = occupants[i]
-            if status[i] in (_DEAD, _BERSERK):
-                add((rest, status, mask), weight * WAYS)
+            if i in rank_at:
+                # A unit that is not a leader: its own weights change, and the path does not.
+                n = rank_at[i]
+                row = ranks[n]
+                if kind == "kia":
+                    changed = (0, 0, sum(row) * WAYS, 0)
+                else:
+                    check_mod = modifier + _helper_rating(state, types, mask, uid) + fanatic_of[uid]
+                    russian = kind == "fire" and types[unit.type_key].nationality == RUSSIAN
+                    ok_pass, ok_berserk, ok_fail = split(unit, _OK, check_mod, russian)
+                    br_pass, br_berserk, br_fail = split(unit, _BROKEN, check_mod, russian)
+                    changed = (
+                        row[_OK] * ok_pass,
+                        row[_OK] * ok_fail + row[_BROKEN] * br_pass,
+                        row[_DEAD] * WAYS + row[_BROKEN] * br_fail,
+                        row[_BERSERK] * WAYS + row[_OK] * ok_berserk + row[_BROKEN] * br_berserk,
+                    )
+                ranks = tuple(changed if m == n else tuple(w * WAYS for w in other) for m, other in enumerate(ranks))
+                add((rest, status, mask), weight * WAYS, ranks)
                 continue
-            broken = status[i] == _BROKEN
-            morale = types[unit.type_key].broken_morale if broken else types[unit.type_key].morale
+            j = lead_at[i]
+            if kind == "kia":
+                if status[j] == _DEAD:
+                    add((rest, status, mask), weight * WAYS, scaled(ranks, WAYS))
+                else:
+                    add((rest, status[:j] + (_DEAD,) + status[j + 1 :], mask - {uid}), weight * WAYS, scaled(ranks, WAYS))
+                continue
+            if status[j] in (_DEAD, _BERSERK):
+                add((rest, status, mask), weight * WAYS, scaled(ranks, WAYS))
+                continue
+            broken = status[j] == _BROKEN
             check_mod = modifier + _helper_rating(state, types, mask, uid) + fanatic_of[uid]
             russian = kind == "fire" and types[unit.type_key].nationality == RUSSIAN
-            berserk = DICE_WAYS[BERSERK_ROLL] if russian else 0
-            fail = check_fail_ways(morale, check_mod)
-            if russian and BERSERK_ROLL + check_mod > morale:
-                fail -= DICE_WAYS[BERSERK_ROLL]
-            passed = WAYS - fail - berserk
+            passed, berserk, fail = split(unit, status[j], check_mod, russian)
             if passed:
-                add((rest, status, mask), weight * passed)
+                add((rest, status, mask), weight * passed, scaled(ranks, passed))
             if berserk:
-                add((rest, status[:i] + (_BERSERK,) + status[i + 1 :], mask), weight * berserk)
+                add((rest, status[:j] + (_BERSERK,) + status[j + 1 :], mask), weight * berserk, scaled(ranks, berserk))
             if fail:
-                failed = status[:i] + (_DEAD if broken else _BROKEN,) + status[i + 1 :]
-                if unit.kind == KIND_LEADER:
-                    second = tuple(("leader_break", v.id, 0) for v in cascade_order if v.id != uid)
-                    add((second + rest, failed, mask - {uid}), weight * fail)
-                else:
-                    add((rest, failed, mask), weight * fail)
+                failed = status[:j] + (_DEAD if broken else _BROKEN,) + status[j + 1 :]
+                second = tuple(("leader_break", v.id, 0) for v in cascade_order if v.id != uid)
+                add((second + rest, failed, mask - {uid}), weight * fail, scaled(ranks, fail))
         level = following
         depth += 1
-    deepest = max(d for _s, _w, d in ended)
+    deepest = max(d for _s, _w, _r, d in ended)
     total = WAYS**deepest
-    for status, weight, d in ended:
-        scaled = weight * WAYS ** (deepest - d)
-        old, _ = leaves.get(status, (0, 0))
-        leaves[status] = (old + scaled, 0)
     breaks: dict[int, int] = {}
-    for status, (weight, _unused) in leaves.items():
-        for i, u in enumerate(occupants):
-            if status[i] in (_BROKEN, _DEAD) and status[i] != start[i]:
-                breaks[u.id] = breaks.get(u.id, 0) + weight
+    for status, weight, ranks, d in ended:
+        factor = WAYS ** (deepest - d)
+        for j, i in enumerate(lead):
+            if status[j] in (_BROKEN, _DEAD) and status[j] != start[i]:
+                uid = occupants[i].id
+                breaks[uid] = breaks.get(uid, 0) + weight * factor
+        for n, i in enumerate(rank):
+            row = ranks[n]
+            gone = sum(row[s] for s in (_BROKEN, _DEAD) if s != start[i])
+            if gone:
+                uid = occupants[i].id
+                breaks[uid] = breaks.get(uid, 0) + gone * factor
     return breaks, total
 
 

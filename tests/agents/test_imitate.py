@@ -81,6 +81,24 @@ def test_the_fit_lowers_the_cross_entropy_and_the_holdout_reads_it(demonstration
     assert 0.0 <= rows[-1]["holdout_accuracy"] <= 1.0
 
 
+def test_the_fit_keeps_the_weights_of_the_epoch_with_the_lowest_holdout(demonstrations):
+    """A high learning rate on a small set overfits; the policy ends with the best holdout epoch."""
+    env, data = demonstrations
+    torch.manual_seed(0)
+    policy = Policy(env.spaces_record, SMALL)
+    config = imitate.FitConfig(epochs=6, minibatch=32, learning_rate=3e-2, holdout=0.3)
+    rows = imitate.fit(policy, data, config, env.spaces_record, seed=0)
+    kept = [row for row in rows if row["kept"]]
+    assert len(kept) == 1
+    best = min(row["holdout_cross_entropy"] for row in rows)
+    assert kept[0]["holdout_cross_entropy"] == best
+    tensors = imitate.Tensors(data, env.spaces_record, torch.device("cpu"), config.reward_scale)
+    n = len(tensors)
+    held = torch.arange(n - int(n * config.holdout), n)
+    after = imitate.holdout_losses(policy, tensors, held, config)
+    assert after["holdout_cross_entropy"] == pytest.approx(best, rel=1e-5)
+
+
 def test_the_snapshot_loads_as_a_training_snapshot_and_plays(tmp_path: Path, demonstrations, engine):
     env, data = demonstrations
     policy = Policy(env.spaces_record, SMALL)
@@ -283,3 +301,39 @@ def test_the_stop_weight_weighs_the_decisions_of_no_unit(demonstrations):
     assert float(equal) == pytest.approx((float(stops) * n_stop + float(others) * n_other) / (n_stop + n_other), rel=1e-4)
     assert float(heavy) == pytest.approx((float(stops) * 5 * n_stop + float(others) * n_other) / (5 * n_stop + n_other), rel=1e-4)
     assert imitate.FitConfig(stop_weight=3.0).to_dict()["stop_weight"] == 3.0
+
+
+def test_the_side_weights_parse_with_a_weight_for_each_side():
+    assert imitate.parse_side_weights("") == (1.0, 1.0)
+    assert imitate.parse_side_weights("0=1,1=0") == (1.0, 0.0)
+    assert imitate.parse_side_weights(" 1=0.25 ") == (1.0, 0.25)
+    for bad in ("2=1", "0=x", "1=-1", "0=0,1=0"):
+        with pytest.raises(ValueError):
+            imitate.parse_side_weights(bad)
+    assert imitate.FitConfig(side_weights=(1.0, 0.0)).to_dict()["side_weights"] == [1.0, 0.0]
+
+
+def test_a_side_of_weight_zero_is_out_of_the_fit_and_the_holdout(demonstrations):
+    """The loss with side weights 1 and 0 is the loss of the decisions of player 0 alone."""
+    env, data = demonstrations
+    torch.manual_seed(0)
+    policy = Policy(env.spaces_record, SMALL)
+    tensors = imitate.Tensors(data, env.spaces_record, torch.device("cpu"), 10.0)
+    index = torch.arange(0, min(256, len(tensors)))
+    players = tensors.player[index]
+    assert (players == 0).any() and (players == 1).any(), "the batch holds the decisions of the two sides"
+    with torch.no_grad():
+        first, first_value, _ = tensors.losses(policy, index, 0.1, 1.0, (1.0, 0.0))
+        alone, alone_value, _ = tensors.losses(policy, index[players == 0], 0.1, 1.0)
+    assert float(first) == pytest.approx(float(alone), rel=1e-5)
+    assert float(first_value) == pytest.approx(float(alone_value), rel=1e-5)
+    # The fit holds out only the decisions of player 0, and the holdout of the fit is theirs.
+    config = imitate.FitConfig(epochs=1, minibatch=32, holdout=0.3, side_weights=(1.0, 0.0))
+    rows = imitate.fit(policy, data, config, env.spaces_record, seed=0)
+    n = len(tensors)
+    held = torch.arange(n - int(n * config.holdout), n)
+    held = held[tensors.player[held] == 0]
+    plain = imitate.FitConfig(epochs=1, minibatch=32, holdout=0.3)
+    assert rows[0]["holdout_cross_entropy"] == pytest.approx(
+        imitate.holdout_losses(policy, tensors, held, plain)["holdout_cross_entropy"], rel=1e-5
+    )

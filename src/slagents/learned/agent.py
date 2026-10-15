@@ -7,14 +7,23 @@ game the same way a scripted agent does.
 The wrapper scores the legal commands that the core offers and returns the ID of the best
 one. It does not sample a key and hope the key is legal: it reads `frame.commands`,
 maps each legal command to its four parts with the same `group_commands` the trainer uses,
-and scores each key with the policy's four heads. The command with the highest score is
-the choice. So the returned ID is always a real legal command, and the target mask does not
-have to be rebuilt outside the environment.
+and scores each key with the policy's four heads. So the returned ID is always a real
+legal command, and the target mask does not have to be rebuilt outside the environment.
 
 The score of a command is the sum of the four per-head log probabilities, which is how
-`ppo.choose` composes the log probability of a whole command. The default is the argmax,
-because a tournament and a replay must give the same command for the same state. A seed
-turns on sampling for a run that wants variety.
+`ppo.choose` composes the log probability of a whole command. The default choice is
+deterministic, because a tournament and a replay must give the same command for the same
+state. A seed turns on sampling over the scores for a run that wants variety.
+
+The default choice is the action first. The probability of each action is the sum of the
+probabilities of its legal commands, and the agent plays the best command of the action
+with the highest sum. The argmax of the joint score was the rule before 2026-10-13, and it
+does not work for this action space: the policy divides the probability of an infantry
+move between many units and hexes, and the probability of `end_phase` stays on one
+command. In the s04 Movement Phase the policy gave `move` 0.66 over 30 commands and
+`end_phase` 0.23, and the argmax played `end_phase`. The clone of v7 made no infantry move
+in a whole game and won 0 of 10 attacks against random; with the action first it won 6 of
+10 (docs/reports/2026-10-13_training_review.md).
 
 The agent keeps out of a cycle. The environment ends a game whose position repeats as a
 defeat of the side that repeated it, and the policy cannot see that from the observation:
@@ -23,6 +32,19 @@ position key of each state it decided in, applies its first choice on the engine
 the position it gives is one the agent has decided in before, it takes the next command by
 score. The fourth 1 million step run lost 38 of 160 evaluation games that way, with the
 argmax of a policy that had not closed. One `apply` for each decision is the cost.
+
+A repeat is not the only cycle. A pickup and a drop cost no movement factor (rule 5.7), so
+a policy that likes them can hand a few weapons between a few units and give a new set of
+holders at each step. The guard then walks through the sets, which are a power of the
+weapon count: the scenario 2 net played 5,000 commands of one Movement Phase that way, and
+five gauntlet games did not end in 20,000 commands (2026-10-12). So the agent also keeps
+the weapons it picked up or dropped in the current phase, and a second pickup or drop of
+one of them goes after each other command. The phase then has at most two such commands
+for each weapon. A board and a debark are the same kind of loop: a squad got on a tank and
+off it 250 times in one phase (2026-10-13), because the core does not stop a unit that
+debarked from boarding again. So a second board or debark of one unit in a phase also
+goes after each other command. This is an order of preference, not a rule: the legal
+list is the core's.
 
 Why this and not `ppo.choose`: `ppo.choose` needs a `SquadLeaderEnv` for its target mask, and
 a real game outside the trainer has an engine, a state, and a frame, not an environment. The
@@ -36,6 +58,7 @@ at the boundary in `slagents.registry`, and not here.
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping
 
@@ -49,6 +72,13 @@ from slcore.player_state import for_player
 if TYPE_CHECKING:  # pragma: no cover - types only, no runtime import
     from slcore.engine import Engine
     from slagents.learned.nets import Policy
+
+
+# The commands that hand a weapon from one unit to another at no movement cost (rule 5.7).
+WEAPON_ACTIONS = frozenset({"pickup", "drop"})
+
+# The commands that put a unit on a vehicle and take it off (rules 31.1 and 31.4).
+RIDE_ACTIONS = frozenset({"board", "debark"})
 
 
 class NoLegalCommand(RuntimeError):
@@ -124,6 +154,9 @@ class LearnedAgent:
         self.spaces = self.policy.spaces
         self._seen: set[str] = set()
         self._last_seq = -1
+        self._handled: set[int] = set()
+        self._rode: set[int] = set()
+        self._handled_phase: tuple[int, str, int] | None = None
         if (self.spaces.cols, self.spaces.rows) != (self.board.cols, self.board.rows):
             raise SnapshotShapeError(
                 f"the snapshot board is {self.spaces.cols}x{self.spaces.rows} and the engine board is "
@@ -148,12 +181,11 @@ class LearnedAgent:
         return cls(engine, None, seed, policy=policy)
 
     def select(self, state: State, frame: DecisionFrame) -> str:
-        """The ID of the best legal command, by the policy's four heads.
+        """The ID of the best legal command, by the policy's four heads, action first.
 
         A tie between two legal commands with the same three parts is broken by the lowest
         command ID, which `group_commands` already does. A tie between two keys with the
-        same score is broken by the lowest key, because the loop reads the keys in
-        ascending order and keeps the first of an equal score.
+        same score is broken by the lowest key.
         """
         if not frame.commands:
             raise NoLegalCommand(
@@ -179,7 +211,14 @@ class LearnedAgent:
         if self._generator is not None:
             first = self._sample(scores, groups, torch)
             ordered = [first] + [c for c in ordered if c is not first]
-        return self._first_that_does_not_repeat(state, frame, ordered, player).id
+        ordered = self._weapons_handled_last(state, ordered, player)
+        ordered = self._rides_handled_last(ordered)
+        choice = self._first_that_does_not_repeat(state, frame, ordered, player)
+        if choice.command.action in WEAPON_ACTIONS and choice.command.weapon is not None:
+            self._handled.add(choice.command.weapon)
+        if choice.command.action in RIDE_ACTIONS:
+            self._rode.update(choice.command.units)
+        return choice.id
 
     # ---------------------------------------------------------------- inside
 
@@ -197,8 +236,37 @@ class LearnedAgent:
         """The positions this agent decided in, for the current game only."""
         if state.seq < self._last_seq:
             self._seen.clear()
+            self._handled.clear()
+            self._rode.clear()
+            self._handled_phase = None
         self._last_seq = state.seq
         self._seen.add(self._view_key(state, player))
+
+    def _weapons_handled_last(self, state: State, ordered: list[LegalCommand], player: int) -> list[LegalCommand]:
+        """The order with each pickup and drop of a weapon handled in this phase at the end."""
+        phase = (state.turn, state.phase, player)
+        if phase != self._handled_phase:
+            self._handled.clear()
+            self._rode.clear()
+            self._handled_phase = phase
+        if not self._handled:
+            return ordered
+        again = {c.id for c in ordered if c.command.action in WEAPON_ACTIONS and c.command.weapon in self._handled}
+        if not again:
+            return ordered
+        return [c for c in ordered if c.id not in again] + [c for c in ordered if c.id in again]
+
+    def _rides_handled_last(self, ordered: list[LegalCommand]) -> list[LegalCommand]:
+        """The order with each board and debark of a unit that rode in this phase at the end.
+
+        `_weapons_handled_last` runs first and clears the set at a new phase.
+        """
+        if not self._rode:
+            return ordered
+        again = {c.id for c in ordered if c.command.action in RIDE_ACTIONS and self._rode.intersection(c.command.units)}
+        if not again:
+            return ordered
+        return [c for c in ordered if c.id not in again] + [c for c in ordered if c.id in again]
 
     def _first_that_does_not_repeat(self, state: State, frame: DecisionFrame, ordered: list[LegalCommand], player: int) -> LegalCommand:
         """The first command of the order whose position the agent has not decided in.
@@ -222,8 +290,17 @@ class LearnedAgent:
 
     @staticmethod
     def _by_score(scores: dict[tuple[int, int, int, int], float], groups) -> list[LegalCommand]:
-        """The legal commands from the highest score down, with the lowest key as the tie break."""
-        return [groups[key] for key in sorted(scores, key=lambda t: (-scores[t], t))]
+        """The legal commands action first: the action with the highest sum of probability
+        over its legal commands, then each command of that action from the highest score
+        down, then the next action. The lowest key breaks a tie.
+
+        The second part of a key is the index of the action in the encoding, the same for
+        each unit, so the sum is over each unit and hex of that action.
+        """
+        mass: dict[int, float] = {}
+        for key, score in scores.items():
+            mass[key[1]] = mass.get(key[1], 0.0) + math.exp(score)
+        return [groups[key] for key in sorted(scores, key=lambda t: (-mass[t[1]], -scores[t], t))]
 
     def _scores(self, trunk, unit_embeddings, groups: Mapping[tuple[int, int, int, int], LegalCommand], torch, device) -> dict[tuple[int, int, int, int], float]:
         """The composed log probability of each legal command.

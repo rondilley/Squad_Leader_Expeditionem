@@ -26,10 +26,24 @@ from slagents.scripted.v6 import ScriptedV6, profile_for as profile_for_v6
 from slagents.scripted.v7 import ScriptedV7, parameters_from_text as parameters_v7
 from slboards.reference import source_of
 from slcore.engine import Engine
-from sldata.loaders import DataError, board_and_parameters, load_all_counters, load_board, load_hexsides, load_scenario, load_tables, load_terrain
+from sldata.loaders import (
+    DataError,
+    board_and_parameters,
+    load_all_counters,
+    load_board,
+    load_hexsides,
+    load_scenario,
+    load_scenario_file,
+    load_tables,
+    load_terrain,
+    scenario_from_document,
+)
 
 LEARNED_PREFIX = "learned:"
 RANDOM_PREFIX = "random:"
+# A scenario that is a JSON file and not a file of `sldata/scenarios`: `file:<path>`, for a
+# variant under test (2026-10-14).
+FILE_PREFIX = "file:"
 MAX_WORKERS = 64
 
 AgentBuilder = Callable[[str, Engine, int, int], Agent]
@@ -56,7 +70,7 @@ def limit_workers(workers: int) -> int:
     return workers
 
 
-def build_engine(scenario_name: str, board_name: str | None = None) -> Engine:
+def build_engine(scenario_name: str | dict[str, Any], board_name: str | None = None) -> Engine:
     engine, _ = build_engine_with_record(scenario_name, board_name)
     return engine
 
@@ -83,7 +97,7 @@ def random_scenario(name: str):
 
 
 def build_engine_with_record(
-    scenario_name: str, board_name: str | None = None
+    scenario_name: str | dict[str, Any], board_name: str | None = None
 ) -> tuple[Engine, dict[str, Any]]:
     """The engine and the record of the board it plays on (FR-25).
 
@@ -92,9 +106,15 @@ def build_engine_with_record(
     tag and no parameters, because the project does not ship that layout (DR-06).
 
     A name that starts with `random:` is a scenario of Game Set IV, built from the seed
-    that follows the prefix, and not a file in `sldata/scenarios`.
+    that follows the prefix, and not a file in `sldata/scenarios`. A name that starts with
+    `file:` is a scenario file at that path, and a dict is the document of a scenario.
     """
-    if scenario_name.startswith(RANDOM_PREFIX):
+    if isinstance(scenario_name, dict):
+        # The document of a scenario variant that the game farm got from a client.
+        scenario = scenario_from_document(scenario_name)
+    elif scenario_name.startswith(FILE_PREFIX):
+        scenario = load_scenario_file(scenario_name[len(FILE_PREFIX) :])
+    elif scenario_name.startswith(RANDOM_PREFIX):
         scenario = random_scenario(scenario_name)
     else:
         scenario = load_scenario(scenario_name)

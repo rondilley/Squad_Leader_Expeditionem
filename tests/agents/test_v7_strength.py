@@ -19,6 +19,7 @@ from slagents.base import decide
 from slcli.play import build_engine, make_agent, play_game
 from slcore import geometry, player_state
 from slcore.game import PHASE_MOVEMENT, PHASE_ROUT
+from slcore.rules.r11_terrain import is_open_ground
 from slagents.scripted.v7 import MASS_HOLD, ScriptedV7, parameters_of_name
 
 SCENARIO = "s01_guards_counterattack"
@@ -190,3 +191,137 @@ def test_step_two_ends_no_advance_in_open_ground_the_enemy_sees(engine):
             chosen = frame.by_id(german.select(known, frame))
         state, _ = engine.apply(state, chosen.command, frame)
     assert advances > 0
+
+
+def test_a_counter_threat_puts_a_stand_in_below_each_enemy_counter():
+    """Scenario 4: the Russian squads set up below concealment counters. Without
+    `counter_threat` the German attacker sees no enemy and so no threat, and it crossed
+    the open street into their fire (2026-10-14). With it, each enemy counter that covers
+    no unit the player sees holds one stand-in squad, and the threat model reads it."""
+    s04 = build_engine("s04_armor_probe")
+    axis = 0
+    plain = ScriptedV7(s04, axis, parameters_of_name("v7"))
+    wary = ScriptedV7(s04, axis, parameters_of_name("v7[counter_threat=1]"))
+    agents = (make_agent("v7", s04, 7000001, 0), make_agent("v7", s04, 7000001, 1))
+    state, _frame = _play_until(s04, agents, lambda st, fr: st.phase == PHASE_MOVEMENT and fr.player == axis, seed=7000001)
+    known = player_state.for_player(state, axis)
+    counters = sorted({c.hex for c in known.concealment if c.player != axis and c.hex is not None})
+    masked = [u for u in known.player_units(1 - axis) if u.kind == "squad" and u.hex is None and not u.eliminated]
+    assert counters and masked, "the Russian squads are below counters at the start"
+    assert not [u for u in plain._seen_enemies(known) if u.is_infantry], "the attacker sees no Russian infantry"
+
+    threat_state, enemies = wary._threat(known)
+    stand_ins = [u for u in enemies if u.hex in counters]
+    assert len(stand_ins) == min(len(counters), len(masked))
+    assert len({u.hex for u in stand_ins}) == len(stand_ins), "one stand-in for each counter"
+    assert all(threat_state.units[u.id].hex == u.hex and not u.broken for u in stand_ins)
+    assert plain._threat(known) == (known, plain._seen_enemies(known)), "without the parameter the model reads what it sees"
+    # The open hexes next to a counter: the plain record sees no threat there, and the
+    # wary record sees a fire group and a chance of loss.
+    reference = wary._reference_unit(known)
+    near = [
+        h
+        for c in counters
+        for h in s04.board.neighbors(c)
+        if is_open_ground(s04.board, h) and h not in counters
+    ]
+    assert near
+    assert all(not plain._enemy_groups(known, h) for h in near)
+    assert any(wary._enemy_groups(known, h) and wary._loss(known, reference, h, True) > 0 for h in near)
+    assert any(wary._seen_by_enemy(known, h) for h in near)
+
+
+def _s04_axis_movement():
+    """Scenario 4 at the first German Movement Phase, as the German player knows it."""
+    s04 = build_engine("s04_armor_probe")
+    agents = (make_agent("v7", s04, 7000001, 0), make_agent("v7", s04, 7000001, 1))
+    state, _frame = _play_until(s04, agents, lambda st, fr: st.phase == PHASE_MOVEMENT and fr.player == 0, seed=7000001)
+    return s04, player_state.for_player(state, 0)
+
+
+def test_a_leader_with_the_stack_moves_forward_only_with_a_squad():
+    """Rule 15.6: a leader gives its rating to the morale checks of the units in its hex.
+    The 9-2 of scenario 4 ran ahead alone while its squads broke in the open without it
+    (2026-10-14). With `leader_with_stack` a step into a hex with an own squad earns
+    `leader_bonus`, and a step forward alone earns no progress."""
+    from slcore.units import KIND_LEADER
+
+    s04, known = _s04_axis_movement()
+    on = ScriptedV7(s04, 0, parameters_of_name("v7[leader_with_stack=1]"))
+    off = ScriptedV7(s04, 0, parameters_of_name("v7"))
+    leader = next(u for u in known.player_units(0) if u.kind == KIND_LEADER and u.hex is not None)
+    squad = next(u for u in known.player_units(0) if u.kind == "squad" and u.hex is not None and u.hex != leader.hex)
+    empty = [h for h in s04.board.neighbors(leader.hex) if not known.infantry_in(h)]
+    assert empty
+    dst = empty[0]
+    joined = known.with_unit(squad.with_(hex=dst))
+    assert on._company(joined, leader, dst) == 1 and on._company(known, leader, dst) == 0
+
+    def value(agent, state):
+        agent._refresh_routes(state)
+        agent._refresh_objectives(state)
+        return agent._step_score(state, leader.id, leader.hex, dst, {})[1]
+
+    lift_on = value(on, joined) - value(on, known)
+    lift_off = value(off, joined) - value(off, known)
+    assert lift_on - lift_off >= on.v7.leader_bonus
+    assert on._stand_value(known.with_unit(squad.with_(hex=leader.hex)), leader.id, {}) - on._stand_value(known, leader.id, {}) >= on.v7.leader_bonus
+
+
+def test_the_base_of_fire_makes_an_enemy_counter_a_target_of_the_tanks():
+    """In scenario 4 the Russian infantry sets up below counters. Without `base_of_fire`
+    the tanks saw no infantry, so no hex near the village was a firing position, and they
+    drove and fired after the move. With it, a counter is an enemy infantry position."""
+    from slagents.scripted.armor import ArmorParameters, ArmorPolicy
+
+    s04, known = _s04_axis_movement()
+    on = ArmorPolicy(s04, 0, ArmorParameters(base_of_fire=True))
+    off = ArmorPolicy(s04, 0, ArmorParameters())
+    counters = {c.hex for c in known.concealment if c.player == 1 and c.hex is not None}
+    assert counters and not off._enemy_counters(known)
+    assert set(on._enemy_counters(known)) == counters - {u.hex for u in off._enemies(known)}
+    assert set(on._enemy_infantry(known)) >= set(on._enemy_counters(known))
+    positions = on.firing_positions(known)
+    near_a_counter = [h for h in positions if any(geometry.distance(h, c) <= on.params.fire_range for c in counters)]
+    assert near_a_counter, "a hex in range of a counter is a firing position"
+    assert all(min(geometry.distance(h, c) for c in counters) >= on.params.escorted_standoff for h in positions)
+    # Without it, the tanks go to firing positions next to the hidden Russian infantry,
+    # inside the reach of its anti-tank weapons.
+    assert any(min(geometry.distance(h, c) for c in counters) < off.params.escorted_standoff for h in off.firing_positions(known))
+    assert parameters_of_name("v7[tank_base_of_fire=1]").tank_base_of_fire
+
+
+def test_the_covered_approach_hops_across_the_open_alone():
+    """With `open_moves` false and the stand-ins of `counter_threat`, each open hex near
+    the Russians of scenario 4 is seen, and v7 held each step into one: the attack stood
+    still (2026-10-14). With `covered_approach` a single unit may hop into a seen open hex
+    when it can go on to cover nearer the target in the same move, and a second unit does
+    not join it there, because one shot breaks each unit of a hex."""
+    from slcore.rules.r13_rout import is_cover
+
+    s04, known = _s04_axis_movement()
+    on = ScriptedV7(s04, 0, parameters_of_name("v7[counter_threat=1,covered_approach=1]"))
+    strict = ScriptedV7(s04, 0, parameters_of_name("v7[counter_threat=1]"))
+    for agent in (on, strict):
+        agent._refresh_routes(known)
+        agent._refresh_objectives(known)
+    hops = []
+    for unit in known.player_units(0):
+        if unit.kind != "squad" or unit.hex is None:
+            continue
+        target = on.assignment.get(unit.id, on.open_objectives)
+        for dst in s04.board.neighbors(unit.hex):
+            if is_cover(s04.board, dst) or known.infantry_in(dst) or not on._seen_by_enemy(known, dst):
+                continue
+            if on._hop(known, unit, dst, target):
+                hops.append((unit, dst))
+    assert hops, "a squad of the start has a hop across a seen open hex"
+    unit, dst = hops[0]
+    lifted = on._step_score(known, unit.id, unit.hex, dst, {})[1] - strict._step_score(known, unit.id, unit.hex, dst, {})[1]
+    assert lifted >= MASS_HOLD // 2, "the hop is not held"
+    friend = next(u for u in known.player_units(0) if u.kind == "squad" and u.hex is not None and u.id != unit.id)
+    joined = known.with_unit(friend.with_(hex=dst))
+    alone = on._step_score(known, unit.id, unit.hex, dst, {})[1]
+    on._refresh_routes(joined)
+    stacked = on._step_score(joined, unit.id, unit.hex, dst, {})[1]
+    assert alone - stacked >= MASS_HOLD // 2, "no second unit joins a seen open hex"

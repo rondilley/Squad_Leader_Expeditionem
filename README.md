@@ -179,6 +179,7 @@ sl-cli tournament --agent-a v1 --agent-b v0 --games 20
 sl-cli gauntlet --candidate v7 --panel random,v1,v4,v5,v6 --games 20 --workers 16
 sl-cli gauntlet --candidate "v7[loss_scale=12,fire_floor=4]" --panel v1,v5,v6 --games 40 --anchor-only --workers 16
 sl-cli gauntlet --candidate "model:local*" --panel v7,v6 --games 8 --anchor-only --workers 4 --progress
+sl-cli gauntlet --candidate random --panel v3,v5,v6,v7 --scenarios s04_armor_probe --games 40 --anchor-only --mirror --workers 16
 sl-cli evolve --base v7 --panel v7,v6 --games 16 --generations 12 --workers 16 --progress
 sl-cli shape --record --analyze --pairs v7:v7,v7:v6,v6:v6 --games 60 --workers 8 --out runs/shape_s01
 sl-cli runs --rebuild
@@ -188,6 +189,7 @@ sl-cli agents --list
 sl-cli agents --games 100
 sl-cli imitate --teachers v4,v5,v6 --labels 0=v5,1=v6 --games 450 --epochs 10 --dagger-rounds 3 --dagger-games 150 --workers 16 --eval-games 20 --out runs/imitate/snapshot-0.pt
 sl-cli train --steps 1000000 --player both --start-from runs/imitate/snapshot-0.pt --anchor-kl 0.5 --workers 16 --rollout 2048 --minibatch 256 --eval-games 20 --device cuda --tensorboard runs/tb
+sl-cli train --scenario s04_armor_probe --player 0 --opponents v7 --jump-start v7 --jump-start-turns 3 --value-warmup 100000 --start-from runs/imitate_s04_large/snapshot-0.pt --workers 16 --rollout 2048
 sl-cli window --scenario s04_armor_probe --agents v1,v2
 ```
 
@@ -231,6 +233,47 @@ A learned snapshot from 2026-09-22 or earlier does not load. The observation use
 A run artifact goes in `runs/<ISO8601-Z>-<slug>/` with a manifest, the command log, the action log, and the statistics. `runs/runs.sqlite` indexes them. `sl-cli runs --rebuild` deletes the rows and writes the new rows in one transaction. A bad artifact does not empty the index. Git does not record the run directory or the index.
 
 API keys for SaaS providers go in `claude.key.txt`, `openai.key.txt`, `gemini.key.txt`, `mistral.key.txt`, and `xai.key.txt` at the project root. `.gitignore` lists them on its first line. A missing key marks that provider unavailable and stops nothing else.
+
+## The game farm
+
+The game farm adds the processors of other Linux computers to a gauntlet or an evolution. Each farm host runs `sl-cli farm serve`, and `sl-cli gauntlet` and `sl-cli evolve` send games to it with `--remote`. The host plays each game in a pool of its own, and the workstation puts the results in the order of the job list. Thus a run with the farm writes the same artifact as a run on one computer.
+
+- The farm plays the scripted agents only (`random`, `v0` to `v7`, with a nation or a parameter set). A learned agent reads a snapshot file, and a model agent uses the network and a key. Play those with `--workers`.
+- Each connection proves the farm key with an HMAC of a random value. The key does not go on the network. The key file is `farm.key.txt`, and `.gitignore` covers it with `*.key.txt`.
+- A job is data: a scenario of the host, a seed, and two agent names. The host checks each of them, and it runs no code from the network.
+- The host and the workstation compare a hash of `src/`. A host with other code is refused, because a game is its seed only on the same code. Copy the tree again after each change.
+- When a host fails, its games go to the other hosts and to the local workers.
+
+Install or update the worker on the hosts with one command on the workstation. Run it again after each change of the code:
+
+```
+python tools/farm_deploy.py tars        # one host
+python tools/farm_deploy.py             # tars, case, kipp, and plex
+```
+
+For each host, one ssh connection (`rdilley@<host>.uberadmin.com`, with your ssh keys) copies the code, `farm.key.txt`, and `tools/farm_worker.sh` to `~/squad_leader`. Then it runs that script on the host. The script stops the worker that runs, makes `.venv`, runs `pip install -e .`, and starts `sl-cli farm serve` on port 5160. The worker writes `~/squad_leader/farm.log`.
+
+A host needs `python3-venv` and a firewall rule for port 5160 one time: `sudo apt install python3-venv` and `sudo ufw allow from <workstation address> to any port 5160 proto tcp`. Make `farm.key.txt` one time with `sl-cli farm key --write farm.key.txt`.
+
+Use the farm from the workstation:
+
+```
+sl-cli farm ping --remote tars,case,kipp,plex
+sl-cli evolve --base v7 --panel v7 --scenario s04_armor_probe --side axis --workers 16 --remote tars,case,kipp,plex
+sl-cli gauntlet --candidate v7 --panel v3,v5,v6 --scenarios s04_armor_probe --games 200 --workers 16 --remote tars,case,kipp,plex
+```
+
+PPO training uses the farm too. Each farm host holds PPO workers, and the trainer on the workstation batches their decisions on the GPU with the decisions of the local workers:
+
+```
+sl-cli train --scenario s04_armor_probe --player 0 --opponents v7 --workers 16 --remote tars,case,kipp,plex --device cuda
+```
+
+The farm plays random and scripted opponents only, so a training run on the farm must have `--opponents`. A league snapshot is a file of the workstation. `--remote-envs` is the count of PPO workers on each host, and the default is the slots of the host. On the workstation, one bridge process for each host holds the connections of its PPO workers.
+
+Use `--rollout 4096` or more on the farm. At the default rollout of 512, each worker gives only approximately four decisions before the update, and the farm is not faster. At 4096, the farm and 16 local workers gave 767 steps/s on s04, and 16 local workers alone gave approximately 380. The worker script installs the `train` extra on each host, with the CPU build of torch.
+
+A name with no port uses port 5160. The server listens on 127.0.0.1 unless it gets `--host`. `--slots` is the count of game processes on the host. The default is the processor count less two.
 
 ## Status
 

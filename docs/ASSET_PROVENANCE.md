@@ -114,9 +114,9 @@ Two things hold the rule that no scan gets in:
 
 ## 3. The sounds
 
-The project ships no recorded audio. Code makes each sound when the 3D window opens
-(`src/slwindow3d/sounds.py`), and the window plays it from memory. No sound file is in the
-tree. The sounds are noise, decay envelopes, filters, and low tones, and each one is the
+The project ships one recorded sound, the vehicle (section 3.1). Code makes each other
+sound when the 3D window opens (`src/slwindow3d/sounds.py`), and the window plays it from
+memory. Those sounds are noise, decay envelopes, filters, and low tones, and each one is the
 project's own work:
 
 | Sound | What the code makes |
@@ -132,18 +132,30 @@ project's own work:
 | Smoke | A pop and a hiss. |
 | One man moves | Four muffled footsteps: a low thud and a soft scuff, quieter than all weapons. |
 | A squad moves | Four men who step out of time, with a soft rattle of equipment. A rout is the same, faster. |
-| A vehicle moves | A deep motor that throbs with its firing pulses. The track links make a heavy, low clunk about ten times each second, and the road wheels roll. All of it is low in pitch, and it is quieter than a gun. |
+| A vehicle moves | A part of 2.2 seconds of the tank recording (section 3.1), through a low-pass filter at 600 Hz, with a fade in and a fade out. Each of the three variants starts at a different place in the recording. It is quieter than a gun. |
+| A vehicle breaks down | A hard clank of metal with partials that are not in tune, and a grinding noise that shakes about 30 times each second. Then the engine coughs four to six times, slower each time, and stops. It plays for the breakdown die of rule 39.1 and for a gun or machine gun that breaks (rules 38.1 and 38.2). |
+| A vehicle crew repairs a gun | Groups of two or three hammer taps on steel, each followed by the clicks of a wrench. It plays for each repair attempt of rules 38.1 and 38.2, whatever the die gives. |
 
 The random parts of each sound come from a generator with a fixed seed, so each run makes
 the same sounds.
+
+### 3.1 The tank recording
+
+`src/slwindow3d/assets/tank_drive.wav` is a recording of a tank that drives. The owner made
+the recording and holds its copyright, and the project license (GPL-3) applies to it.
+
+The owner gave it on 2026-10-11 as `background/Tank_Noise.m4a` (48 kHz mono, 11.2 seconds)
+and said to put it in the tree. `python tools/make_tank_sound.py` converts it to 16-bit
+mono at 22,050 Hz: a three-tap low-pass filter, then a linear resample. The tool changes nothing else.
 
 ## 4. What the project does not have
 
 - No scan, photograph, or screenshot of a 1977 component is in the repository, in a
   fixture, in a test, or in a run artifact.
 - No board data file holds a layout read off one of the four printed boards.
-- No font file and no sound file is in the repository. The only image files are the
-  pictures of section 2, which this project's own code makes.
+- No font file is in the repository. The only sound file is the tank recording of section
+  3.1. The only image files are the pictures of section 2, which this project's own code
+  makes.
 - The owner's own reference material is in `background/`, and `.gitignore` covers all of
   that directory. No file there goes into a commit, a build, or an artifact. The
   photographs of the owner's boards are in that directory, and the code holds no pixel of

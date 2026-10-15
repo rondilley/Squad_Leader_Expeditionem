@@ -1,7 +1,8 @@
 """The sound board of the 3D window: it plays the sounds of `sounds.py` for the new events.
 
-The sounds are made in memory when the window opens and put on a ramdisk of the Panda3D
-virtual file system, so the window loads them like files and no sound file is on the disk.
+The sounds are made in memory when the window opens (the vehicle from the one recording,
+`assets/tank_drive.wav`) and put on a ramdisk of the Panda3D virtual file system, so the
+window loads them like files.
 Each new event of the log (the same events the indicators read) gives its cues
 (`sounds.sound_cues`); the cues of one frame are merged (`sounds.merge_cues`), and each one
 plays with a volume and a left to right balance from where its hex is on the screen. A hex

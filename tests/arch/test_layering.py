@@ -5,7 +5,7 @@ imports, the late imports in a function too. Three rules:
 
 1. `slcore` imports only `slcore` and the standard library. The core has no file, no
    network, and no third party library, so the Rust port has one surface to copy.
-2. The library packages (`slagents`, `slshape`, `slboards`, `sldata`, `slruns`) do not
+2. The library packages (`slagents`, `slshape`, `slboards`, `sldata`, `slruns`, `slfarm`) do not
    import `slcli` or `slhost`. The command line and the host are consumers.
 3. `slhost` does not import `slcli`.
 
@@ -21,7 +21,7 @@ from pathlib import Path
 
 SRC = Path(__file__).resolve().parents[2] / "src"
 
-LIBRARIES = ("slagents", "slshape", "slboards", "sldata", "slruns")
+LIBRARIES = ("slagents", "slshape", "slboards", "sldata", "slruns", "slfarm")
 CONSUMERS = ("slcli", "slhost")
 
 # (file below src, imported module). Each one has a cause and the change that removes it.

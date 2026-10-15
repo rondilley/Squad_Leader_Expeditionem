@@ -525,12 +525,20 @@ def load_scenario(name: str) -> Scenario:
 
 
 def load_scenario_file(path: str | Path) -> Scenario:
+    return scenario_from_document(read_json_file(path), f"scenario file {path}", str(path))
+
+
+def scenario_from_document(data: Any, label: str = "scenario document", name: str | None = None) -> Scenario:
+    """A scenario from its JSON document, with the checks of a scenario file: the keys of
+    `SCENARIO_KEYS` and the fields of `scenario_from_dict`. The game farm reads a variant
+    that a client sends this way (2026-10-14)."""
+    if not isinstance(data, dict):
+        raise DataError(f"{label} must hold a JSON object")
     try:
-        data = read_json_file(path)
-        check_keys(data, SCENARIO_KEYS, str(path))
+        check_keys(data, SCENARIO_KEYS, name or label)
         return scenario_from_dict(data)
     except (KeyError, ValueError, TypeError) as exc:
-        raise DataError(f"scenario file {path} is not valid: {exc}") from exc
+        raise DataError(f"{label} is not valid: {exc}") from exc
 
 
 def load_board(name: str, terrain: dict[str, TerrainType] | None = None) -> Board:

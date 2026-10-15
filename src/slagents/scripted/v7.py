@@ -164,6 +164,10 @@ class Parameters:
     open_moves: bool = False  # with advance_take, false keeps each step of a move out of open ground an enemy sees
     rally_points: bool = False  # step 3: a leader in cover out of sight for each group, and the rout goes to it
     sight_range: int = 16  # hexes: an enemy unit further away than this does not count as one that sees a hex
+    counter_threat: bool = False  # an enemy concealment counter with no unit this player sees holds one stand-in squad in the threat model
+    leader_with_stack: bool = False  # a leader moves forward only into a hex with an own unbroken squad, and earns `leader_bonus` for each one
+    leader_bonus: int = 8  # score points of each own unbroken squad (up to two) in the hex of a leader, with `leader_with_stack`
+    covered_approach: bool = False  # with open_moves false, a step into a seen open hex goes when it is a hop to cover or smoke nearer the target, and alone
     lookahead: int = 0  # step 4: the best K moves (and K fire plans) are compared one ply deep; zero is off
     search_iterations: int = 0  # step 5: rollouts of the tree search over the plan of each Movement Phase; zero is off
     search_seed: int = 1  # the dice of the rollouts come from this seed, the turn, and the rollout
@@ -191,6 +195,7 @@ class Parameters:
     tank_flank_bonus: int = 8  # movement halves off a position that sees an enemy side or rear
     tank_gun_exposure: int = 6  # movement halves on a position for each enemy gun that sees it
     tank_hold_margin: int = 4  # movement halves another position must gain before a tank leaves its own
+    tank_base_of_fire: bool = False  # an enemy counter is an enemy infantry position for the tanks, so they hold and fire in the Prep Fire Phase
 
 
 # The record of a nation on the attack: a side with a positional victory condition of
@@ -372,6 +377,7 @@ def armor_parameters(p: Parameters) -> ArmorParameters:
         flank_bonus=p.tank_flank_bonus,
         gun_exposure=p.tank_gun_exposure,
         hold_margin=p.tank_hold_margin,
+        base_of_fire=p.tank_base_of_fire,
     )
 
 
@@ -423,6 +429,10 @@ class ScriptedV7(ScriptedV6):
         # The press of each group of the plan, for the decision in hand (`mass`).
         self._group_key: tuple = ()
         self._group_level: dict[tuple[HexRef, ...], int] = {}
+        # The threat model of the state in hand (`counter_threat`): the state with the
+        # stand-ins below the enemy counters, and the enemy units it reads.
+        self._threat_for: State | None = None
+        self._threat_value: tuple[State, list[Unit]] = (None, [])  # type: ignore[assignment]
 
     def select(self, state: State, frame: DecisionFrame) -> str:
         """The smoke window of rule 24.3 comes first, and the rest goes to v6.
@@ -566,15 +576,68 @@ class ScriptedV7(ScriptedV6):
         """The enemy units this player can see. A hidden or concealed unit is not one of them."""
         return [u for u in state.player_units(self.opponent) if visible_to(state, u, self.player)]
 
+    def _enemy_picture(self, state: State) -> tuple:
+        """The v6 picture, and with `counter_threat` the enemy counters, because a counter
+        that goes away takes its stand-in out of the threat model."""
+        picture = super()._enemy_picture(state)
+        if not self.v7.counter_threat:
+            return picture
+        counters = tuple(sorted(c.hex for c in state.concealment if c.player != self.player and c.hex is not None))
+        return (*picture, counters)
+
+    def _threat(self, state: State) -> tuple[State, list[Unit]]:
+        """The state and the enemy units the threat model reads.
+
+        Without `counter_threat` it is the state and the enemy units this player sees. With
+        it, each enemy concealment counter that covers no unit this player sees holds one
+        stand-in: an enemy squad of the order of battle that the player state has off the
+        board (`slcore.player_state`), unbroken and with no weapon. Rule 25.2 makes the
+        counter public, and the agent does not read what is below it, so a dummy (rule
+        25.7) gets a stand-in too. The counters nearest to this side get the stand-ins
+        first, and a counter gets none when no squad is left off the board. In scenario 4
+        the Russian squads set up below counters, and with no stand-in the German attack
+        saw no threat and crossed the open street into their fire (2026-10-14).
+        """
+        if self._threat_for is state:
+            return self._threat_value
+        seen = self._seen_enemies(state)
+        value: tuple[State, list[Unit]] = (state, seen)
+        if self.v7.counter_threat:
+            value = self._with_stand_ins(state, seen)
+        self._threat_for = state
+        self._threat_value = value
+        return value
+
+    def _with_stand_ins(self, state: State, seen: list[Unit]) -> tuple[State, list[Unit]]:
+        seen_hexes = {u.hex for u in seen if u.hex is not None}
+        counters = sorted({c.hex for c in state.concealment if c.player != self.player and c.hex is not None} - seen_hexes)
+        spare = [
+            u
+            for u in state.player_units(self.opponent)
+            if u.kind == "squad" and u.hex is None and u.carrier is None and not u.eliminated
+        ]
+        if not counters or not spare:
+            return state, seen
+        own = [u.hex for u in state.player_units(self.player) if u.hex is not None and u.is_infantry]
+
+        def nearness(h: HexRef) -> tuple[int, HexRef]:
+            return (min((geometry.distance(h, o) for o in own), default=0), h)
+
+        changed: dict[int, Unit] = {}
+        for h, unit in zip(sorted(counters, key=nearness), sorted(spare, key=lambda u: u.id)):
+            changed[unit.id] = unit.with_(hex=h, moved=False, broken=False, fired=False, eliminated=False, hidden=False, carrier=None)
+        return state.with_units(changed), [*seen, *changed.values()]
+
     def _seen_by_enemy(self, state: State, hex_ref: HexRef) -> bool:
         """True when an unbroken enemy unit this player sees has a clear line of sight to
-        the hex, inside `sight_range`. A hex with no such unit is dead ground (rule 7)."""
+        the hex, inside `sight_range`. A hex with no such unit is dead ground (rule 7).
+        With `counter_threat` a stand-in below an enemy counter counts as a unit it sees."""
         found = self._sight.get(hex_ref)
         if found is not None:
             return found
         board = self.engine.board
         seen = False
-        for enemy in self._seen_enemies(state):
+        for enemy in self._threat(state)[1]:
             if enemy.hex is None or enemy.broken or enemy.kind == KIND_SW:
                 continue
             if geometry.distance(enemy.hex, hex_ref) > self.v7.sight_range:
@@ -586,8 +649,10 @@ class ScriptedV7(ScriptedV6):
         return seen
 
     def _enemy_groups(self, state: State, dst: HexRef) -> list[odds.EnemyGroup]:
-        """The fire groups the enemy could form against a hex, from the units this player sees."""
-        return odds.enemy_groups(self.engine, state, dst, self._seen_enemies(state))
+        """The fire groups the enemy could form against a hex, from the units this player
+        sees, and with `counter_threat` the stand-ins below the enemy counters."""
+        threat_state, enemies = self._threat(state)
+        return odds.enemy_groups(self.engine, threat_state, dst, enemies)
 
     def _loss(self, state: State, unit: Unit, dst: HexRef, moving: bool) -> int:
         """The chance, out of `odds.ONE`, that this unit breaks or dies in `dst` under the
@@ -598,7 +663,7 @@ class ScriptedV7(ScriptedV6):
         if found is not None:
             return found
         groups = self._enemy_groups(state, dst)
-        chance = odds.loss(self.engine, state, unit, dst, moving, groups) if groups else 0
+        chance = odds.loss(self.engine, self._threat(state)[0], unit, dst, moving, groups) if groups else 0
         self._loss_map[key] = chance
         return chance
 
@@ -813,7 +878,7 @@ class ScriptedV7(ScriptedV6):
             return found
         board = self.engine.board
         ctx = self.engine.move_ctx
-        enemy_hexes = {u.hex for u in self._seen_enemies(state) if u.hex is not None and not u.broken and u.is_infantry}
+        enemy_hexes = {u.hex for u in self._threat(state)[1] if u.hex is not None and not u.broken and u.is_infantry}
         targets = set(target)
         dist: dict[HexRef, int] = {}
         moves: dict[HexRef, int] = {}
@@ -1010,6 +1075,14 @@ class ScriptedV7(ScriptedV6):
             # pays that risk once, as the penalty below, and not as a gain as well.
             gain = max(0, gain - self._hex_risk(state, dst))
         cover = self.v6.cover_preference if is_cover(self.engine.board, dst) else 0
+        if self.v7.leader_with_stack and unit.kind == KIND_LEADER:
+            company = self._company(state, unit, dst)
+            if not company:
+                # Rule 15.6: a leader alone gives its rating to no morale check, so a step
+                # forward alone is worth no progress (2026-10-14: the 9-2 of scenario 4 ran
+                # ahead to L4 while its squads broke in the open without it).
+                gain = min(gain, 0)
+            bonus += self.v7.leader_bonus * company
         exposure = self._exposure(state, unit, dst, moving)
         hold = 0
         if self.v7.mass and moving and self.has_deadline and state.phase == PHASE_MOVEMENT:
@@ -1023,10 +1096,25 @@ class ScriptedV7(ScriptedV6):
                 and state.phase == PHASE_MOVEMENT
                 and not is_cover(self.engine.board, dst)
                 and self._seen_by_enemy(state, dst)
+                and not (self.v7.covered_approach and count <= 1 and self._hop(state, unit, dst, target))
             ):
                 # Rule 16.5: a unit that moves in the open in the sight of the defender is
                 # fired at with a minus two. Only a run that reaches the target stays forced.
+                # With `covered_approach`, a single unit may hop across to cover.
                 bonus -= MASS_HOLD
+        if (
+            self.v7.covered_approach
+            and moving
+            and state.phase == PHASE_MOVEMENT
+            and (count > 1 or any(u.player == self.player and u.id != unit.id and not u.broken for u in state.infantry_in(dst)))
+            and not is_cover(self.engine.board, dst)
+            and not state.smoke_in(dst)
+            and self._seen_by_enemy(state, dst)
+        ):
+            # Item 2 of 2026-10-14: a KIA or a morale result of one shot takes each unit of
+            # the hex (rules 10 and 12), so a stack does not go into open ground the enemy
+            # sees. One shot of 1 firepower broke two squads of a stack in scenario 4.
+            bonus -= MASS_HOLD
         # Tempo (P17): a turn with no progress is a turn lost. The worth of a hex of
         # progress grows as the slack shrinks, so the attacker moves through low loss
         # early and accepts more loss late, in place of a wait and then a rush.
@@ -1055,6 +1143,40 @@ class ScriptedV7(ScriptedV6):
         if self._seen_by_enemy(state, dst):
             return 0
         return self.v7.hidden_bonus
+
+    def _hop(self, state: State, unit: Unit, dst: HexRef, target: tuple[HexRef, ...]) -> bool:
+        """True when a step into the open hex `dst` is a hop (`covered_approach`): from
+        `dst`, with the movement it has left, the unit can enter a hex of cover or of smoke
+        that is nearer the target by the route than the hex it leaves.
+
+        A unit of v7 with `open_moves` false held each step into open ground that an enemy
+        sees. With the stand-ins of `counter_threat` that is each open hex near the target,
+        and the attack of scenario 4 stood still (2026-10-14). A hop crosses the open
+        ground and ends the move in cover, so the enemy fires at the open hex only on the
+        track of the move (rule 16.1), and the unit does not stand there in the next Prep
+        Fire Phase of the enemy. Smoke counts as the cover of the hop (rule 24.6).
+        """
+        if unit.hex is None:
+            return False
+        ctx = self.engine.move_ctx
+        cost, _ = r05_movement.entry_cost_halves(ctx, unit.hex, dst)
+        if cost is None:
+            return False
+        left = r05_movement.allowance_halves(ctx, state, unit, leader_bonus=False) - unit.mf_used - cost
+        if left <= 0:
+            return False
+        safe = self._press_level(state, unit.id, unit.hex) < 2
+        here = self._route_cost(state, target, unit.hex, safe)
+        board = self.engine.board
+        for shelter in board.neighbors(dst):
+            if shelter == unit.hex or not (is_cover(board, shelter) or state.smoke_in(shelter)):
+                continue
+            step, _ = r05_movement.entry_cost_halves(ctx, dst, shelter)
+            if step is None or step > left:
+                continue
+            if self._route_cost(state, target, shelter, safe) < here:
+                return True
+        return False
 
     def _mass_exposure(self, state: State, unit: Unit, dst: HexRef, exposure: int, level: int) -> tuple[int, int]:
         """The exposure of a move with `mass`, and the hold penalty.
@@ -1114,7 +1236,19 @@ class ScriptedV7(ScriptedV6):
         # a stand that pays for the whole stack sends each unit out into the open alone.
         fire = self._fire_points(state, unit, unit.hex) + self._tool_points(state, unit, unit.hex, False)
         escort = self._escort_value(state, unit, unit.hex)
+        if self.v7.leader_with_stack and unit.kind == KIND_LEADER:
+            escort += self.v7.leader_bonus * self._company(state, unit, unit.hex)
         return cover + fire + escort - self._penalty(state, unit, unit.hex, False, 1) * self.v6.threat_aversion
+
+    def _company(self, state: State, leader: Unit, hex_ref: HexRef) -> int:
+        """The own unbroken squads in the hex, up to two, that a leader there gives its
+        rating to (rule 15.6), for `leader_with_stack`."""
+        count = sum(
+            1
+            for u in state.infantry_in(hex_ref)
+            if u.player == self.player and u.id != leader.id and u.kind == "squad" and not u.broken and not u.riding
+        )
+        return min(2, count)
 
     # ------------------------------------------------------------------- the fire
 
@@ -1402,7 +1536,7 @@ class ScriptedV7(ScriptedV6):
         groups = self._enemy_groups(state, hex_ref)
         if not groups:
             return 0
-        return odds.loss(self.engine, state, reference, hex_ref, moving, groups)
+        return odds.loss(self.engine, self._threat(state)[0], reference, hex_ref, moving, groups)
 
     def _smoke(self, state: State, by_action: dict[str, list[LegalCommand]]) -> str:
         """Rule 24.3: the counter goes where it takes the most loss off our force.

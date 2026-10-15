@@ -123,6 +123,15 @@ def test_a_corpus_of_two_games_writes_reads_and_analyzes(tmp_path):
     assert "Shape analysis" in text and "player 0" in text
 
 
+def test_a_corpus_of_worker_processes_is_the_corpus_of_one_process():
+    """The pool path gives each game, in the order of the games, as one process does."""
+    one = record_corpus(SCENARIO, [("v1", "v1")], games=3, first_seed=7, workers=1)
+    pool = record_corpus(SCENARIO, [("v1", "v1")], games=3, first_seed=7, workers=2)
+    assert pool.games == one.games
+    for name in ("pictures", "feats", "game", "turn", "phasing", "phase", "winner"):
+        assert np.array_equal(getattr(pool, name), getattr(one, name)), name
+
+
 def test_the_pairs_of_an_evolution_artifact_are_its_candidates_against_the_panel(tmp_path):
     import json
 

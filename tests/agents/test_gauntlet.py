@@ -87,6 +87,40 @@ def test_workers_give_the_same_result_as_one_process():
         assert sum(row["b_wins_by_side"].values()) == row["b_wins"]
 
 
+def test_the_side_baseline_counts_the_panel_and_the_mirror_games_on_each_side(capsys):
+    """A one-sided scenario hides the skill of an attacker. The baseline puts the wins of
+    the candidate on each side next to the wins of the other panel agents and of the
+    opponent against itself, on that side against that opponent."""
+    from slcli.gauntlet import _print_leaderboard
+
+    plain = run_gauntlet(candidate="v1", panel=["random", "v0"], scenarios=["s00_movement_drill"], games=4, seed=7)
+    art = run_gauntlet(candidate="v1", panel=["random", "v0"], scenarios=["s00_movement_drill"], games=4, seed=7, mirror=True)
+    # The mirror games come after the round-robin and are not in its seeds, Elo, or rows.
+    assert art.stats["pairs"] == plain.stats["pairs"]
+    assert art.stats["leaderboard"] == plain.stats["leaderboard"]
+    assert art.stats["games"] == plain.stats["games"] == 12
+    assert [(m["agent"], m["games"]) for m in art.stats["mirror"]] == [("random", 4), ("v0", 4)]
+    for row in art.stats["pairs"]:
+        assert sum(row["a_games_by_side"].values()) == sum(row["b_games_by_side"].values()) == row["completed"]
+    baseline = art.stats["side_baseline"]
+    # Two opponents and two sides.
+    assert len(baseline) == 4
+    for entry in baseline:
+        # The candidate plays 4 games against each opponent, 2 on each side; the one other
+        # panel agent plays it the same way.
+        assert entry["candidate"]["games"] == 2 and entry["panel"]["games"] == 2
+        assert 0 <= entry["candidate"]["wins"] <= 2 and 0 <= entry["panel"]["wins"] <= 2
+        assert entry["mirror"]["games"] == 4
+    for opponent in ("random", "v0"):
+        mirror_wins = sum(e["mirror"]["wins"] for e in baseline if e["opponent"] == opponent)
+        row = next(m for m in art.stats["mirror"] if m["agent"] == opponent)
+        assert mirror_wins == sum(row["wins_by_side"].values()) <= 4
+    assert "mirror" not in plain.stats and all("mirror" not in e for e in plain.stats["side_baseline"])
+    _print_leaderboard(art, "v1")
+    out = capsys.readouterr().out
+    assert "the side baseline" in out and out.count(" against random ") >= 2
+
+
 def test_the_panel_keeps_a_comma_inside_a_parameter_set():
     from slcli.gauntlet import split_agent_names
 
@@ -143,3 +177,28 @@ def test_the_progress_line_names_each_game_that_ends(capsys):
     assert lines[0].startswith("game 1 of 2: ") and lines[1].startswith("game 2 of 2: ")
     assert all(" seed " in line and " -> " in line and " min)" in line for line in lines)
     assert "game 1 of 2" not in captured.out
+
+
+def _end_the_worker_on_the_first_try(job):
+    """One game of the dead worker test. A job named `die` ends its worker process the
+    first time (a marker file in the job's directory records the try), and `always` ends
+    it each time. The others give their name as the winner."""
+    import os
+
+    directory, seed, first, _second = job
+    marker = Path(directory) / f"tried-{seed}"
+    if first == "always" or (first == "die" and not marker.exists()):
+        marker.write_text("1")
+        os._exit(3)
+    return {"winner": first, "error": None}
+
+
+def test_a_dead_worker_process_does_not_stop_the_games(tmp_path: Path):
+    """multiprocessing.Pool waited for ever for the game of a dead worker (s04, 2026-10-12)."""
+    from slcli.gauntlet import _play_all
+
+    jobs = [(str(tmp_path), seed, name, "x") for seed, name in enumerate(["a", "die", "b", "c", "always", "d", "e"])]
+    outcomes = _play_all(jobs, workers=3, play=_end_the_worker_on_the_first_try)
+    assert [o["winner"] for o in outcomes] == ["a", "die", "b", "c", None, "d", "e"]
+    assert outcomes[4]["error"] == "BrokenProcessPool"
+    assert all(o["error"] is None for i, o in enumerate(outcomes) if i != 4)

@@ -412,3 +412,54 @@ def test_the_odds_hold_the_second_check_of_a_leader_who_breaks():
                     broke[uid] += 1
         for uid, count in broke.items():
             assert _close(count, result.breaks.get(uid, 0), SAMPLES), (uid, count, result.p_break(uid))
+
+
+def test_the_second_check_count_of_a_large_stack_is_exact_and_finishes():
+    """Rule 12.22 in a stack of a 3A size: two leaders and ten squads.
+
+    The count held the joint status of each unit, so a stack of this size ran a worker
+    of the 3A imitation out of memory (2026-10-11). The count now holds the joint status
+    of the leaders only, and it has to agree with the core on the same stack.
+    """
+    from slcore.commands import Command
+    from slcore.game import PHASE_ADVANCING_FIRE, DemoCharge
+    from conformance.harness import build_case
+    from slcore.rules import r23_demolition
+
+    stack = [
+        {"ref": "l", "side": "russian", "type": "9-1", "hex": "E5"},
+        {"ref": "m", "side": "russian", "type": "8-0", "hex": "E5"},
+    ] + [
+        {"ref": f"s{i}", "side": "russian", "type": "4-4-7", "hex": "E5", "broken": i % 4 == 0}
+        for i in range(10)
+    ]
+    built = build_case({
+        "phase": PHASE_ADVANCING_FIRE,
+        "sub_step": "fire_window",
+        "phasing": "german",
+        "active": "german",
+        "units": [
+            {"ref": "e", "side": "german", "type": "8-3-8", "hex": "D5"},
+            {"ref": "dc", "side": "german", "type": "DC", "carrier": "e"},
+        ] + stack,
+    })
+    engine = built.engine
+    e, weapon = built.unit("e"), built.unit("dc")
+    target = built.unit("l").hex
+    state = built.state
+    charge = DemoCharge(state.next_marker, e.player, target, e.id, e.hex, weapon.id, armed=True)
+    state = state.with_(demo=(charge,), next_marker=state.next_marker + 1)
+    state = state.with_units({weapon.id: weapon.with_(carrier=None, hex=None)})
+    command = Command("explode_demo", extra=(("charge", charge.id),))
+    result = odds.charge(engine, state, e.player, weapon.type_key, target)
+    before = {u.id: u for u in state.infantry_in(target) if u.player != e.player}
+    assert len(before) == 12
+    broke = {uid: 0 for uid in before}
+    for i in range(SAMPLES):
+        after, _ = r23_demolition._on_explode_demo(engine, state.with_(rng=rng.seed_state(1_000_003 * (i + 1))), command)
+        for uid, was in before.items():
+            now = after.units[uid]
+            if now.eliminated or (now.broken and not was.broken):
+                broke[uid] += 1
+    for uid, count in broke.items():
+        assert _close(count, result.breaks.get(uid, 0), SAMPLES), (uid, count, result.p_break(uid))

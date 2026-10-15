@@ -1,8 +1,8 @@
 {
  "id": "s04_armor_probe",
  "title": "Armor probe at the crossroads",
- "notes": "A project scenario, not a printed scenario. It is the first game that plays the armor rules 28 to 41: tanks and self-propelled guns, their covered arcs, their guns against infantry and against each other, the overrun, the panzerfaust, and the wrecks they leave. The board comes from the generator and the forces are the project's own, so no part of it is card text (SR-07, FR-22). Rules 47 and 51 hold the halftrack, the truck, and the jeep, and project ruling PR-20 keeps them out until then. Since 2026-09-23 each side has concealment counters and the German side has an assault engineer squad with a demolition charge, so the armor rules and rules 22 to 25 play together (review of that day).",
- "situation": "A crossroads village. A German force of infantry and engineers, with panzerfausts, a demolition charge, two tanks, and an assault gun probes a Russian position held by infantry, two T-34 tanks, and an assault gun. The Germans win if they hold one more of the marked buildings than they started with. Otherwise the Russians win. Tanks can overrun infantry, and the guns can fire at infantry and at vehicles. The Germans move first. Six turns.",
+ "notes": "A project scenario, not a printed scenario. It is the first game that plays the armor rules 28 to 41: tanks and self-propelled guns, their covered arcs, their guns against infantry and against each other, the overrun, the panzerfaust, and the wrecks they leave. The board comes from the generator and the forces are the project's own, so no part of it is card text (SR-07, FR-22). Rules 47 and 51 hold the halftrack, the truck, and the jeep, and project ruling PR-20 keeps them out until then. Since 2026-09-23 each side has concealment counters and the German side has an assault engineer squad with a demolition charge, so the armor rules and rules 22 to 25 play together (review of that day). The balance of 2026-10-14: with 3 German squads against 3 Russian squads under a 9-1, six turns, and a building swing of one, v7 against v7 gave the Axis 16 of 200 games, and four changes to the v7 attack did not change that (VIBE_HISTORY, 2026-10-14). The scenario now has 5 German squads against 2 Russian squads under a 7-0, eight turns, and the control of one hex of the Russian building. v7 against v7 gave the Axis 203 of 400 games, v3 against v3 57 of 120, and v6 against v6 111 of 120. Two fixes of the armor policy on the same day (one overrun for each vehicle, and the last tank of a section holds) moved v7 against v7 to 170 of 400, v3 against v3 to 58 of 120, and v6 against v6 to 117 of 120; nine turns gave 157 of 400. The board is the same. The farm measure of the same day (v7 against v7, 400 to 1,600 games a variant) found the last change: a German 8-0 leader. v7 against v7 gave the Axis 832 of 1,600 games (52 percent), v3 against v3 282 of 400, v6 against v6 396 of 400, and v5 against v5 0 of 400.",
+ "situation": "A crossroads village. A German force of infantry and engineers under two leaders, with panzerfausts, a demolition charge, two tanks, and an assault gun attacks a small Russian rear guard: two squads under a poor leader, two T-34 tanks, and an assault gun. The Germans win if they end the game in control of one hex of the marked Russian building. Otherwise the Russians win. Tanks can overrun infantry, and the guns can fire at infantry and at vehicles. The Germans move first. Eight turns.",
  "board": "village",
  "board_generator": {
   "seed": 20260909,
@@ -27,7 +27,7 @@
   ]
  },
  "board_retries": 48,
- "turns": 6,
+ "turns": 8,
  "first_mover": "axis",
  "setup_order": [
   "allied",
@@ -85,7 +85,7 @@
       },
       {
        "type": "4-6-7",
-       "count": 3
+       "count": 5
       },
       {
        "type": "8-3-8",
@@ -102,6 +102,9 @@
       {
        "type": "DC",
        "count": 1
+      },
+      {
+       "type": "8-0"
       }
      ]
     },
@@ -145,12 +148,11 @@
      },
      "units": [
       {
-       "type": "9-1",
-       "name": "Lt Dubovich"
+       "type": "7-0"
       },
       {
        "type": "4-4-7",
-       "count": 3
+       "count": 2
       },
       {
        "type": "LMG",
@@ -186,16 +188,13 @@
  ],
  "victory": [
   {
-   "kind": "building_swing",
+   "kind": "hex_control",
    "side": "axis",
-   "margin": 1,
-   "enemy_groups": [
+   "count": 1,
+   "groups": [
     "l_dubovich"
    ],
-   "own_groups": [
-    "a_stahler"
-   ],
-   "note": "The Axis side wins when it holds one more of the marked buildings than it started with. The Allied side wins when it does not."
+   "note": "The Axis side wins when it ends the game with control of one hex of the marked Russian building. A hex belongs to the side that last held it with an unbroken unit, and a hex with both sides in Close Combat belongs to neither. Otherwise the Allied side wins."
   }
  ]
 }

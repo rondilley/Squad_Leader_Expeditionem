@@ -392,3 +392,78 @@ def test_the_share_cap_holds_no_member_above_it():
     generator = torch.Generator().manual_seed(1)
     drawn = [league.sample(generator).name for _ in range(400)]
     assert 0.5 < drawn.count("strong") / 400 < 0.7, "the sample follows the capped shares"
+
+
+def test_the_named_opponents_are_the_only_league_members(tmp_path: Path):
+    """`--opponents v7`: the league holds v7 alone, and no snapshot of the learner joins it."""
+    engine = build_engine(SCENARIO)
+    league = build_league(engine, 1, ["v7"])
+    assert [m.spec for m in league.members] == ["v7"]
+    assert [m.name for m in build_league(engine, 1, ["random", "v1"]).members][0] == "random"
+    art = run_training(
+        scenario=SCENARIO,
+        steps=200,
+        hours=0.0,
+        seed=5,
+        learner_player=0,
+        snapshot_every=100,
+        config=ppo.PpoConfig(steps_per_update=100, minibatch=64, epochs=1),
+        net=NetConfig(),
+        out=tmp_path,
+        log_dir=None,
+        opponents=["v1"],
+    )
+    assert art.config["opponents"] == [m.name for m in build_league(engine, 5, ["v1"]).members]
+    assert art.config["fixed_opponents"] is True
+    assert art.stats["snapshots"], "the run still writes its snapshots"
+    assert [row["name"] for row in art.stats["league"]] == art.config["opponents"], "no snapshot joined the league"
+
+
+def test_the_value_warm_up_changes_the_value_head_alone():
+    """The warm-up fits the value head to the policy's own returns (PIRLNav). The trunk is
+    shared with the policy heads, so it and each policy head keep their weights, and the
+    policy gives the same distribution as before."""
+    import copy
+
+    torch.manual_seed(0)
+    engine = build_engine(SCENARIO)
+    env = make_env(engine, seed=9)
+    policy = Policy(env.spaces_record, NetConfig(channels=4, board_width=32, unit_width=16, hidden=32))
+    generator = torch.Generator().manual_seed(0)
+    rollout = ppo.collect(env, policy, 0, ppo.random_opponent, 64, generator)
+    before = copy.deepcopy(policy.state_dict())
+    config = ppo.PpoConfig(epochs=4, minibatch=16)
+    optimizer = torch.optim.Adam(policy.parameters(), lr=1e-2)
+    first = ppo.update(policy, optimizer, rollout, config, env.spaces_record, value_only=True)
+    for _ in range(5):
+        last = ppo.update(policy, optimizer, rollout, config, env.spaces_record, value_only=True)
+    assert first["value_only"] == 1.0
+    assert last["value_loss"] < first["value_loss"], "the value head fits the returns"
+    after = policy.state_dict()
+    for name, weights in before.items():
+        if name.startswith("value_head."):
+            continue
+        assert torch.equal(weights, after[name]), f"{name} changed in the warm-up"
+    assert any(not torch.equal(before[n], after[n]) for n in before if n.startswith("value_head."))
+    # The full update changes the policy heads.
+    full = ppo.update(policy, optimizer, rollout, config, env.spaces_record)
+    assert full["value_only"] == 0.0
+    assert any(not torch.equal(before[n], policy.state_dict()[n]) for n in before if n.startswith("unit_head."))
+
+
+def test_the_run_trains_the_value_head_alone_in_the_warm_up(tmp_path: Path):
+    art = run_training(
+        scenario=SCENARIO,
+        steps=256,
+        hours=0.0,
+        seed=5,
+        learner_player=0,
+        snapshot_every=0,
+        config=ppo.PpoConfig(steps_per_update=128, minibatch=64, epochs=1, value_warmup_steps=128),
+        net=NetConfig(channels=4, board_width=32, unit_width=16, hidden=32),
+        out=tmp_path,
+        log_dir=None,
+    )
+    assert art.config["ppo"]["value_warmup_steps"] == 128
+    assert art.stats["updates"] == 2
+    assert art.stats["value_warmup_updates"] == 1, "the first update of 128 steps is the warm-up"

@@ -66,6 +66,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 sldata = ["tables/*.json", "counters/*.json", "scenarios/*.json", "rulings/*.json", "boards/*.json", "providers.json"]
 slhost = ["protocol_schema.json"]
+slwindow3d = ["assets/*.wav"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

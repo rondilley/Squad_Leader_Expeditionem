@@ -1,8 +1,9 @@
-"""The sounds of the game, made by code: weapons fire, explosions, footsteps, and engines.
+"""The sounds of the game: weapons fire, explosions, footsteps, and engines.
 
-Each sound is synthesized here from noise, decaying envelopes, filters, and low tones, so the
-project ships no recorded audio and each sound is the project's own work (SR-07). The window
-gets each sound as WAV bytes (`bank`) and plays it from memory (`audio.py`).
+Each sound but the vehicle is synthesized here from noise, decaying envelopes, filters, and
+low tones, and is the project's own work (SR-07). The vehicle is a part of the owner's
+recording of a tank (`assets/tank_drive.wav`, docs/ASSET_PROVENANCE.md). The window gets
+each sound as WAV bytes (`bank`) and plays it from memory (`audio.py`).
 
 - A rifle shot is a sharp crack, a short body, and a long low echo; a squad's rifle fire is
   a ragged volley of a few shots.
@@ -14,12 +15,14 @@ gets each sound as WAV bytes (`bank`) and plays it from memory (`audio.py`).
   blast; grenades are a few dull bangs; smoke is a pop and a hiss.
 - One man moving is a few muffled footsteps; a squad is several men stepping out of time,
   with a soft rattle of equipment; a rout is the same, faster. They are quieter than any
-  weapon. A vehicle is a throbbing motor, the rhythmic clank of its tracks, and the roll of
-  its road wheels, quieter than a gun.
+  weapon. A vehicle is a part of the tank recording, quieter than a gun.
+- A vehicle that breaks down is a hard metal clank, a grinding scrape, and an engine that
+  coughs and dies. A vehicle crew that works on a broken gun is the taps of a hammer and
+  the clicks of a wrench on metal.
 
-The random parts come from a generator seeded by the sound name and the variant, so each run
-makes the same sounds, and the variants of one name differ so a burst does not repeat
-exactly. This module imports no part of Panda3D.
+The random parts (and the part of the recording) come from a generator seeded by the sound
+name and the variant, so each run makes the same sounds, and the variants of one name differ
+so a burst does not repeat exactly. This module imports no part of Panda3D.
 """
 
 from __future__ import annotations
@@ -29,6 +32,7 @@ import math
 import random
 import wave
 from array import array
+from pathlib import Path
 
 RATE = 22050
 VARIANTS = 3
@@ -38,6 +42,11 @@ STEPS_VOLUME = 0.3
 # A vehicle is quieter than a gun too (owner, 2026-10-10), in its file and in its cue.
 ENGINE_GAIN = 0.55
 ENGINE_VOLUME = 0.45
+# The one recorded sound: the owner's tank (docs/ASSET_PROVENANCE.md).
+TANK_RECORDING = Path(__file__).resolve().parent / "assets" / "tank_drive.wav"
+# The cutoff of the low-pass filter on the recording, in hertz (owner, 2026-10-11: "too
+# high"). A lower cutoff takes out the clank of the tracks too, and leaves only a rumble.
+ENGINE_CUTOFF = 600.0
 
 # The sound names. `sound_cues` gives names from this list.
 RIFLE = "rifle"
@@ -54,10 +63,15 @@ STEPS_ONE = "steps_one"
 STEPS_SQUAD = "steps_squad"
 STEPS_RUN = "steps_run"
 ENGINE = "engine"
+BREAKDOWN = "breakdown"
+REPAIR = "repair"
 NAMES = (
     RIFLE, SMG, MG_FAST, MG_SLOW, FLAME, ROCKET, TANK_GUN, EXPLOSION, GRENADES, SMOKE,
-    STEPS_ONE, STEPS_SQUAD, STEPS_RUN, ENGINE,
+    STEPS_ONE, STEPS_SQUAD, STEPS_RUN, ENGINE, BREAKDOWN, REPAIR,
 )
+# A breakdown and a repair are near the level of the engine, below the guns.
+BREAKDOWN_VOLUME = 0.6
+REPAIR_VOLUME = 0.5
 
 
 class _Track:
@@ -135,50 +149,122 @@ def _step(track: _Track, at: float, amp: float) -> None:
     track.noise(at + 0.006, 0.07, amp * 0.15, 0.012, smooth=0.1)
 
 
+def recording() -> list[float]:
+    """The samples of the owner's tank recording (2026-10-11), from -1 to 1, at `RATE`.
+
+    `tools/make_tank_sound.py` made the file from `background/Tank_Noise.m4a`.
+    """
+    with wave.open(str(TANK_RECORDING), "rb") as w:
+        if w.getnchannels() != 1 or w.getsampwidth() != 2 or w.getframerate() != RATE:
+            raise ValueError(f"{TANK_RECORDING} is not 16-bit mono at {RATE} Hz")
+        frames = array("h", w.readframes(w.getnframes()))
+    return [x / 32768.0 for x in frames]
+
+
+def _lowpass(data: list[float], cutoff: float) -> list[float]:
+    """A second-order low-pass filter (12 dB an octave above `cutoff`, Q of 0.707)."""
+    w = 2.0 * math.pi * cutoff / RATE
+    alpha = math.sin(w) / (2.0 * 0.707)
+    c = math.cos(w)
+    a0 = 1.0 + alpha
+    b0 = b2 = (1.0 - c) / 2.0 / a0
+    b1 = (1.0 - c) / a0
+    a1 = -2.0 * c / a0
+    a2 = (1.0 - alpha) / a0
+    out = []
+    x1 = x2 = y1 = y2 = 0.0
+    for x in data:
+        y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+        x2, x1, y2, y1 = x1, x, y1, y
+        out.append(y)
+    return out
+
+
+def _metal(track: _Track, at: float, amp: float, freq: float, tau: float) -> None:
+    """One strike on steel: a short tick and three partials that are not in tune with each
+    other (2.76 and 5.40 times the first, as on a plate), each one decaying."""
+    track.noise(at, 0.01, amp * 0.6, 0.002, smooth=0.6)
+    for ratio, level in ((1.0, 1.0), (2.76, 0.5), (5.40, 0.25)):
+        track.tone(at, tau * 5, freq * ratio, amp * level, tau / ratio ** 0.5)
+
+
+def _breakdown(rng: random.Random) -> _Track:
+    """A vehicle breaks down (owner, 2026-10-11: "there needs to be a sound fx for it
+    breaking").
+
+    - A hard clank of heavy metal, low and ringing, as a part fails.
+    - A grinding scrape of dark noise, shaken about thirty times a second.
+    - The engine coughs a few times, slower each time, and stops.
+    """
+    track = _Track(2.6, rng)
+    _metal(track, 0.0, 1.0, rng.uniform(150.0, 190.0), 0.12)
+    _metal(track, 0.04, 0.5, rng.uniform(320.0, 380.0), 0.06)
+    # The grinding.
+    start = int(0.05 * RATE)
+    state = 0.0
+    shake = rng.uniform(26.0, 34.0)
+    for i in range(int(0.7 * RATE)):
+        t = i / RATE
+        state += 0.25 * (rng.uniform(-1.0, 1.0) - state)
+        envelope = math.exp(-t / 0.35) * (0.6 + 0.4 * math.sin(2 * math.pi * shake * t))
+        track.data[start + i] += 0.5 * envelope * state
+    # The engine coughs and dies.
+    at = 0.8
+    gap = 0.14
+    for k in range(rng.randint(4, 6)):
+        level = 0.55 * (0.75 ** k)
+        track.tone(at, 0.12, rng.uniform(40.0, 48.0), level, 0.04)
+        track.noise(at, 0.08, level * 0.5, 0.025, smooth=0.05)
+        at += gap
+        gap *= rng.uniform(1.25, 1.45)
+        if at > 2.3:
+            break
+    track.gain = 0.8
+    return track
+
+
+def _repair(rng: random.Random) -> _Track:
+    """A crew works on a broken gun (owner, 2026-10-11: "sound fx of the fixing please"):
+    the taps of a hammer on steel at an uneven pace, and the clicks of a wrench between them.
+    """
+    track = _Track(2.4, rng)
+    at = rng.uniform(0.0, 0.08)
+    # A group of two or three taps, then a run of the wrench, and again.
+    while at < 2.0:
+        for _ in range(rng.randint(2, 3)):
+            if at >= 2.0:
+                break
+            _metal(track, at, rng.uniform(0.6, 0.9), rng.uniform(820.0, 980.0), 0.05)
+            at += rng.uniform(0.22, 0.32)
+        for k in range(rng.randint(3, 5)):
+            track.noise(at + k * 0.075, 0.012, rng.uniform(0.25, 0.4), 0.003, smooth=0.7)
+        at += rng.uniform(0.4, 0.5)
+    track.gain = 0.7
+    return track
+
+
 def _engine(rng: random.Random) -> _Track:
-    """A tracked vehicle on the move (owner, 2026-10-10: "sound more like a motor and
-    wheels/tracks driving vs. just a rumble", then "much lower frequency, they currently
-    sound like someone playing a rainfall stick").
+    """A tracked vehicle on the move: a part of the owner's recording of a tank (owner,
+    2026-10-11: "I have added a sound sample of a tank driving, use it please").
 
-    All of it is low: nothing rings above a few hundred hertz.
-
-    - The motor: a train of firing pulses at the firing rate of the engine, each a deep
-      thump (a 38 to 46 Hz fundamental and two harmonics), a little different from cycle to
-      cycle, so it throbs like a motor and does not hum; the rate climbs as it pulls away.
-    - The tracks: a dull, heavy clunk of the links on the sprocket at about ten a second,
-      each a short low tone with a thud of dark noise.
-    - The road wheels: a low roll under it all.
+    Each variant starts at another place in the recording, so the moves of one tank do not
+    repeat the same part. A low-pass filter at `ENGINE_CUTOFF` takes the high part out
+    (owner, 2026-10-11: "the tank sound is too high, add a low-pass filter") and keeps the
+    clank of the tracks. The part fades in and out, so it starts and stops softly.
     """
     seconds = 2.2
     track = _Track(seconds, rng)
     n = len(track.data)
-    # The motor.
-    rate = rng.uniform(22.0, 27.0)
-    base = rng.uniform(38.0, 46.0)
-    t = 0.0
-    while t < seconds - 0.05:
-        speed = 0.75 + 0.25 * min(1.0, t / 0.5)
-        amp = rng.uniform(0.6, 1.0) * min(1.0, 0.3 + t / 0.25) * min(1.0, (seconds - t) / 0.4)
-        start = int(t * RATE)
-        for i in range(int(0.045 * RATE)):
-            j = start + i
-            if j >= n:
-                break
-            u = i / RATE
-            pulse = math.exp(-u / 0.014)
-            track.data[j] += amp * pulse * (
-                0.7 * math.sin(2 * math.pi * base * u) + 0.35 * math.sin(2 * math.pi * 2 * base * u) + 0.12 * math.sin(2 * math.pi * 3 * base * u)
-            )
-        t += 1.0 / (rate * speed) * rng.uniform(0.94, 1.06)
-    # The road wheels.
-    track.noise(0.0, seconds, 0.18, 4.0, smooth=0.015)
-    # The tracks.
-    clank = rng.uniform(9.0, 12.0)
-    for k in range(int(seconds * clank)):
-        at = k / clank + rng.uniform(-0.006, 0.006)
-        level = 0.4 * min(1.0, (seconds - at) / 0.4)
-        track.tone(at, 0.07, rng.uniform(110.0, 170.0), level, 0.016, drop=0.2)
-        track.noise(at, 0.05, level * 0.8, 0.012, smooth=0.05)
+    source = recording()
+    start = rng.randrange(0, len(source) - n)
+    # The filter starts a little early, so it has settled when the part begins.
+    lead = min(start, int(0.05 * RATE))
+    part = _lowpass(source[start - lead:start + n], ENGINE_CUTOFF)[lead:]
+    fade_in = int(0.15 * RATE)
+    fade_out = int(0.4 * RATE)
+    for i in range(n):
+        level = min(1.0, i / fade_in, (n - i) / fade_out)
+        track.data[i] = level * part[i]
     track.gain = ENGINE_GAIN
     return track
 
@@ -246,6 +332,10 @@ def _make(name: str, rng: random.Random) -> _Track:
         return track
     if name == ENGINE:
         return _engine(rng)
+    if name == BREAKDOWN:
+        return _breakdown(rng)
+    if name == REPAIR:
+        return _repair(rng)
     raise ValueError(f"no sound named {name!r}")
 
 
@@ -265,6 +355,10 @@ def bank(variants: int = VARIANTS) -> dict[str, list[bytes]]:
 # The single-man counters: a leader, a crew, a hero. A squad is several men.
 _ONE_MAN_KINDS = {"leader", "crew", "hero"}
 _STEP_EVENTS = {"move", "advance"}
+# A vehicle part or gun that fails (rules 39.1, 38.1, 38.2), and the repair attempt of rule
+# 38.1 and 38.2 whatever its die gives. A breakdown of rule 39.1 has no repair.
+_VEHICLE_FAILURES = {"gun_malfunction", "mg_malfunction"}
+_VEHICLE_REPAIRS = {"afv_repaired", "afv_repair_failed", "afv_disabled"}
 
 
 def _mg_name(army: str) -> str:
@@ -318,6 +412,12 @@ def sound_cues(event: dict, units: dict) -> list[tuple[str, str | None, float]]:
     elif kind == "vehicle_pivot":
         unit = units.get(data.get("unit"), {})
         out.append((ENGINE, unit.get("hex"), ENGINE_VOLUME * 0.6))
+    elif (kind == "breakdown_roll" and data.get("immobilized")) or kind in _VEHICLE_FAILURES:
+        unit = units.get(data.get("unit"), {})
+        out.append((BREAKDOWN, unit.get("hex"), BREAKDOWN_VOLUME))
+    elif kind in _VEHICLE_REPAIRS:
+        unit = units.get(data.get("unit"), {})
+        out.append((REPAIR, unit.get("hex"), REPAIR_VOLUME))
     return out
 
 

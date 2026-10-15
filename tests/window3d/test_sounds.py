@@ -196,6 +196,39 @@ def _mean_frequency(frames, rate) -> float:
     return rate / (2 * math.pi) * math.sqrt(slope / energy)
 
 
+def test_a_vehicle_is_a_part_of_the_owners_tank_recording():
+    """The owner: "I have added a sound sample of a tank driving, use it please", then "the
+    tank sound is too high, add a low-pass filter"."""
+    raw = sounds.recording()
+    assert 10.0 < len(raw) / sounds.RATE < 12.5
+    # Each variant is the recording after the low-pass filter of the engine.
+    source = sounds._lowpass(raw, sounds.ENGINE_CUTOFF)
+    starts = []
+    for variant in range(sounds.VARIANTS):
+        frames, rate = _samples(sounds.make_sound(sounds.ENGINE, variant))
+        assert rate == sounds.RATE
+        # The middle of the variant, past the fade in, is the filtered recording scaled:
+        # find where.
+        mid = len(frames) // 2
+        probe = frames[mid:mid + 400]
+        k = max(range(len(probe)), key=lambda i: abs(probe[i]))
+        best = None
+        for start in range(0, len(source) - len(frames) + 1):
+            # A cheap filter first: the loudest sample of the probe and its neighbour.
+            a, b = source[start + mid + k], source[start + mid + k + 1]
+            if a == 0.0 or abs(b / a - probe[k + 1] / probe[k]) > 0.02:
+                continue
+            window = source[start + mid:start + mid + 400]
+            dot = sum(x * y for x, y in zip(probe, window))
+            norm = (sum(x * x for x in probe) * sum(y * y for y in window)) ** 0.5 or 1.0
+            if dot / norm > 0.999:
+                best = start
+                break
+        assert best is not None, f"variant {variant} is not a part of the recording"
+        starts.append(best)
+    assert len(set(starts)) == sounds.VARIANTS, "each variant starts at another place"
+
+
 def test_a_vehicle_is_quieter_than_a_gun_and_sounds_like_a_motor_and_tracks():
     """The owner: "The sound of vehicles needs to be less loud than guns, and sound more like
     a motor and wheels/tracks driving vs. just a rumble"."""
@@ -211,9 +244,9 @@ def test_a_vehicle_is_quieter_than_a_gun_and_sounds_like_a_motor_and_tracks():
         assert max(abs(x) for x in frames) < 0.7 * quietest_gun
         # The clank of the track links repeats about ten times a second.
         assert _rhythm(frames, rate, 75, 120) > 0.3
-        # The owner then heard "a rainfall stick" and asked for "much lower frequency": the
-        # mean frequency of the vehicle is low, far below a gun and below the footsteps.
-        assert _mean_frequency(frames, rate) < 150
+        # Since 2026-10-11 the vehicle is the owner's recording of a tank. The owner heard it
+        # as "too high", and the low-pass filter brings it down from about 500 Hz.
+        assert _mean_frequency(frames, rate) < 200
     steps, rate = _samples(sounds.make_sound(sounds.STEPS_SQUAD, 0))
     assert _mean_frequency(frames, rate) < 0.3 * _mean_frequency(steps, rate)
     # A plain rumble (filtered noise) has no such rhythm, so the check means something.
@@ -228,3 +261,43 @@ def test_a_vehicle_is_quieter_than_a_gun_and_sounds_like_a_motor_and_tracks():
     units = {7: {"id": 7, "kind": "vehicle", "type": "T34", "hex": "E5", "nationality": "russian"}}
     move = {"rule_id": "30.2", "kind": "vehicle_move", "data": {"unit": 7, "from": "E5", "to": "E6"}}
     assert sounds.sound_cues(move, units)[0][2] <= 0.6 * 0.8
+
+
+def test_a_vehicle_breakdown_and_a_repair_have_their_own_sounds():
+    """The owner: "If a vehicle suffers a breakdown, there needs to be a sound fx for it
+    breaking. And if the vehicle unit attempts to fix the breakdown, there needs to be sound
+    fx of the fixing"."""
+    units = {7: {"id": 7, "kind": "vehicle", "type": "MkIVF2", "hex": "E5", "nationality": "german"}}
+
+    def cue(kind, **data):
+        return sounds.sound_cues({"rule_id": "39.1", "kind": kind, "data": {"unit": 7, **data}}, units)
+
+    # The breakdown die of rule 39.1 breaks the vehicle; a die that passes makes no sound.
+    assert cue("breakdown_roll", die=6, breaks_on=5, immobilized=True) == [(sounds.BREAKDOWN, "E5", sounds.BREAKDOWN_VOLUME)]
+    assert cue("breakdown_roll", die=2, breaks_on=5, immobilized=False) == []
+    # A main gun or a machine gun that breaks (rules 38.1 and 38.2).
+    assert cue("gun_malfunction") == [(sounds.BREAKDOWN, "E5", sounds.BREAKDOWN_VOLUME)]
+    assert cue("mg_malfunction", roll=12) == [(sounds.BREAKDOWN, "E5", sounds.BREAKDOWN_VOLUME)]
+    # Each repair attempt sounds the same, whatever its die gives.
+    for kind in ("afv_repaired", "afv_repair_failed", "afv_disabled"):
+        assert cue(kind, weapon="main", die=3) == [(sounds.REPAIR, "E5", sounds.REPAIR_VOLUME)]
+    # Both play softer than fire.
+    assert max(sounds.BREAKDOWN_VOLUME, sounds.REPAIR_VOLUME) < 0.8
+
+    def envelope(frames, rate, ms=10):
+        window = int(rate * ms / 1000)
+        return [max(abs(x) for x in frames[k:k + window]) for k in range(0, len(frames) - window, window)]
+
+    for variant in range(sounds.VARIANTS):
+        broken, rate = _samples(sounds.make_sound(sounds.BREAKDOWN, variant))
+        env = envelope(broken, rate)
+        # The clank comes first and is the loudest part; the engine dies at the end.
+        assert env.index(max(env)) < 10
+        assert max(env[-50:]) < 0.1 * max(env)
+        fixed, rate = _samples(sounds.make_sound(sounds.REPAIR, variant))
+        env = envelope(fixed, rate)
+        # The hammer taps: three or more separate strikes, each loud after a quiet gap.
+        strikes = sum(1 for i in range(len(env)) if env[i] > 0.4 * max(env) and max(env[max(0, i - 5):i] or [0]) < 0.2 * max(env))
+        assert strikes >= 3
+        # The taps on steel are brighter than the breakdown, which is low and heavy.
+        assert _mean_frequency(fixed, rate) > 2 * _mean_frequency(broken, rate)

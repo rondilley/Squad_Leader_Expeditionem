@@ -36,6 +36,7 @@ each worker's own sequence.
 
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Sequence
@@ -86,6 +87,9 @@ class PpoConfig:
     reward_scale: float = 10.0
     # The weight of the KL divergence from the anchor policy, zero for no anchor.
     anchor_kl: float = 0.0
+    # The first decisions of the run that train the value head alone, with the policy
+    # fixed, zero for none (PIRLNav, https://arxiv.org/abs/2301.07302).
+    value_warmup_steps: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -101,6 +105,7 @@ class PpoConfig:
             "gae_lambda": self.gae_lambda,
             "reward_scale": self.reward_scale,
             "anchor_kl": self.anchor_kl,
+            "value_warmup_steps": self.value_warmup_steps,
         }
 
 
@@ -352,44 +357,82 @@ def choose_batch(
     with torch.no_grad():
         trunk, unit_embeddings = policy.encode(board, units, scalars)
         u_logits = policy.unit_logits(trunk, unit_embeddings, unit_mask)
-        u_dist = torch.distributions.Categorical(logits=u_logits)
-        unit = u_logits.argmax(dim=-1) if greedy else _sample(u_dist, generator)
+        unit, u_log_prob = _pick(u_logits, greedy, generator)
         a_mask = action_mask.gather(1, unit.view(-1, 1, 1).expand(-1, 1, spaces.actions)).squeeze(1)
         a_logits = policy.action_logits(trunk, unit_embeddings, unit, a_mask)
-        a_dist = torch.distributions.Categorical(logits=a_logits)
-        action = a_logits.argmax(dim=-1) if greedy else _sample(a_dist, generator)
+        action, a_log_prob = _pick(a_logits, greedy, generator)
         unit_list = unit.tolist()
         action_list = action.tolist()
-        target_bits = [
-            target_mask_for(dict.fromkeys(legal[i]), spaces, unit_list[i], action_list[i]) for i in range(len(observations))
-        ]
+        # The mask helpers read each legal key once; a list serves as well as the dict of a frame.
+        target_bits = [target_mask_for(legal[i], spaces, unit_list[i], action_list[i]) for i in range(len(observations))]
         target_mask = torch.from_numpy(np.stack(target_bits).astype(np.float32)).to(device)
         t_logits = policy.target_logits(trunk, unit_embeddings, unit, action, target_mask)
-        t_dist = torch.distributions.Categorical(logits=t_logits)
-        target = t_logits.argmax(dim=-1) if greedy else _sample(t_dist, generator)
+        target, t_log_prob = _pick(t_logits, greedy, generator)
         target_list = target.tolist()
         option_bits = [
-            option_mask_for(dict.fromkeys(legal[i]), spaces, unit_list[i], action_list[i], target_list[i])
+            option_mask_for(legal[i], spaces, unit_list[i], action_list[i], target_list[i])
             for i in range(len(observations))
         ]
         option_mask = torch.from_numpy(np.stack(option_bits).astype(np.float32)).to(device)
         o_logits = policy.option_logits(trunk, unit_embeddings, unit, action, target, option_mask)
-        o_dist = torch.distributions.Categorical(logits=o_logits)
-        option = o_logits.argmax(dim=-1) if greedy else _sample(o_dist, generator)
-        log_prob = u_dist.log_prob(unit) + a_dist.log_prob(action) + t_dist.log_prob(target) + o_dist.log_prob(option)
+        option, o_log_prob = _pick(o_logits, greedy, generator)
+        log_prob = u_log_prob + a_log_prob + t_log_prob + o_log_prob
         value = policy.value(trunk)
+    log_probs = log_prob.tolist()
+    if any(math.isnan(x) for x in log_probs):
+        # The check that torch.distributions made of each head, once for the batch.
+        raise ValueError("the policy gave a NaN log probability; the weights are not finite")
     quads = list(zip(unit_list, action_list, target_list, option.tolist()))
-    return quads, log_prob.tolist(), value.tolist(), target_bits, option_bits
+    return quads, log_probs, value.tolist(), target_bits, option_bits
 
 
 # How long the parallel collection waits for more workers before it answers the ready ones.
 GATHER_SECONDS = 0.002
+# The pipes one `multiprocessing.connection.wait` call takes on Windows is 63
+# (WaitForMultipleObjects). The farm gives the trainer more workers than that.
+WAIT_LIMIT = 60
+
+
+def wait_any(connections: Sequence[Any], timeout: float | None) -> list[Any]:
+    """The connections with a message, as `multiprocessing.connection.wait`, for any count.
+
+    For more than WAIT_LIMIT connections it looks at each group with no wait, and when no
+    message is in, it waits a short time on one group and looks again.
+    """
+    from multiprocessing.connection import wait
+
+    if len(connections) <= WAIT_LIMIT:
+        return wait(connections, timeout=timeout)
+    groups = [list(connections[i : i + WAIT_LIMIT]) for i in range(0, len(connections), WAIT_LIMIT)]
+    deadline = None if timeout is None else time.monotonic() + timeout
+    turn = 0
+    while True:
+        found = [c for group in groups for c in wait(group, timeout=0)]
+        if found:
+            return found
+        if deadline is not None and time.monotonic() >= deadline:
+            return []
+        wait(groups[turn % len(groups)], timeout=GATHER_SECONDS)
+        turn += 1
 
 
 def _sample(distribution: torch.distributions.Categorical, generator: torch.Generator) -> torch.Tensor:
     """A sample of each row with the trainer's own generator, so a run repeats from its seed."""
     probs = distribution.probs.detach().cpu()
     return torch.multinomial(probs, 1, generator=generator).squeeze(-1).to(distribution.logits.device)
+
+
+def _pick(logits: torch.Tensor, greedy: bool, generator: torch.Generator) -> tuple[torch.Tensor, torch.Tensor]:
+    """The choice of each row of one head and its log probability, with no distribution
+    object: `torch.distributions.Categorical` checked its arguments at each call, and that
+    was a sixth of the time of `choose_batch` (2026-10-14). The sample uses the trainer's
+    own generator on the processor, as `_sample` does, so a run repeats from its seed."""
+    log_p = torch.log_softmax(logits, dim=-1)
+    if greedy:
+        choice = logits.argmax(dim=-1)
+    else:
+        choice = torch.multinomial(log_p.exp().cpu(), 1, generator=generator).squeeze(-1).to(logits.device)
+    return choice, log_p.gather(1, choice.view(-1, 1)).squeeze(1)
 
 
 def values_batch(policy: Policy, observations: Sequence[dict[str, np.ndarray]]) -> list[float]:
@@ -414,8 +457,12 @@ def collect_parallel(
     next_seed: Callable[[], int],
     on_game_end: Callable[[str, float], None] | None = None,
     alternate_sides: bool = False,
+    jump_start: Any = None,
 ) -> Rollout:
     """`collect` over a worker pool: each worker plays one game, and the policy answers all.
+
+    `jump_start`, a `jumpstart.JumpStart`, gives each new game its guide and horizon, and
+    it sees the result of each game that ended with the horizon the game started with.
 
     `next_member()` gives the spec and the name of the opponent of a new game, and
     `next_seed()` its seed. `on_game_end(member_name, result)` sees each game that ended.
@@ -429,7 +476,6 @@ def collect_parallel(
     a loop that waits for the slowest worker at each step runs at that worker's pace. A
     short wait gathers a larger batch when few are ready.
     """
-    from multiprocessing.connection import wait
 
     from slagents.learned.workers import Worker
 
@@ -443,7 +489,8 @@ def collect_parallel(
 
     def start(worker: Worker) -> None:
         spec, name = next_member()
-        pool.reset(worker, spec, name, worker.learner, next_seed())
+        guide = jump_start.next() if jump_start is not None else None
+        pool.reset(worker, spec, name, worker.learner, next_seed(), guide)
         awaiting.add(worker)
 
     def settle(worker: Worker, decision: Any) -> None:
@@ -453,6 +500,8 @@ def collect_parallel(
         if decision.ended:
             if on_game_end is not None:
                 on_game_end(worker.member_name, decision.result)
+            if jump_start is not None:
+                jump_start.record(worker.guide_turns, decision.result)
             if worker.steps:
                 rollout.done[worker.steps[-1]] = 1.0
             if alternate_sides:
@@ -466,7 +515,7 @@ def collect_parallel(
         if not awaiting:
             return
         timeout = None if block else GATHER_SECONDS
-        for connection in wait([w.connection for w in awaiting], timeout=timeout):
+        for connection in wait_any([w.connection for w in awaiting], timeout=timeout):
             worker = by_connection[connection]
             awaiting.discard(worker)
             settle(worker, pool.receive(worker))
@@ -526,10 +575,18 @@ def update(
     config: PpoConfig,
     spaces: Spaces,
     anchor: Policy | None = None,
+    value_only: bool = False,
 ) -> dict[str, float]:
     """One PPO update. Gives the losses, which a scalar log records (IR-07).
 
     `anchor` is the frozen policy the KL term of `config.anchor_kl` holds this one near.
+
+    `value_only` is the warm-up of the value head. A policy from imitation has a value head
+    fitted to the returns of the teachers' games, not to its own, so its first advantages
+    are noise, and the first policy updates follow that noise away from the clone. The
+    warm-up fits the value head to the returns of the policy's own rollouts first. The
+    trunk is shared with the policy heads, so the warm-up reads it with no gradient, and
+    only the value head changes. The policy then plays the same commands as before.
     """
     if config.anchor_kl > 0.0 and anchor is None:
         raise ValueError("anchor_kl is above zero and the update has no anchor policy")
@@ -559,6 +616,19 @@ def update(
         order = torch.randperm(n, device=device)
         for start in range(0, n, config.minibatch):
             batch = order[start : start + config.minibatch]
+            if value_only:
+                with torch.no_grad():
+                    trunk, _ = policy.encode(board[batch], units[batch], scalars[batch])
+                value_loss = nn.functional.mse_loss(policy.value(trunk), target_return[batch])
+                loss = config.value_coefficient * value_loss
+                optimizer.zero_grad(set_to_none=True)
+                loss.backward()
+                nn.utils.clip_grad_norm_(policy.value_head.parameters(), config.max_gradient)
+                optimizer.step()
+                totals["value_loss"] += float(value_loss.item())
+                totals["loss"] += float(loss.item())
+                totals["updates"] += 1.0
+                continue
             parts = (
                 board[batch],
                 units[batch],
@@ -607,6 +677,7 @@ def update(
         "anchor_kl": totals["anchor_kl"] / count,
         "loss": totals["loss"] / count,
         "minibatches": totals["updates"],
+        "value_only": 1.0 if value_only else 0.0,
     }
 
 
@@ -659,7 +730,7 @@ def anchor_divergence(
 
 def random_opponent(env: SquadLeaderEnv, observation: dict[str, np.ndarray]) -> tuple[int, int, int, int]:
     """The opponent of the first rung of the ladder: a uniform legal command."""
-    quads = list(env.groups)
+    quads = list(env.choices)
     index = int(torch.randint(len(quads), (1,)).item())
     return quads[index]
 

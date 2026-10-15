@@ -52,7 +52,7 @@ from typing import Any, Sequence
 
 from slagents.scripted import evolve as search
 from slagents.scripted.v7 import Parameters, UnknownNation
-from slcli.gauntlet import _play_all, split_agent_names
+from slcli.gauntlet import _play_all, add_farm_arguments, farm_of, split_agent_names
 from slcli.play import build_engine_with_record
 from slruns import artifact
 from slruns.index import connect, upsert
@@ -146,10 +146,11 @@ def score_generation(
     workers: int,
     player: int | None = None,
     base_text: str = "v7",
+    farm: Any = None,
 ) -> list[tuple[float, Any]]:
     """The share of the wins of each candidate, with its wins by opponent and by side."""
     jobs, keys = generation_jobs(candidates, base, panel, scenario, games, first_seed, player, base_text)
-    outcomes = _play_all(jobs, workers)
+    outcomes = _play_all(jobs, workers, farm=farm)
     detail: list[dict[str, Any]] = [
         {"wins": 0, "games": 0, "errors": 0, "by_opponent": {name: [0, 0] for name in panel}, "by_side": {sides[0]: 0, sides[1]: 0}}
         for _ in candidates
@@ -184,6 +185,7 @@ def run_evolve(
     final_games: int = 0,
     final_top: int = 4,
     only: Sequence[str] = (),
+    farm: Any = None,
 ) -> artifact.RunArtifact:
     """Run the search and return its artifact."""
     base = base_of(base_text)
@@ -217,6 +219,7 @@ def run_evolve(
                 "confirm": family_seed("evolve_confirm", seed),
             },
             "workers": workers,
+            "farm": [str(a) for a in farm.addresses] if farm is not None else [],
             "final_games": final_games,
             "final_top": final_top,
             "only": list(only),
@@ -232,7 +235,7 @@ def run_evolve(
         # New seeds for each generation, the same seeds for each candidate of it.
         first_seed = family_seed("evolve", seed, 1000 * (index + 1))
         art.seeds.extend(seeds_of_games(first_seed, games))
-        scores = score_generation(candidates, base, panel, scenario, sides, games, first_seed, workers, player, base_text)
+        scores = score_generation(candidates, base, panel, scenario, sides, games, first_seed, workers, player, base_text, farm)
         games_played += sum(r["games"] for _, r in scores)
         return scores
 
@@ -264,11 +267,11 @@ def run_evolve(
     if final_games > 0:
         first_seed = family_seed("evolve_final", seed)
         art.seeds.extend(seeds_of_games(first_seed, final_games))
-        final = final_stage(run, base, panel, scenario, sides, final_games, first_seed, workers, player, final_top, base_text)
+        final = final_stage(run, base, panel, scenario, sides, final_games, first_seed, workers, player, final_top, base_text, farm)
         games_played += sum(row["games"] for row in final)
         confirm_seed = family_seed("evolve_confirm", seed)
         art.seeds.extend(seeds_of_games(confirm_seed, final_games))
-        confirm = confirm_stage(run, final[0]["id"], base, panel, scenario, sides, final_games, confirm_seed, workers, player, base_text)
+        confirm = confirm_stage(run, final[0]["id"], base, panel, scenario, sides, final_games, confirm_seed, workers, player, base_text, farm)
         games_played += sum(row["games"] for row in confirm)
         if progress:
             best = final[0]
@@ -300,6 +303,7 @@ def confirm_stage(
     workers: int,
     player: int | None,
     base_text: str = "v7",
+    farm: Any = None,
 ) -> list[dict[str, Any]]:
     """The candidate the final stage chose, and the base, on seeds no stage used (L7).
 
@@ -311,7 +315,7 @@ def confirm_stage(
     chosen = [run.candidate(chosen_id)]
     if chosen_id != 0:
         chosen.append(run.candidates[0])
-    scores = score_generation(chosen, base, panel, scenario, sides, games, first_seed, workers, player, base_text)
+    scores = score_generation(chosen, base, panel, scenario, sides, games, first_seed, workers, player, base_text, farm)
     out = []
     for cand, (score, detail) in zip(chosen, scores):
         out.append(
@@ -341,6 +345,7 @@ def final_stage(
     player: int | None,
     top: int,
     base_text: str = "v7",
+    farm: Any = None,
 ) -> list[dict[str, Any]]:
     """The best candidates and the base, played again on seeds no generation used.
 
@@ -355,7 +360,7 @@ def final_stage(
         chosen.append(cand)
     if run.candidates[0] not in chosen:
         chosen.append(run.candidates[0])
-    scores = score_generation(chosen, base, panel, scenario, sides, games, first_seed, workers, player, base_text)
+    scores = score_generation(chosen, base, panel, scenario, sides, games, first_seed, workers, player, base_text, farm)
     out = []
     for cand, (score, detail) in zip(chosen, scores):
         out.append(
@@ -433,6 +438,7 @@ def run(args: Any) -> int:
         final_games=args.final_games,
         final_top=args.final_top,
         only=[name.strip() for name in str(args.only).split(",") if name.strip()],
+        farm=farm_of(args),
     )
     directory = art.write(args.runs)
     conn = connect(Path(args.runs) / "runs.sqlite")
@@ -461,6 +467,7 @@ def add_parser(subparsers: Any) -> None:
     from slcli.worker_limit import workers_argument
 
     p.add_argument("--workers", type=workers_argument, default=1, help="processes that play the games")
+    add_farm_arguments(p)
     p.add_argument("--runs", default="runs", help="the run directory")
     p.add_argument("--only", default="", help="the parameters the search moves, as smoke_floor,smoke_horizon; the rest keep the base (the default is each of them)")
     p.add_argument(

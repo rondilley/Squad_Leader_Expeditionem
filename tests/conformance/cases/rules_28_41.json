@@ -4323,6 +4323,187 @@
           "hex": "C2"
         }
       ]
+    },
+    {
+      "id": "pr55-a-unit-that-debarked-does-not-board-again",
+      "rule": "31.4",
+      "type": "invalid",
+      "citation": "PR-55 on rule 31.4: an infantry unit may board or debark one time in each Movement Phase.",
+      "check": "effect",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1
+        },
+        {
+          "ref": "a",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1",
+          "riding": "t"
+        }
+      ],
+      "apply": [
+        {
+          "action": "debark",
+          "units": [
+            "a"
+          ],
+          "hex": "D1"
+        }
+      ],
+      "expect_units": {
+        "a": {
+          "hex": "D1",
+          "passenger_of": null
+        }
+      },
+      "expect_illegal_after": [
+        {
+          "action": "board",
+          "units": [
+            "a"
+          ],
+          "vehicle": "t"
+        }
+      ]
+    },
+    {
+      "id": "pr55-a-unit-that-boarded-does-not-debark-in-the-same-phase",
+      "rule": "31.4",
+      "type": "invalid",
+      "citation": "PR-55 on rule 31.4: a unit that boarded may not debark in the same phase.",
+      "check": "effect",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1
+        },
+        {
+          "ref": "b",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1"
+        }
+      ],
+      "apply": [
+        {
+          "action": "board",
+          "units": [
+            "b"
+          ],
+          "vehicle": "t"
+        }
+      ],
+      "expect_units": {
+        "b": {
+          "passenger_of": 0
+        }
+      },
+      "expect_illegal_after": [
+        {
+          "action": "debark",
+          "units": [
+            "b"
+          ],
+          "hex": "D2"
+        },
+        {
+          "action": "debark",
+          "units": [
+            "b"
+          ],
+          "hex": "D1"
+        }
+      ]
+    },
+    {
+      "id": "pr55-a-vehicle-with-less-than-two-movement-points-lets-no-passenger-off",
+      "rule": "31.3",
+      "type": "boundary",
+      "citation": "PR-55 on rule 31.3: a passenger may debark only when its vehicle has the two movement points of the penalty left.",
+      "check": "legality",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1,
+          "mp_used": 21
+        },
+        {
+          "ref": "a",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1",
+          "riding": "t"
+        }
+      ],
+      "illegal": [
+        {
+          "action": "debark",
+          "units": [
+            "a"
+          ],
+          "hex": "D2"
+        }
+      ]
+    },
+    {
+      "id": "pr55-a-vehicle-with-two-movement-points-left-lets-a-passenger-off",
+      "rule": "31.3",
+      "type": "boundary",
+      "citation": "PR-55 on rule 31.3: two movement points left pay the penalty of the debark.",
+      "check": "legality",
+      "phase": "movement",
+      "sub_step": "move_window",
+      "phasing": "german",
+      "active": "german",
+      "units": [
+        {
+          "ref": "t",
+          "side": "german",
+          "type": "MkIVF2",
+          "hex": "D1",
+          "facing": 1,
+          "mp_used": 20
+        },
+        {
+          "ref": "a",
+          "side": "german",
+          "type": "4-6-7",
+          "hex": "D1",
+          "riding": "t"
+        }
+      ],
+      "legal": [
+        {
+          "action": "debark",
+          "units": [
+            "a"
+          ],
+          "hex": "D2"
+        }
+      ]
     }
   ]
 }

@@ -13,6 +13,7 @@ from slcli import (
     campaign_cmd,
     cards_cmd,
     evolve,
+    farm_cmd,
     gates,
     gauntlet,
     host_cmd,
@@ -73,6 +74,7 @@ from slcli.play import LearnedNotInstalled
 from slcli.shape_cmd import ShapeNotInstalled
 from slcli.window_cmd import DesktopNotInstalled
 from slcli.window3d_cmd import View3DNotInstalled
+from slfarm.protocol import FarmError
 from slruns.artifact import ArtifactError
 from slruns.index import IndexError_
 from sldata.loaders import DataError
@@ -107,6 +109,7 @@ def build_parser() -> argparse.ArgumentParser:
     gates.add_parser(sub)
     gauntlet.add_parser(sub)
     evolve.add_parser(sub)
+    farm_cmd.add_parser(sub)
     shape_cmd.add_parser(sub)
     host_cmd.add_parser(sub)
     runs_cmd.add_parser(sub)
@@ -161,6 +164,9 @@ def main(argv: list[str] | None = None) -> int:
             raise
         print(f"ERROR the {args.command} command needs {library}. Install it with: pip install -e \".[{extra}]\"", file=sys.stderr)
         return 4
+    except FarmError as exc:
+        print(f"ERROR farm: {exc}", file=sys.stderr)
+        return 5
     except (RuntimeError, ValueError, NotImplementedError) as exc:
         print(f"ERROR {exc}", file=sys.stderr)
         return 1

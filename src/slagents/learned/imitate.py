@@ -34,6 +34,8 @@ a command in any state, which is what makes the round possible.
 
 from __future__ import annotations
 
+import math
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -169,6 +171,26 @@ def parse_labels(text: str) -> dict[int, str]:
     return out
 
 
+def parse_side_weights(text: str) -> tuple[float, float]:
+    """`0=1,1=0` as the weight of the decisions of each side in the fit; a side not named keeps 1."""
+    out = [1.0, 1.0]
+    for part in text.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        side, _, weight = part.partition("=")
+        try:
+            value = float(weight)
+        except ValueError:
+            value = -1.0
+        if side.strip() not in ("0", "1") or value < 0.0:
+            raise ValueError(f"a side weight is <side>=<weight> with the side 0 or 1 and a weight of 0 or more, not {part!r}")
+        out[int(side)] = value
+    if max(out) <= 0.0:
+        raise ValueError(f"a side weight must be more than 0 for one side, not {text!r}")
+    return out[0], out[1]
+
+
 def _record(data: GameBuffer, env: SquadLeaderEnv, observation: dict[str, np.ndarray], key: tuple[int, int, int, int], player: int) -> None:
     data.board.append(observation["board"])
     data.units.append(observation["units"])
@@ -283,9 +305,13 @@ def play_demonstration(
         observation = env.observe(agent)
         key = _teacher_key(actors[player], env)
         label = key if labelers[player] is actors[player] else _teacher_key(labelers[player], env)
-        _record(buffer, env, observation, label, player)
-        paid.append(float(env._cumulative_rewards[agent]))
-        players.append(player)
+        if label in env.choices:
+            # A label outside the masks (a second pickup or drop of a weapon in one
+            # phase, `SquadLeaderEnv.choices`) is a command the policy cannot give, so it
+            # is not a row. The teacher still plays it.
+            _record(buffer, env, observation, label, player)
+            paid.append(float(env._cumulative_rewards[agent]))
+            players.append(player)
         env.step(key)
     # The return of a decision is the total its side was paid at the end, less what it
     # had been paid before the decision.
@@ -369,9 +395,13 @@ def play_correction(
             key = label
         else:
             key = _teacher_key(opponent, env)
-        _record(buffer, env, observation, label, player)
-        paid.append(float(env._cumulative_rewards[agent]))
-        players.append(player)
+        if label in env.choices:
+            # A label outside the masks (a second pickup or drop of a weapon in one
+            # phase, `SquadLeaderEnv.choices`) is a command the policy cannot give, so it
+            # is not a row. The teacher still plays it.
+            _record(buffer, env, observation, label, player)
+            paid.append(float(env._cumulative_rewards[agent]))
+            players.append(player)
         env.step(key)
     result = _close_game(data, buffer, env, paid, players)
     return data, result if side == 0 else -result
@@ -397,6 +427,10 @@ class FitConfig:
     # weight fired a group at the teacher's moment in 2 of 93 states (2026-09-16). A
     # wrong "which unit first" costs little; a wrong "stop now" changes the whole phase.
     stop_weight: float = 1.0
+    # The weight of the decisions of player 0 and of player 1. A side with weight 0 is out
+    # of the fit and of the holdout: the attacker-only fit of 2026-10-13 copies the side
+    # that the nets did not learn (s02 and s04, no attack win after imitation and PPO).
+    side_weights: tuple[float, float] = (1.0, 1.0)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -408,6 +442,7 @@ class FitConfig:
             "holdout": self.holdout,
             "reward_scale": self.reward_scale,
             "stop_weight": self.stop_weight,
+            "side_weights": list(self.side_weights),
         }
 
 
@@ -435,6 +470,7 @@ class Tensors:
         self.action = torch.from_numpy(data.action).to(torch.long)
         self.target = torch.from_numpy(data.target).to(torch.long)
         self.option = torch.from_numpy(data.option).to(torch.long)
+        self.player = torch.from_numpy(data.player).to(torch.long)
         self.value = torch.from_numpy(data.value).to(torch.float32) / max(1e-9, scale)
 
     def __len__(self) -> int:
@@ -456,16 +492,23 @@ class Tensors:
             "action": self.action[index].to(d),
             "target": self.target[index].to(d),
             "option": self.option[index].to(d),
+            "player": self.player[index].to(d),
             "value": self.value[index].to(d),
         }
 
     def losses(
-        self, policy: Policy, index: torch.Tensor, value_coefficient: float, stop_weight: float = 1.0
+        self,
+        policy: Policy,
+        index: torch.Tensor,
+        value_coefficient: float,
+        stop_weight: float = 1.0,
+        side_weights: tuple[float, float] = (1.0, 1.0),
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """The cross entropy of the teacher's command, the value error, and their sum.
 
         `stop_weight` weighs each decision whose label is in the slot of no unit, which
         is the decision that stops a phase or fires the group (`FitConfig.stop_weight`).
+        `side_weights` weighs the decisions of each player (`FitConfig.side_weights`).
         """
         b = self.batch(index)
         log_prob, _, value = policy.evaluate(
@@ -482,8 +525,10 @@ class Tensors:
             b["option"],
         )
         weights = torch.where(b["unit"] == 0, torch.full_like(log_prob, stop_weight), torch.ones_like(log_prob))
+        weights = weights * torch.tensor(side_weights, dtype=log_prob.dtype, device=log_prob.device)[b["player"]]
         cross_entropy = -(log_prob * weights).sum() / weights.sum()
-        value_loss = nn.functional.mse_loss(value, b["value"])
+        sides = weights > 0
+        value_loss = nn.functional.mse_loss(value[sides], b["value"][sides])
         return cross_entropy, value_loss, cross_entropy + value_coefficient * value_loss
 
 
@@ -498,7 +543,9 @@ def fit(
     """Fit the policy to the demonstrations. Gives one row of losses for each epoch.
 
     A holdout of the decisions, by game order at the end, measures the cross entropy on
-    decisions the fit did not see, so that a fit that memorises shows.
+    decisions the fit did not see, so that a fit that memorises shows. The policy keeps the
+    weights of the epoch with the lowest holdout cross entropy, and the row of that epoch
+    has `kept` 1.0: the 3A fit of 2026-10-12 had its lowest holdout at epoch 2 of 10.
     """
     device = policy_device(policy)
     tensors = Tensors(data, spaces, device, config.reward_scale)
@@ -506,16 +553,24 @@ def fit(
     held = int(n * config.holdout)
     train_index = torch.arange(0, n - held)
     held_index = torch.arange(n - held, n)
+    in_fit = torch.tensor(config.side_weights)[tensors.player] > 0
+    train_index = train_index[in_fit[train_index]]
+    held_index = held_index[in_fit[held_index]]
     optimizer = torch.optim.Adam(policy.parameters(), lr=config.learning_rate)
     generator = torch.Generator().manual_seed(seed)
     rows: list[dict[str, float]] = []
+    best_cross_entropy = math.inf
+    best_state: dict[str, torch.Tensor] | None = None
+    best_row = -1
     for epoch in range(config.epochs):
         policy.train()
         order = train_index[torch.randperm(len(train_index), generator=generator)]
         totals = {"cross_entropy": 0.0, "value_loss": 0.0, "loss": 0.0, "batches": 0.0}
         for start in range(0, len(order), config.minibatch):
             batch = order[start : start + config.minibatch]
-            cross_entropy, value_loss, loss = tensors.losses(policy, batch, config.value_coefficient, config.stop_weight)
+            cross_entropy, value_loss, loss = tensors.losses(
+                policy, batch, config.value_coefficient, config.stop_weight, config.side_weights
+            )
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
             nn.utils.clip_grad_norm_(policy.parameters(), config.max_gradient)
@@ -532,9 +587,19 @@ def fit(
             "loss": totals["loss"] / count,
         }
         row.update(holdout_losses(policy, tensors, held_index, config))
+        row["kept"] = 0.0
         rows.append(row)
+        if row["holdout_cross_entropy"] < best_cross_entropy:
+            best_cross_entropy = row["holdout_cross_entropy"]
+            best_state = {name: value.detach().clone() for name, value in policy.state_dict().items()}
+            best_row = len(rows) - 1
         if on_epoch is not None:
             on_epoch(epoch + 1, row)
+    if best_state is not None:
+        policy.load_state_dict(best_state)
+        rows[best_row]["kept"] = 1.0
+    elif rows:
+        rows[-1]["kept"] = 1.0
     policy.eval()
     return rows
 
@@ -550,7 +615,7 @@ def holdout_losses(policy: Policy, tensors: Tensors, index: torch.Tensor, config
     with torch.no_grad():
         for start in range(0, len(index), config.minibatch):
             batch = index[start : start + config.minibatch]
-            cross_entropy, value_loss, _ = tensors.losses(policy, batch, config.value_coefficient)
+            cross_entropy, value_loss, _ = tensors.losses(policy, batch, config.value_coefficient, side_weights=config.side_weights)
             cross_total += float(cross_entropy.item()) * len(batch)
             value_total += float(value_loss.item()) * len(batch)
             correct += argmax_matches(policy, tensors, batch)
