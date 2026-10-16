@@ -1,8 +1,8 @@
 # Squad_Leader_AI: Architecture
 
 Author: Ron Dilley, with design work by Claude Fable 5.1
-Date: 2026-09-07
-Status: v0.2 design, after the second multi-AI review, with no code written
+Date: 2026-09-07, updated 2026-10-15
+Status: v0.3, the design of the tree as built. Section 9.5 gives the methods of the computer players (2026-10-15)
 Companion documents: `VISION.md` (direction), `REQUIREMENTS.md` (the requirements with IDs), `SUCCESS_CRITERIA.md` (the gates), `2026-09-07_Squad_Leader_Digital_Edition_Research.md` (the evidence), `../tasks/todo.md` (the build slices)
 
 <!-- AI review 20260907-163721 (gemini, xai, openai). The changes: the decision frame, the exact lattice, the two-part LOS, and the command list for rules 1 to 21. Also the sub-step table, the SR-10 control, the throughput gate after slice 3, and Appendix B. Each changed section has its own note. -->
@@ -686,6 +686,133 @@ The provider then holds the model to it. The agent name `tuned:local` is the har
 constraint on, and `model:local` is the same harness with it off. The difference between
 the two invalid rates is what the constraint is worth.
 
+### 9.5 The methods of the computer players
+
+Sections 9.1 to 9.4 give the four families. This section gives the methods that make and measure a player in each family. It also gives how the methods supply each other, and the result of each method on 2026-10-15. The record of each run is in `VIBE_HISTORY.md`.
+
+| Method | Family | What it learns from | Code | Command |
+|---|---|---|---|---|
+| Doctrine by hand | Scripted | The rules, RV-9 doctrine, and the probe of the games that it did not win | `slagents/scripted/v0.py` to `v7.py`, `armor.py` | `--agent v7` |
+| The odds function | Scripted, prompted | The tables of the core, with no die | `slagents/scripted/odds.py` | (a library) |
+| Parameter evolution | Scripted | The results of games against a fixed panel | `slagents/scripted/evolve.py` | `sl-cli evolve` |
+| The shape study | Scripted (an input) | The positions of many games, with the winner | `slshape/` | `sl-cli shape` |
+| Imitation and DAgger | Learned | The decisions of the scripted teachers | `slagents/learned/imitate.py` | `sl-cli imitate` |
+| PPO with a league | Learned | Its own games, with the shaped reward | `slagents/learned/ppo.py`, `league.py`, `reward.py`, `jumpstart.py` | `sl-cli train` |
+| Prompted model | Prompted | Nothing: a text view with the odds | `slagents/prompted/` | `model:local*` |
+| LoRA fine-tune | Tuned | The traces of the game | `slagents/tuned/` | `sl-cli finetune` |
+| The gauntlet | All | (the measure, not a method of play) | `slcli/gauntlet.py`, `slruns/elo.py` | `sl-cli gauntlet` |
+
+```mermaid
+flowchart LR
+    Core[Rules core] --> Odds[Odds function]
+    Odds --> Scripted[Scripted agents v0 to v7]
+    Odds --> Prompted[Prompted model agents]
+    Shape[Shape study] --> Scripted
+    Evolve[Parameter evolution] --> Scripted
+    Scripted --> Imitate[Imitation and DAgger]
+    Imitate --> PPO[PPO with a league]
+    Scripted --> PPO
+    PPO --> Learned[Learned agent]
+    Traces[Game traces] --> Tuned[Tuned model agent]
+    Scripted --> Gauntlet[Gauntlet and Elo]
+    Learned --> Gauntlet
+    Prompted --> Gauntlet
+    Tuned --> Gauntlet
+    Farm[Game farm] --> Gauntlet
+    Farm --> Evolve
+    Farm --> PPO
+```
+
+#### Doctrine by hand: the scripted agents
+
+The decision: each scripted agent is a policy in code with named parameters (FR-44). Each version adds one thing that the probe of the games of the version before found.
+
+- v0 moves to the objective. v1 fires at the best odds and moves to cover. v2 adds the tools of rules 22 to 27. v3 adds the vehicles of rules 28 to 41.
+- v4 puts a threat map on each move: the firepower that each enemy can put on the hex. Cover makes the threat less. It assaults only a broken enemy, or with more units than the enemy.
+- v5 adds the fire of the enemy vehicles to the threat map. It gives fire to the enemy that covers its own lane of advance.
+- v6 is the tempo agent. The attacker keeps a schedule. The threat is in squads, and it multiplies by the number of units in the stack that moves. The defender holds the buildings that the victory conditions name.
+- v7 trades on the odds (`odds.py`). It forms a fire group at the target with the highest possible loss and stops before overkill. It fires on a leader first, moves by the possible loss of each hex, and puts smoke by the same odds. A nation record selects the parameters of the role of each side.
+- `armor.py` gives v3, v6, and v7 one vehicle policy. A tank drives on a route to a firing position out of panzerfaust range, it holds and fires, and it overruns only a weak target. The tanks stay near their infantry, and the squads escort a tank in contact.
+
+Why: an agent in code is constant, fast, and deterministic for a seed. Thus it is the opponent of each other method and the teacher of the learned family. The alternative was a learned opponent from the start. A learned opponent changes with each run, and the scripted ladder shows a defect in one game.
+
+Where it breaks: a person writes each rule, and each rule repairs a defect that a person saw. Four attack plans of v7 (a leader with the stack, a tank base of fire, a covered approach, smoke on the route) gave no change on s04 at 200 games each. They are parameters that are off by default.
+
+Mitigation: v7 is the strongest agent of the panel. The other methods start from it, and the gauntlet measures each change against it.
+
+#### The odds function
+
+`odds.py` gives the possible result of a fire group at a hex as integer counts out of 1,296: the 36 results of the fire dice by the 36 results of the morale dice. It calls the fire, modifier, and morale functions of the core, so a change to a rule changes the odds with it. It reads only the enemy units that the player can see, and a concealed target has no odds (SR-09).
+
+Why: a person reads the odds on the table, and a number is necessary for a fire decision. The prompted family reads the same numbers in its text view (section 9.3). The host labels each legal command with them for a person.
+
+#### Parameter evolution
+
+`sl-cli evolve` is a (mu + lambda) evolution strategy on the integer and boolean parameters of v7. Each candidate plays the same seeds against a fixed panel, on each side. The elites play again in each generation, because one game is noise. The best candidate is a name such as `v7[loss_scale=12,fire_floor=4]`, so a person can play it. `--only` searches some of the parameters, and `--side` searches the record of one side.
+
+Why: v7 has approximately thirty parameters, and a change of one by hand makes a gauntlet necessary. The search does the same loop with no person in it. The alternative was CMA-ES (FR-54). The parameters are integers and booleans, and a discrete mutation moves in the units that the doctrine work used.
+
+Where it breaks: the evolution of the s04 Axis attack found no record better than v7 (14 of 200 against 16 of 200). When the policy does not have the correct behaviour, no parameter value gives it.
+
+Mitigation: the game farm makes a search four times faster. A search is cheap to try before a change of the code.
+
+#### The shape study
+
+`sl-cli shape` records the position at the end of each Movement Phase and Advance Phase of many games. A position is a picture of the board and a set of shape statistics, with the winner. The analysis gives the AUC of each statistic between the winners and the losers. It gives the increase that the shape statistics add to the material counts, in a model with cross validation. It also gives a small convolutional net on the pictures, with its occlusion map.
+
+Why: the owner's hypothesis is that a winning position has a shape, as in Go. A shape with information becomes a parameter of the scripted agents or a term of the reward. The study reads the core and the agents, and it has no rule in it.
+
+#### Imitation and DAgger
+
+`sl-cli imitate` plays games of the scripted teachers in the training environment. It fits the policy to the teachers' decisions by cross entropy on the four heads, and the value head to the returns of the games. The fit keeps the weights of the epoch with the lowest holdout cross entropy.
+
+- `--labels 0=v7,1=v7` names the teacher that gives the label of each side. With no labels, each teacher labels its own decisions.
+- `--side-weights 0=1,1=0` fits the decisions of one side only.
+- DAgger rounds (Ross, Gordon, and Bagnell, 2011): the policy plays, the label teacher names its command at each state, and those decisions go into the data. Thus the net learns the states that its own errors make, and not only the states of the teacher's games.
+
+Why: PPO from random weights did not learn scenario 1 in 1 million steps (`docs/reports/2026-09-12_training_run_1m.md`). A copy of a scripted agent is a policy that plays a full game, and it is the start of each PPO run since 2026-09-14.
+
+Where it breaks: a copy is not better than its teacher. The best clone of each scenario is near the panel and below v7. The s04 clone of 2026-10-15 wins 46.9 percent of the gauntlet and 0 of 20 attacks against v7.
+
+#### PPO with a league
+
+`sl-cli train` is PPO in raw torch (FR-50, FR-51). The environment is a PettingZoo AEC environment on the core. The observation is the player view: the board as planes, a row for each unit, a scalar vector, and the masks. The policy has four heads with masks: the unit, the action, the hex, and the option.
+
+- The reward (`reward.py`): a win pays 100, and a loss, a draw, or a truncation costs 100. Each step pays the doctrine terms of RV-9 table A with the national weights of table B.
+- The league (`league.py`): the random agent, the scripted agents, and the snapshots of the learner. It gives each member a share by the loss rate of the learner against it, with a floor. `--opponents v3,v6,v7` makes the named agents the only members.
+- The anchor (`--anchor-kl`): a KL term holds the policy near the frozen start policy, so the update does not cancel the clone.
+- The value warm-up (`--value-warmup`): the value head trains alone in the first decisions, because the value head of a clone has the returns of the teachers' games.
+- Jump-Start RL (`--jump-start v7`, Uchendu and others, 2023): a guide plays the first turns of the learner's side. When the learner wins a sufficient number of games, the guide plays one turn less.
+- The workers (`workers.py`): each environment is a process, and the trainer selects the decisions of all workers in one batch on the GPU. The game farm adds 120 workers on four Linux hosts (`slfarm`). With `--rollout 4096 --minibatch 1024`, a run of 40,000,000 decisions gave 1,789 steps/s.
+
+The choice rule at play time (`agent.py`): the learned agent adds the probability of the legal commands of each action and plays the best command of the action with the highest sum. The joint argmax divided a move between many units and hexes, and it stopped each phase with no move (2026-10-13). The training samples the policy. Thus the training win rate and the win rate of the agent are different numbers.
+
+Why: PPO with action masks is the method that worked on games with large legal lists (RV-5). The trainer is CleanRL style, as in the sibling projects. Each extension above comes from a run that did not learn. Self-play on one workstation is Vision bet 4.
+
+Where it breaks: the learner wins almost no training game against a strong opponent, so the win term of the reward gives almost no signal. The s04 Axis run of 40,000,000 decisions against v7 won 0.4 percent of its training games. In the gauntlet it won 5 of 20 attacks against v7, and the clone won 0 of 20. Its Allied side became worse, because the run updated only the Axis side. Jump-Start RL against v7 did not change the horizon in 8 hours.
+
+A league of v3, v6, and v7 (2026-10-15, 40,000,000 decisions more) gave the learner training wins: 20 percent against v6, 8.5 percent against v3, and 2.4 percent against v7. In the gauntlet the Axis won 11 of 20 against v6, equal to the panel, but 3 of 20 against v3 and 1 of 20 against v7. The learner learned to beat the member it could beat, and not the others.
+
+A curriculum with gates (2026-10-16) adds a stronger member only after the learner beats the members before it: v6, then v3, then v7. Two chunks of 10,000,000 decisions against v6 and v3 gave a gauntlet of 58.1 percent, the best s04 net.
+
+The Axis won 11 of 20 against v3 and 18 of 20 against v6, equal to or better than the panel. The Allied side became better too. Against v7 the Axis won 4 of 20, and the panel 20 of 60. The gate against v7 was satisfied at 18 of 50, so no chunk had v7 as a member.
+
+Mitigation: train against v6, v3, and v7 from the curriculum net with a gate of more games. Two levers are not tried: more DAgger rounds and an anchor weight that decreases.
+
+#### Prompted and tuned model agents
+
+The prompted agent reads a text view with the odds of each legal command and answers with a command identity from the legal list (section 9.3). The cycle guard offers no command that gives a position that the phase had. The `model:local*` pool sends the games to the five llama.cpp hosts. The best measure is 1 of 40 games against the scripted agents with the odds in the text. The tuned agent is the same harness with a LoRA fine-tune on the game traces and a constrained decode (section 9.4).
+
+Why: a language model can explain its choice, and the project tests if that makes a player (Vision bet 3). Where it breaks: a model with 3 billion active parameters does not play the game at the level of v1. The tuned family is the next lever.
+
+#### The measure: the gauntlet
+
+`sl-cli gauntlet` plays a candidate against a panel on each side of each scenario. All the games go into one Elo pool, fitted with a Bradley-Terry model (`slruns.elo.settled_ratings`), with a Wilson interval on each rate. For each opponent and each side, the side baseline gives the wins of three players. They are the candidate, the other panel agents, and with `--mirror`, the opponent against itself.
+
+Why: a scenario with one strong side hides the skill of an attacker. A win rate against one opponent did not show that a net won only as the defender. The gauntlet is the measure of each method above. A result has 200 games or more before it is a baseline.
+
+The mirror also balances a scenario. s04 changed on 2026-10-14 until v7 against v7 gave the Axis 832 of 1,600 games. A net or a result of s04 from before that date is of the scenario before the change.
+
 ## 10. Cross-cutting topics
 
 Observability: each component writes JSON logs with a game ID, turn, phase, and player (OR-01). Each game and each training run writes a run artifact in `runs/<ISO8601-Z>-<slug>/` with `manifest.json`, `commands.json`, `log.json`, and `stats.json`. A SQLite index lists the runs (FR-56, FR-57). The trainer writes TensorBoard scalars (IR-07). The pattern comes from the LocalLLMPerf_AI sibling.
@@ -802,11 +929,17 @@ Squad_Leader_AI/
                                  and fire), engineer.py (rules 22, 23, and 27 for v4 to v7),
                                  odds.py, evolve.py (the parameter search)
       learned/                   encoding.py (the tensors and the composed command), env.py
-                                 (PettingZoo AEC), nets.py (the four heads), ppo.py, league.py
+                                 (PettingZoo AEC), nets.py (the four heads), ppo.py, league.py,
+                                 reward.py (the shaped reward), imitate.py (imitation and
+                                 DAgger), jumpstart.py (Jump-Start RL), workers.py (the PPO
+                                 worker processes), agent.py (a snapshot as an Agent)
       prompted/                  harness.py (the text, the guard), oddsview.py (the odds), keys.py, schema.py, router.py, providers/
       tuned/                     traces.py (the trace writer), finetune.py (LoRA), export.py (GGUF)
     slruns/                      artifact.py (the four files), index.py (the SQLite index), elo.py (ratings and intervals)
     slshape/                     picture.py, features.py, record.py, analyze.py (the shape study of positions)
+    slfarm/                      protocol.py (the HMAC challenge, the job check), server.py (the
+                                 farm host), client.py (the job sender and the PPO bridges),
+                                 envwire.py (the PPO commands and decisions as checked JSON)
     slwindow/                    the desktop window, a consumer of the host protocol
       app.py                     the window, the loop, the keys, and the pointer
       client.py                  the protocol client on a task of its own
@@ -837,7 +970,7 @@ Squad_Leader_AI/
       audio.py                   the sound board: plays the sounds of the new events
     slcards/                     card.py, the printable scenario cards
     slcampaign/                  the design-your-own tools and the campaign game of Game Set IV
-    slcli/                       main.py, play.py, bench.py, tournament.py, gauntlet.py, gates.py, host_cmd.py, runs_cmd.py, boards_cmd.py, agents_cmd.py, cards_cmd.py, train.py, imitate_cmd.py, evolve.py, shape_cmd.py, traces_cmd.py, finetune_cmd.py, campaign_cmd.py, window_cmd.py, window3d_cmd.py, worker_limit.py
+    slcli/                       main.py, play.py, bench.py, tournament.py, gauntlet.py, gates.py, host_cmd.py, runs_cmd.py, boards_cmd.py, agents_cmd.py, cards_cmd.py, train.py, imitate_cmd.py, evolve.py, farm_cmd.py, shape_cmd.py, traces_cmd.py, finetune_cmd.py, campaign_cmd.py, window_cmd.py, window3d_cmd.py, worker_limit.py
   client/                        TypeScript, Vite, PixiJS or Canvas
     src/
       board/                     render the polygons in the 1977 look, with the base tones of

@@ -271,13 +271,17 @@ sl-cli train --scenario s04_armor_probe --player 0 --opponents v7 --workers 16 -
 
 The farm plays random and scripted opponents only, so a training run on the farm must have `--opponents`. A league snapshot is a file of the workstation. `--remote-envs` is the count of PPO workers on each host, and the default is the slots of the host. On the workstation, one bridge process for each host holds the connections of its PPO workers.
 
-Use `--rollout 4096` or more on the farm. At the default rollout of 512, each worker gives only approximately four decisions before the update, and the farm is not faster. At 4096, the farm and 16 local workers gave 767 steps/s on s04, and 16 local workers alone gave approximately 380. The worker script installs the `train` extra on each host, with the CPU build of torch.
+Use `--rollout 4096 --minibatch 1024` on the farm. At the default rollout of 512, each worker gives only approximately four decisions before the update, and the farm is not faster. With these values, the farm and 16 local workers gave 1,789 steps/s for a full s04 run of 40,000,000 decisions (2026-10-15). 16 local workers alone give 288.5 steps/s with the default values. The worker script installs the `train` extra on each host, with the CPU build of torch.
+
+```
+sl-cli train --scenario s04_armor_probe --player 0 --opponents v3,v6,v7 --start-from runs/imitate_s04_new/snapshot-0.pt --anchor-kl 0.5 --rollout 4096 --minibatch 1024 --workers 16 --remote tars,case,kipp,plex --device cuda
+```
 
 A name with no port uses port 5160. The server listens on 127.0.0.1 unless it gets `--host`. `--slots` is the count of game processes on the host. The default is the processor count less two.
 
 ## Status
 
-| Item | State on 2026-09-08 |
+| Item | State |
 |---|---|
 | Research report with eight appendices | Done |
 | Vision, Requirements, Success Criteria | Done, after two multi-AI reviews |
@@ -312,6 +316,10 @@ A name with no port uses port 5160. The server listens on 127.0.0.1 unless it ge
 | Rules, 2026-09-23 | The armour kill modifier goes on the attacker dice. A flamethrower, a demolition charge, a panzerfaust, and a bazooka stay out of a fire group. A squad fires at most four panzerfausts in one player turn. Canister fire and machine-gun fire spend an empty hex and stop on a wall. A killed unit drops its weapons, and close combat removes a broken squad first. A leader on a machine gun does not modify morale |
 | Learner, 2026-09-23 | The policy has four heads, and the option list holds 64 commands. The planes and the sneak term omit a hidden or concealed enemy. The load uses `weights_only=True`. A provider redirect is an error, and the key stays on the first host. A factory hex that each side counts pays one time |
 | Host, 2026-09-23 | An unjoined socket gets no frame. An incorrect room code closes the socket. A second join from a connection that holds a seat is refused. The origin check uses the address the server bound. The 3D side panel writes a draw error to the error stream and keeps the last good panel |
+| Training methods | Imitation of the scripted agents with DAgger rounds. Then PPO with a league, an anchor to the start policy, a warm-up of the value head, and Jump-Start RL. `docs/ARCHITECTURE.md` section 9.5 gives each method of the computer players, and what each one gave |
+| The game farm, 2026-10-14 | Four Linux hosts play the games of a gauntlet and an evolution, and hold 120 PPO workers. A gauntlet is 4.2 times faster. A PPO run gives 1,789 steps/s, and 16 local workers give 288.5 |
+| s04, 2026-10-14 | The change of the armor scenario gives a balance: v7 against v7 gives the Axis 832 of 1,600 games |
+| Learned s04 attacker, 2026-10-15 | PPO for 40,000,000 decisions against v7: 5 of 20 attacks against v7 won, and the clone won 0. The other panel agents win 20 of 60. A league of v3, v6, and v7 for 40,000,000 decisions more: the Axis wins 11 of 20 against v6, equal to the panel, but 1 of 20 against v7. A curriculum with gates (v6, then v3, then v7) for 20,000,000 decisions more: gauntlet 58.1 percent. The Axis wins 11 of 20 against v3, 18 of 20 against v6, and 4 of 20 against v7 |
 | Review pass, 2026-09-24 | The frame ID is an opaque token for each connection, and no client gets a state hash. A seat token gets a seat back after a drop. The host names each unit, labels each legal command with its hexes and its odds. The undo cancels a command that rolled no die. `sl-cli host --resume FILE` continues a saved game with a hash check at each command. The engine is a table of handlers, and `slcore.api` is the public surface of the core |
 
 What works: `sl-cli play --scenario s01_guards_counterattack` plays scenario 1 headless with two scripted agents and replays it. `sl-cli tournament` plays N games with the sides balanced and writes a run artifact. `sl-cli bench` measures the environment step rate. `sl-cli boards` makes boards and checks them.

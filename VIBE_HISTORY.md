@@ -4,6 +4,86 @@ The session log, newest entry first. This file gives the next session, human or 
 
 ---
 
+## 2026-10-16 - Chunks of the s04 attacker against v7
+
+The owner said to run the v7 chunks on the farm. `runs/chain_20261016a_s04v7/chain.sh` started at 04:53Z. No change to the code was necessary.
+
+- The start is the curriculum net `runs/ppo_s04_curriculum/c2/snapshots/snapshot-10000000.pt`.
+- Each chunk is 10,000,000 decisions of PPO on the farm against v6, v3, and v7, from the newest net (`runs/ppo_s04_curriculum/c3` and later).
+- The chain trains first, because the curriculum gate against v7 was satisfied with no training against v7.
+- After each chunk, the gate is a gauntlet of 200 games against v7 (100 as the Axis) on 16 local workers. The bar is 33 percent Axis wins, the panel baseline.
+- The limit is 3 chunks, approximately 5 hours. Then a full gauntlet against v3, v5, v6, and v7 runs.
+
+## 2026-10-15 - A curriculum with gates for the s04 attacker, and its result
+
+The owner said to run the curriculum on the farm. `runs/chain_20261015c_s04curriculum/chain.sh` started at 21:51Z. No change to the code was necessary.
+
+- The start is the 40 M league net (`runs/ppo_s04_league/snapshots/snapshot-40000000.pt`).
+- Part 1 trains against v6, part 2 against v6 and v3, and part 3 against v6, v3, and v7.
+- The gate of a part is the Axis win rate against its newest member: 40 percent against v6, 40 percent against v3, and 33 percent against v7. The panel agents win 53, 52, and 33 percent as the Axis against them.
+- A gate is a gauntlet of 100 games against the one member (50 as the Axis) on 16 local workers, because the farm does not play a learned agent.
+- When a gate fails, a PPO chunk of 10,000,000 decisions on the farm trains against the members of the part. The chunk starts from the newest net, so its anchor is that net. Then the gate runs again.
+- A part has at most 2, 3, and 3 chunks. At the limit the chain goes to the next part. Then a full gauntlet against v3, v5, v6, and v7 runs.
+- The maximum is 8 chunks, approximately 15 hours. The chain is shorter when the gates pass.
+
+The result (2026-10-16 01:26Z, 3 h 35 min in total):
+
+- Part 1: the start net won 31 of 50 attacks against v6. The gate passed with no training.
+- Part 2: the gate against v3 gave 6 of 50. Chunk 1 (`runs/ppo_s04_curriculum/c1`, 1,766.4 steps/s, `--value-warmup`) gave 18 of 50. Chunk 2 (`runs/ppo_s04_curriculum/c2`, 1,820.8 steps/s) gave 27 of 50. The gate passed.
+- Part 3: the chunk 2 net won 18 of 50 attacks against v7 (36 percent). The gate passed with no training against v7.
+- The last gauntlet of `runs/ppo_s04_curriculum/c2/snapshots/snapshot-10000000.pt` (panel v3, v5, v6, v7, 40 games each, `runs/20261016T011852Z-gauntlet-...`): 58.1 percent, Elo 1674. The league net had 38.1 percent and the clone 46.9 percent.
+
+| Opponent | Axis wins | Axis, other panel agents | Allied wins | Allied, other panel agents |
+|---|---|---|---|---|
+| v3 | 11 of 20 (3 before) | 31 of 60 | 9 of 20 (4 before) | 14 of 60 |
+| v6 | 18 of 20 (11 before) | 32 of 60 | 6 of 20 (0 before) | 10 of 60 |
+| v7 | 4 of 20 (1 before) | 20 of 60 | 5 of 20 (2 before) | 13 of 60 |
+
+- At this time the Axis is equal to the panel against v3 and better than the panel against v6. The Allied side is better than the panel against each opponent, although the run updated only the Axis.
+- Against v7 the Axis gate gave 18 of 50, but the gauntlet gave 4 of 20, below the panel (20 of 60). The two samples are small, and together they give 22 of 70 (31 percent). Thus the gate of part 3 was satisfied by chance or near the limit, and the chain did no training against v7.
+- Next lever: chunks against v6, v3, and v7 from the chunk 2 net, with a gate of 100 Axis games against v7.
+
+## 2026-10-15 - Documentation: the methods of the computer players
+
+The owner said to update the project documentation and to add a section to the architecture about the methods of the computer players.
+
+- `docs/ARCHITECTURE.md` section 9.5 is new. It has a table of the methods (doctrine by hand, the odds function, parameter evolution, the shape study, imitation and DAgger, PPO with a league, the prompted and tuned model agents, and the gauntlet), a diagram of how they supply each other, and for each method the cause, where it breaks, and the result on 2026-10-15.
+- `docs/ARCHITECTURE.md`: the header is v0.3. The module layout has `learned/reward.py`, `imitate.py`, `jumpstart.py`, `workers.py`, `agent.py`, `slfarm/`, and `slcli/farm_cmd.py`.
+- `README.md`: the farm values are `--rollout 4096 --minibatch 1024`, with the measure of the full s04 run (1,789 steps/s), and a league command. The status table has four new rows: the training methods, the farm, the s04 balance, and the learned s04 attacker.
+- `CLAUDE.md`: a pointer to section 9.5, and the learned agent reads four heads (not three).
+- `docs/images/window_armor_probe.png` did not agree with the code, because s04 changed on 2026-10-14. `python tools/make_docs_images.py` made the pictures again. `tests/docs`: 8 pass.
+
+## 2026-10-15 - The result of the long s04 farm run
+
+The owner restarted the workstation for patches. The chain `runs/chain_20261014c_s04farm` was complete before the restart (09:00Z).
+
+- PPO (`runs/ppo_s04_farm`, artifact `runs/20261015T023914Z-ppo-s04-armor-probe`): 40,000,000 decisions in 22,361 s, 1,788.8 steps/s, 9,766 updates. The learner was the Axis (player 0) against v7.
+- In the training games, the learner won 593 of 155,133 (0.4 percent). The training samples the policy, and the agent of the evaluation and the gauntlet plays the action first.
+- The evaluation at the end, against v7: 10 of 40. As the Axis, 2 of 20. As the Allied side, 8 of 20.
+- The gauntlet of `snapshot-40000000.pt` (panel v3, v5, v6, v7, 40 games each, `runs/20261015T085243Z-gauntlet-...`) and of the imitation start `runs/imitate_s04_new/snapshot-0.pt` (`runs/20261015T143428Z-gauntlet-...`):
+
+| Net | Win rate | Elo | Axis vs v3 | Axis vs v6 | Axis vs v7 | Allied vs v3 | Allied vs v6 | Allied vs v7 |
+|---|---|---|---|---|---|---|---|---|
+| Imitation start | 46.9 percent | 1588 | 2 of 20 | 5 of 20 | 0 of 20 | 13 of 20 | 6 of 20 | 9 of 20 |
+| PPO, 40 M | 40.6 percent | 1530 | 3 of 20 | 6 of 20 | 5 of 20 | 6 of 20 | 1 of 20 | 4 of 20 |
+| Other panel agents | | | 31 of 60 | 32 of 60 | 20 of 60 | 14 of 60 | 10 of 60 | 13 of 60 |
+
+- The PPO made the Axis side better by a small quantity (against v3, v6, and v7: 7 of 60 to 14 of 60) and the Allied side worse (28 of 60 to 11 of 60), because the PPO updated only the Axis side. Twenty games for each cell is a small sample.
+- The Axis net after the PPO is below the scripted attackers: 5 of 20 against v7, and the other panel agents win 20 of 60 (33.3 percent).
+- The owner chose a league of v3, v6, and v7 on the farm. `runs/chain_20261015b_s04league/chain.sh` started at 14:44Z on 2026-10-15. It is PPO of the Axis (player 0) from `runs/ppo_s04_farm/snapshots/snapshot-40000000.pt`, 40,000,000 decisions or 10 hours, with the settings of the run before (`runs/ppo_s04_league`). Then the gauntlet of the newest snapshot runs. The league gives each member a share by its loss rate.
+- At 487,424 decisions: 1,563 steps/s, 120 farm workers. The training win rate is 0.5 percent against v3, 2.9 percent against v6, and 0.3 percent against v7.
+- The run stopped at 21:33Z after 40,000,000 decisions (24,466 s, 1,634.9 steps/s, artifact `runs/20261015T144427Z-ppo-s04-armor-probe`). The training win rate from the start of the run: 8.5 percent against v3, 20.1 percent against v6, and 2.4 percent against v7. Against v7 it stopped at 2 to 3 percent after approximately 10 M decisions.
+- The gauntlet of `runs/ppo_s04_league/snapshots/snapshot-40000000.pt` (`runs/20261015T213347Z-gauntlet-...`): 38.1 percent, Elo 1498. The 40 M net before it gave 40.6 percent, Elo 1530.
+
+| Net | Axis vs v3 | Axis vs v6 | Axis vs v7 | Allied vs v3 | Allied vs v6 | Allied vs v7 |
+|---|---|---|---|---|---|---|
+| PPO against v7, 40 M | 3 of 20 | 6 of 20 | 5 of 20 | 6 of 20 | 1 of 20 | 4 of 20 |
+| PPO against the league, 40 M more | 3 of 20 | 11 of 20 | 1 of 20 | 4 of 20 | 0 of 20 | 2 of 20 |
+| Other panel agents | 31 of 60 | 32 of 60 | 20 of 60 | 14 of 60 | 10 of 60 | 13 of 60 |
+
+- The league made the Axis attack against v6 equal to the panel (11 of 20, and the panel 32 of 60). It did not make the attack against v3 or v7 better. Against v7 the result went from 5 of 20 to 1 of 20, but 20 games is a small sample.
+- Thus the learner learned to beat the member that it could beat, and not the others. The league gives each member a share by the loss rate. Thus the three members got almost equal shares, and the wins against v6 gave the policy its signal.
+
 ## 2026-10-14 - PPO workers on the farm
 
 The owner said to add PPO rollout workers to the farm.
