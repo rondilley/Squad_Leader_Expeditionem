@@ -784,6 +784,8 @@ Where it breaks: a copy is not better than its teacher. The best clone of each s
 - The value warm-up (`--value-warmup`): the value head trains alone in the first decisions, because the value head of a clone has the returns of the teachers' games.
 - Jump-Start RL (`--jump-start v7`, Uchendu and others, 2023): a guide plays the first turns of the learner's side. When the learner wins a sufficient number of games, the guide plays one turn less.
 - The workers (`workers.py`): each environment is a process, and the trainer selects the decisions of all workers in one batch on the GPU. The game farm adds 120 workers on four Linux hosts (`slfarm`). With `--rollout 4096 --minibatch 1024`, a run of 40,000,000 decisions gave 1,789 steps/s.
+- The loss of a worker: a remote worker that stops goes out of the pool (`WorkerPool.drop`, 2026-10-16), and the run continues while 50 percent or more of its workers are live. Its last step bootstraps on its own value, and its game does not count in the league. Before this, one bad line from one host stopped all 120 workers. A local worker that stops also stops the run, because the cause is in the code of the workstation.
+- The snapshots (`--snapshot-every`): the trainer writes one at each multiple of the interval and one at the last decision of the run. A run shorter than the interval kept no net before 2026-10-16.
 
 The choice rule at play time (`agent.py`): the learned agent adds the probability of the legal commands of each action and plays the best command of the action with the highest sum. The joint argmax divided a move between many units and hexes, and it stopped each phase with no move (2026-10-13). The training samples the policy. Thus the training win rate and the win rate of the agent are different numbers.
 
@@ -797,7 +799,11 @@ A curriculum with gates (2026-10-16) adds a stronger member only after the learn
 
 The Axis won 11 of 20 against v3 and 18 of 20 against v6, equal to or better than the panel. The Allied side became better too. Against v7 the Axis won 4 of 20, and the panel 20 of 60. The gate against v7 was satisfied at 18 of 50, so no chunk had v7 as a member.
 
-Mitigation: train against v6, v3, and v7 from the curriculum net with a gate of more games. Two levers are not tried: more DAgger rounds and an anchor weight that decreases.
+Two chunks more against v6, v3, and v7 from the curriculum net (2026-10-16) gave a gauntlet of 63.7 percent. Their gate had 100 Axis games against v7. Only v7 has a higher Elo. The Axis won 10 of 20 against v7, and the panel agents won 20 of 60. The net kept its level against v3 and v6.
+
+Chunk 5 (2026-10-16, 10,000,000 decisions more) gave a gauntlet of 66.9 percent, Elo 1743, 9 points below v7. In the gate against v7, the Axis won 46 of 100 (37 before), and the Allied side won 42 of 100 (62 before). The training updates only the Axis side, so the Allied side can become worse while the Axis becomes better.
+
+Mitigation: the curriculum with gates is the method that worked. A gate needs 100 games on the side that it measures, because a gate of 50 games was satisfied by chance. Two levers are not tried: more DAgger rounds and an anchor weight that decreases.
 
 #### Prompted and tuned model agents
 

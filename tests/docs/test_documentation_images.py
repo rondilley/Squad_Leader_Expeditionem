@@ -9,6 +9,9 @@ The comparison reads the flat colours of the terrain. Those come from a polygon 
 rectangle fill, so they do not move with the font that the machine has. The text of the hex
 labels and of the panel covers a few of those pixels, so the count has a small tolerance.
 A scan or a photograph of anything is nowhere near that tolerance.
+
+A game picture is a render of the 3D window, with light and shade, so it has no flat colour
+to count. Its comparison is the mean difference of each pixel from the picture in the tree.
 """
 
 from __future__ import annotations
@@ -32,6 +35,15 @@ IMAGES = Path("docs") / "images"
 MANIFEST = IMAGES / "MANIFEST.json"
 # One percent. The text of the labels is the only thing that moves with the machine.
 TOLERANCE = 0.01
+# The mean difference of a channel, of 255, that the board area of a game picture may have.
+# The edges of the render move with the graphics driver of the machine. On the machine that
+# made the pictures, a new render differs by 0.0, and the 2D and the 3D picture by 11.3.
+RENDER_TOLERANCE = 2.5
+# The board area is left of the panel. The panel is the same in the 2D and the 3D picture.
+BOARD_WIDTH = 1440 - 360
+
+BOARDS = [spec for spec in maker.PICTURES if not spec.scenario]
+GAMES = [spec for spec in maker.PICTURES if spec.scenario]
 
 pytestmark = pytest.mark.skipif(not MANIFEST.is_file(), reason="the pictures are not made")
 
@@ -76,7 +88,50 @@ def test_the_tool_names_the_same_pictures_as_the_manifest(manifest):
     assert [p.name for p in maker.PICTURES] == [image["file"] for image in manifest["images"]]
 
 
-@pytest.mark.parametrize("spec", maker.PICTURES, ids=lambda s: s.name)
+def mean_difference(a: pygame.Surface, b: pygame.Surface) -> float:
+    """The mean absolute difference of the RGB channels of the board areas of two pictures."""
+    area = (0, 0, BOARD_WIDTH, a.get_height())
+    raw_a = pygame.image.tobytes(a.subsurface(area), "RGB")
+    raw_b = pygame.image.tobytes(b.subsurface(area), "RGB")
+    assert len(raw_a) == len(raw_b)
+    return sum(abs(x - y) for x, y in zip(raw_a, raw_b)) / len(raw_a)
+
+
+@pytest.fixture(scope="module")
+def renders() -> dict[str, pygame.Surface]:
+    """Each game picture, made one time: Panda3D permits one window in a process."""
+    pytest.importorskip("panda3d", reason="the game pictures need the `view3d` extra")
+    import builtins
+
+    # An earlier 3D test can leave its window open at its own size, and Panda3D permits one.
+    left = getattr(builtins, "base", None)
+    if left is not None:
+        left.destroy()
+    pygame.init()
+    pygame.font.init()
+    try:
+        yield {spec.name: maker.make(spec) for spec in GAMES}
+    finally:
+        # The 3D tests make their own window at their own size in this process.
+        maker.close_board3d_app()
+
+
+@pytest.mark.parametrize("spec", GAMES, ids=lambda s: s.name)
+def test_the_game_picture_in_the_tree_is_what_the_3d_window_draws(spec, renders):
+    fresh = renders[spec.name]
+    on_disk = pygame.image.load(str(IMAGES / spec.name)).convert(fresh)
+    assert on_disk.get_size() == fresh.get_size() == (spec.width, spec.height)
+    gap = mean_difference(fresh, on_disk)
+    assert gap <= RENDER_TOLERANCE, f"{spec.name} differs from what the 3D window draws by {gap:.2f} of 255"
+
+
+def test_the_render_check_says_no_to_a_picture_that_the_code_did_not_draw(renders):
+    """The 2D and the 3D camera show one position, so they are the nearest wrong picture."""
+    plan, board = (renders[spec.name] for spec in GAMES[:2])
+    assert mean_difference(plan, board) > 3 * RENDER_TOLERANCE
+
+
+@pytest.mark.parametrize("spec", BOARDS, ids=lambda s: s.name)
 def test_the_picture_in_the_tree_is_what_the_code_draws(spec):
     """Make the picture again and compare it with the file that the documentation shows."""
     pygame.init()

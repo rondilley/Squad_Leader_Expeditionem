@@ -56,6 +56,24 @@ def test_a_short_training_run_gives_a_finite_loss_and_a_rate(tmp_path: Path):
     assert stats["updates"] > 0
 
 
+def test_a_run_shorter_than_the_snapshot_interval_keeps_its_last_net(tmp_path: Path):
+    """A resume of 1,996,416 decisions with `--snapshot-every 2000000` kept no net, and the
+    gate after it had nothing to play (2026-10-16). The run writes a snapshot at its end."""
+    art = run_training(
+        scenario=SCENARIO, steps=192, hours=0.0, seed=5, learner_player=0, snapshot_every=1000,
+        config=ppo.PpoConfig(steps_per_update=64, minibatch=32, epochs=1), net=NetConfig(),
+        out=tmp_path, log_dir=None,
+    )
+    done = art.stats["steps"]
+    assert done < 1000
+    assert [row["step"] for row in art.stats["snapshots"]] == [done]
+    from slagents.learned.agent import load_policy
+
+    path = Path(art.stats["snapshots"][0]["path"])
+    assert path.is_file()
+    assert isinstance(load_policy(str(path)), Policy)
+
+
 @pytest.mark.gate
 def test_ten_thousand_steps_of_ppo(tmp_path: Path):
     """TR-10: 10,000 steps, a finite loss, and the steps per second recorded."""

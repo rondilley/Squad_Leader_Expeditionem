@@ -475,9 +475,13 @@ def collect_parallel(
     play on, because an opponent's Movement Phase is dozens of its decisions in a row and
     a loop that waits for the slowest worker at each step runs at that worker's pace. A
     short wait gathers a larger batch when few are ready.
+
+    A remote worker that stops leaves the pool (`WorkerPool.drop`, 2026-10-16). Its game
+    does not count in the league, and its last step in the rollout bootstraps on the value
+    of that step, because the state after it did not come.
     """
 
-    from slagents.learned.workers import Worker
+    from slagents.learned.workers import Worker, WorkerDied
 
     rollout = Rollout()
     workers: list[Worker] = pool.workers
@@ -486,11 +490,25 @@ def collect_parallel(
     # decision that waits for a command.
     awaiting: set[Worker] = set()
     ready: list[Worker] = []
+    # The bootstrap of each worker that left the pool in this rollout.
+    lost_tails: dict[int, float] = {}
+
+    def lose(worker: Worker, error: WorkerDied) -> None:
+        pool.drop(worker, error)
+        awaiting.discard(worker)
+        if worker in ready:
+            ready.remove(worker)
+        if worker.steps:
+            lost_tails[worker.index] = rollout.value[worker.steps[-1]]
 
     def start(worker: Worker) -> None:
         spec, name = next_member()
         guide = jump_start.next() if jump_start is not None else None
-        pool.reset(worker, spec, name, worker.learner, next_seed(), guide)
+        try:
+            pool.reset(worker, spec, name, worker.learner, next_seed(), guide)
+        except WorkerDied as error:
+            lose(worker, error)
+            return
         awaiting.add(worker)
 
     def settle(worker: Worker, decision: Any) -> None:
@@ -518,10 +536,15 @@ def collect_parallel(
         for connection in wait_any([w.connection for w in awaiting], timeout=timeout):
             worker = by_connection[connection]
             awaiting.discard(worker)
-            settle(worker, pool.receive(worker))
+            try:
+                decision = pool.receive(worker)
+            except WorkerDied as error:
+                lose(worker, error)
+                continue
+            settle(worker, decision)
 
     # The steps a worker recorded belong to the rollout before this one.
-    for w in workers:
+    for w in list(workers):
         w.steps = []
         if w.pending is None:
             start(w)
@@ -557,7 +580,11 @@ def collect_parallel(
             rollout.done.append(0.0)
             rollout.worker.append(w.index)
             w.steps.append(len(rollout) - 1)
-            pool.act(w, quad)
+            try:
+                pool.act(w, quad)
+            except WorkerDied as error:
+                lose(w, error)
+                continue
             awaiting.add(w)
     # Each worker's answer to its last command, so its last step has its reward, and the
     # value of the state it waits at, which is its bootstrap.
@@ -565,6 +592,7 @@ def collect_parallel(
         receive(block=True)
     tails = values_batch(policy, [w.pending.observation for w in workers])
     rollout.last_values = {w.index: tail for w, tail in zip(workers, tails)}
+    rollout.last_values.update(lost_tails)
     return rollout
 
 

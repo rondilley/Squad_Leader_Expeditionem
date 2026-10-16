@@ -4,7 +4,54 @@ The session log, newest entry first. This file gives the next session, human or 
 
 ---
 
-## 2026-10-16 - Chunks of the s04 attacker against v7
+## 2026-10-16 - The game pictures of the README come from the 3D window, and a video
+
+The owner put a screen recording of the 3D window in `background/` and said to add it to the README. The owner also said to make the game pictures show the current look of the game and its counters.
+
+- The game picture was `window_armor_probe.png`, from the pygame window, with its small counter squares. The 3D window is the MVP front end, and its counters are cards with the figure of the unit and its factors.
+- At this time, `tools/make_docs_images.py` renders the 3D window offscreen, from the same `Board3DApp.show_snapshot` that the game runs. The position is the same as before: scenario 4, seed 21, v3 against v3, 245 commands (turn 3).
+- `window3d_plan.png` is the 2D camera mode. `window3d_board.png` is the 3D camera mode, and the README shows it as the link to the video. This change removes `window_armor_probe.png` and the function of the pygame window picture.
+- The video is `docs/media/gameplay_3d.mp4` (2 min 49 s, 1280 x 720, 27 MB), a copy of `background/signal-2026-10-10-22-59-28-564_002.mp4`. Its frames show only the scenario card, the board, the counters, and the panel of this project. `docs/ASSET_PROVENANCE.md` section 2 records it.
+- The release audit does not read a video, and its report is empty.
+- `tests/docs/test_documentation_images.py`: a game picture is a lit render with no flat colour, so its test compares the mean pixel difference of the board area. The limit is 2.5 of 255. On this machine, the difference of a new render is 0.0. The difference of the 2D and the 3D picture is 11.3, so the check can reject an incorrect picture.
+- The docs test closes its Panda3D window. It also closes a window that an earlier 3D test left open. Thus each test file gets a window of its own dimensions. `tests/docs` and `tests/window3d` pass in the two orders (79 tests).
+
+## 2026-10-16 - Chunk 5 of the s04 attacker
+
+The owner deployed the code of the entry below to the farm and said to run chunk 5. `runs/chain_20261016b_s04c5/chain.sh` started at 15:44Z. The arguments are those of chunks 3 and 4: 10,000,000 decisions against v6, v3, and v7 from `runs/ppo_s04_curriculum/c4/snapshots/snapshot-10000000.pt`, anchor 0.5, learning rate 0.0001, rollout 4096, 16 local workers and the four farm hosts. The seed is 20261105.
+
+- The chunk completed at 17:16Z with exit 0: 10,000,000 decisions in 5,460.6 s, 1,831.3 steps/s (chunk 4: 1,790.2). The net is `runs/ppo_s04_curriculum/c5/snapshots/snapshot-10000000.pt`, and the artifact is `runs/20261016T154412Z-ppo-s04-armor-probe`.
+- It is the first run with the trainer that continues when a remote worker stops. No worker stopped, so `dropped_workers` is empty. The new code did not decrease the step rate.
+- The evaluation of the trainer, 20 games on each side against each opponent: Axis 17 of 20 against v6, 14 of 20 against v3, and 10 of 20 against v7. Allied 3 of 20 against v6, 11 of 20 against v3, and 10 of 20 against v7. A sample of 20 games is not a measure.
+- The gate against v7 (200 games, 100 as the Axis) completed at 17:26Z. The Axis won 46 of 100 (chunk 4: 37 of 100, panel baseline 33 percent). The Allied side won 42 of 100 (chunk 4: 62 of 100). Thus the Axis attack became better, and the Allied defence became worse.
+- The cause of the Allied loss is very possibly the training, which updates only the Axis side (`--player 0`).
+- The full gauntlet (panel v3, v5, v6, v7, 40 games each, `runs/20261016T172645Z-gauntlet-...`) completed at 17:37Z: 66.9 percent, Elo 1743, rank 2 of 5. Only v7 (1752) is above it, and the difference is 9 points. Chunk 4 had 63.7 percent and Elo 1717, with v7 at 1741.
+
+| Opponent | Axis wins | Axis, other panel agents | Allied wins | Allied, other panel agents |
+|---|---|---|---|---|
+| v3 | 13 of 20 (10 before) | 31 of 60 | 13 of 20 (9 before) | 14 of 60 |
+| v6 | 17 of 20 (18 before) | 32 of 60 | 6 of 20 (5 before) | 10 of 60 |
+| v7 | 11 of 20 (10 before) | 20 of 60 | 7 of 20 (10 before) | 13 of 60 |
+
+- Against v7, the gate and the gauntlet give the Axis 57 of 120 together (47.5 percent). The panel agents win 33 percent.
+- The Allied side against v7 became worse in the gate and in the gauntlet (42 of 100 and 7 of 20). It is better than the panel agents (13 of 60).
+- Chunk 5 gives the best s04 net at this time: `runs/ppo_s04_curriculum/c5/snapshots/snapshot-10000000.pt`.
+- The owner said to run chunk 6. `runs/chain_20261016c_s04c6/chain.sh` waits for the end of this chain, and then it trains from the chunk 5 net with the same arguments and seed 20261106. Chunk 6 started at 17:38Z.
+
+## 2026-10-16 - The trainer continues when a remote worker stops, and it keeps the last net
+
+Two faults of the v7 chunks (the entry below) have a correction in the code. No run used the new code at this time.
+
+- A remote worker that stops goes out of the pool (`WorkerPool.drop` in `slagents/learned/workers.py`). Before, one bad line from kipp stopped all 120 workers of chunk 3. Now `pool.reset`, `pool.act`, and `pool.receive` give `WorkerDied` for an `EOFError` or an `OSError` on the pipe, and `ppo.collect_parallel` calls `drop` and continues.
+- The game of that worker does not count in the league. Its last step in the rollout bootstraps on the value of that step, because the state after it did not come.
+- The run continues while 50 percent or more of the workers it started with are live (`MIN_LIVE_SHARE`). A local worker that stops also stops the run, because that is a fault of the code on the workstation.
+- The run artifact of `sl-cli train` has the field `dropped_workers`: the index and the error of each worker that went out of the pool.
+- `sl-cli train` writes a snapshot at the end of a run when the last decision count is not a multiple of `--snapshot-every`. The first resume of chunk 3 (1,996,416 decisions, interval 2,000,000) kept no net.
+- Three new tests. In `tests/farm/test_envs.py`, a real farm server runs the real worker loop, and the process of an environment stops after 20 commands. With one of two remote workers stopped, the run completes and `dropped_workers` names worker 2. With the two stopped, the run stops with `WorkerDied`. In `tests/agents/test_ppo_smoke.py`, a run of 192 decisions with `snapshot_every=1000` keeps one snapshot at decision 192.
+- Without the two corrections, the first and the third test fail. The test of the floor gives the same result without them, because the code before them stopped the run at each loss.
+- The 41 tests of `tests/agents/test_workers.py`, `test_ppo_smoke.py`, `test_jumpstart.py`, and `tests/farm/test_envs.py` pass.
+
+## 2026-10-16 - Chunks of the s04 attacker against v7, and their result
 
 The owner said to run the v7 chunks on the farm. `runs/chain_20261016a_s04v7/chain.sh` started at 04:53Z. No change to the code was necessary.
 
@@ -13,6 +60,31 @@ The owner said to run the v7 chunks on the farm. `runs/chain_20261016a_s04v7/cha
 - The chain trains first, because the curriculum gate against v7 was satisfied with no training against v7.
 - After each chunk, the gate is a gauntlet of 200 games against v7 (100 as the Axis) on 16 local workers. The bar is 33 percent Axis wins, the panel baseline.
 - The limit is 3 chunks, approximately 5 hours. Then a full gauntlet against v3, v5, v6, and v7 runs.
+
+Chunk 3 stopped at 06:23Z after 8,003,584 decisions with exit 1. The first line of `chunk_3.log` gives the cause: a decision line from kipp had base64 data of 35,149 characters, which is not a length that base64 can have (`slfarm/envwire.decode_array`). The JSON of the line was valid, so the fault changed the data and not the framing. The read and write code of `slfarm` is correct, so the cause is very possibly a fault on the network or on kipp.
+
+The runs on the farm before this one (80,000,000 decisions) had no such fault. The trainer stops when one remote worker stops, so all 120 workers stopped.
+
+- `runs/chain_20261016a_s04v7/resume.sh` started at 06:24Z. It trains the remaining 1,996,416 decisions of chunk 3 from `c3/snapshots/snapshot-8003584.pt` into `c3r`, and then it continues the plan of chain.sh.
+- When a chunk stops with a snapshot, the script trains the remaining decisions one more time from the newest snapshot.
+- Not done in this run: a trainer that continues with fewer workers when one remote worker stops. The entry above adds it.
+- The first resume (06:24Z to 06:45Z) did the training of the 1,996,416 decisions, but it wrote no snapshot. The trainer writes a snapshot only at each multiple of `--snapshot-every` (2,000,000). It writes no snapshot at the end of a run. Then the gate got no net and the chain stopped. Its log is `chunk_3_1996416_nosnapshot.log`.
+- Resume 2 started at 06:46Z. A run shorter than 2,000,000 decisions uses its length as `--snapshot-every`. A run that ends with no snapshot stops the chain.
+- Chunk 3 is complete at 07:07Z (`c3r/snapshots/snapshot-1996416.pt`). Its gate against v7: the Axis won 18 of 100 (the bar is 33). The Allied side won 64 of 100, and the panel agents win 13 of 60 as the Allied side against v7. Chunk 4 started at 07:14Z.
+- Chunk 4 (`runs/ppo_s04_curriculum/c4`, 1,790.2 steps/s) stopped at 08:48Z. Its gate against v7: the Axis won 37 of 100, and the gate was satisfied. Chunk 5 did not run.
+- The chain stopped at 09:04Z, 4 h 11 min after the start. The first resume used 20 minutes with no result.
+
+The last gauntlet of `runs/ppo_s04_curriculum/c4/snapshots/snapshot-10000000.pt` (panel v3, v5, v6, v7, 40 games each, `runs/20261016T085602Z-gauntlet-...`): 63.7 percent, Elo 1717, rank 2 of 5. Only v7 (1741) is above it. The curriculum net had 58.1 percent.
+
+| Opponent | Axis wins | Axis, other panel agents | Allied wins | Allied, other panel agents |
+|---|---|---|---|---|
+| v3 | 10 of 20 (11 before) | 31 of 60 | 9 of 20 (9 before) | 14 of 60 |
+| v6 | 18 of 20 (18 before) | 32 of 60 | 5 of 20 (6 before) | 10 of 60 |
+| v7 | 10 of 20 (4 before) | 20 of 60 | 10 of 20 (5 before) | 13 of 60 |
+
+- The Axis attack against v7 is better than the panel at this time. The gate and the gauntlet give 47 of 120 together (39 percent), and the panel agents win 33 percent.
+- Against v3 and v6 the net kept the level of the curriculum net. The Allied side is better than the panel against each opponent.
+- It is the first learned s04 net that is equal to or better than the scripted attackers against each panel agent.
 
 ## 2026-10-15 - A curriculum with gates for the s04 attacker, and its result
 

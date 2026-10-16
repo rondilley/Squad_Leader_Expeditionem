@@ -90,8 +90,9 @@ two hexes of a hexside make the same picture.
 
 `docs/images/` is the one directory of the tree that holds an image. Each file there is the
 output of this project's own code. `tools/make_docs_images.py` makes the board with the
-generator from a seed. Then it makes the picture with `slwindow` and writes the file.
-`docs/images/MANIFEST.json` gives the seed, the board type, and what the picture shows.
+generator from a seed. Then it makes the picture with `slwindow` (a board) or with the 3D
+window `slwindow3d` (a game) and writes the file. `docs/images/MANIFEST.json` gives the
+seed, the board type or the game, and what the picture shows.
 
 ![A village board from the generator.](images/board_village.png)
 
@@ -99,9 +100,16 @@ A village board. The woods are a mass of crowns, and each building is a small br
 that sits in its hex. The road is a ribbon that turns, and the hill is a flat brown area
 with a crest line. The grain fields are the one terrain that fills its hex.
 
-![The desktop window in a game.](images/window_armor_probe.png)
+![The 3D window in its 2D camera mode in a game.](images/window3d_plan.png)
 
-The desktop window in turn 4 of scenario 4, with the counters and the panel.
+The 3D window in its 2D camera mode, in turn 3 of scenario 4, with the counter cards and
+the panel. `window3d_board.png` shows the same position in the 3D camera mode.
+
+`docs/media/gameplay_3d.mp4` is the one video in the tree. The owner recorded the screen of
+the 3D window on 2026-10-10, in a game of scenario 4 between two computer opponents. It
+shows the scenario card, the board, the counter cards, the fire effects, and the panel of
+this project, and nothing else. Its sound is the sound of the window (section 3). The tool
+does not make it, so no test makes it again. The source copy is in `background/`.
 
 Two things hold the rule that no scan gets in:
 
@@ -155,7 +163,7 @@ mono at 22,050 Hz: a three-tap low-pass filter, then a linear resample. The tool
 - No board data file holds a layout read off one of the four printed boards.
 - No font file is in the repository. The only sound file is the tank recording of section
   3.1. The only image files are the pictures of section 2, which this project's own code
-  makes.
+  makes. The only video is the screen recording of the 3D window in section 2.
 - The owner's own reference material is in `background/`, and `.gitignore` covers all of
   that directory. No file there goes into a commit, a build, or an artifact. The
   photographs of the owner's boards are in that directory, and the code holds no pixel of

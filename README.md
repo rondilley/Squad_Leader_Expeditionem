@@ -64,11 +64,15 @@ sl-cli window3d --resume runs/games/<game_id>.jsonl
 
 ## What it looks like
 
-![The desktop window in turn 4 of scenario 4. The board, the counters of the two sides with
-their vehicles, and the panel with the legal commands and the action log.](docs/images/window_armor_probe.png)
+[![The 3D window in its 3D camera mode. Click to play the video of a game.](docs/images/window3d_board.png)](docs/media/gameplay_3d.mp4)
 
-The desktop window in turn 4 of the armor scenario. The panel gives the turn, the phase,
-the legal command list, and the action log with the rule ID of each result.
+The video [`docs/media/gameplay_3d.mp4`](docs/media/gameplay_3d.mp4) (2 min 49 s, 27 MB) is a game of the armor scenario in the 3D window, between two computer opponents. It starts with the scenario card. Then the units move and fire on the 3D board, with the tracers and the sound, to the end of the game. It is a screen recording of 2026-10-10, before the change of scenario 4 to 8 turns.
+
+![The 3D window in its 2D camera mode, in turn 3 of scenario 4. The board from above, the
+counter cards of the two sides with their vehicles, and the panel with the legal commands
+and the action log.](docs/images/window3d_plan.png)
+
+The 3D window in its 2D camera mode (Ctrl and t), in turn 3 of the armor scenario. Each counter is a card with the figure of its unit and its factors. The panel gives the turn, the phase, the legal command list, and the action log with the rule ID of each result.
 
 Three boards from the generator, drawn by the same code:
 
@@ -80,11 +84,11 @@ Each terrain is a shape on the ground and not a hexagon of colour. A wood is a m
 crowns. A building is the plan of a structure that can cover more than one hex. A road is a
 ribbon that turns. A hill is a flat brown area with a crest line where the level changes.
 
-`tools/make_docs_images.py` makes these pictures from the generator and the window code.
+`tools/make_docs_images.py` makes these pictures from the generator, the board drawing, and the 3D window. The game pictures need the `view3d` extra.
 `docs/images/MANIFEST.json` gives the seed of each one, the release audit reads that
 manifest, and `tests/docs/test_documentation_images.py` makes each picture again and
 compares it. So each picture in this repository is the output of the code in it. A scan
-that gets into that directory stops a test, and the audit reports it (SR-07).
+that gets into that directory stops a test, and the audit reports it (SR-07). The video is the one file that the tool does not make. `docs/ASSET_PROVENANCE.md` records its source.
 
 ## What it is
 
@@ -271,6 +275,8 @@ sl-cli train --scenario s04_armor_probe --player 0 --opponents v7 --workers 16 -
 
 The farm plays random and scripted opponents only, so a training run on the farm must have `--opponents`. A league snapshot is a file of the workstation. `--remote-envs` is the count of PPO workers on each host, and the default is the slots of the host. On the workstation, one bridge process for each host holds the connections of its PPO workers.
 
+When a remote worker stops, the run continues without it while 50 percent or more of the workers are live. The `dropped_workers` field of the run artifact names each worker that stopped. The trainer writes a snapshot at each multiple of `--snapshot-every` and at the end of the run.
+
 Use `--rollout 4096 --minibatch 1024` on the farm. At the default rollout of 512, each worker gives only approximately four decisions before the update, and the farm is not faster. With these values, the farm and 16 local workers gave 1,789 steps/s for a full s04 run of 40,000,000 decisions (2026-10-15). 16 local workers alone give 288.5 steps/s with the default values. The worker script installs the `train` extra on each host, with the CPU build of torch.
 
 ```
@@ -319,7 +325,7 @@ A name with no port uses port 5160. The server listens on 127.0.0.1 unless it ge
 | Training methods | Imitation of the scripted agents with DAgger rounds. Then PPO with a league, an anchor to the start policy, a warm-up of the value head, and Jump-Start RL. `docs/ARCHITECTURE.md` section 9.5 gives each method of the computer players, and what each one gave |
 | The game farm, 2026-10-14 | Four Linux hosts play the games of a gauntlet and an evolution, and hold 120 PPO workers. A gauntlet is 4.2 times faster. A PPO run gives 1,789 steps/s, and 16 local workers give 288.5 |
 | s04, 2026-10-14 | The change of the armor scenario gives a balance: v7 against v7 gives the Axis 832 of 1,600 games |
-| Learned s04 attacker, 2026-10-15 | PPO for 40,000,000 decisions against v7: 5 of 20 attacks against v7 won, and the clone won 0. The other panel agents win 20 of 60. A league of v3, v6, and v7 for 40,000,000 decisions more: the Axis wins 11 of 20 against v6, equal to the panel, but 1 of 20 against v7. A curriculum with gates (v6, then v3, then v7) for 20,000,000 decisions more: gauntlet 58.1 percent. The Axis wins 11 of 20 against v3, 18 of 20 against v6, and 4 of 20 against v7 |
+| Learned s04 attacker, 2026-10-15 | PPO for 40,000,000 decisions against v7: 5 of 20 attacks against v7 won, and the clone won 0. The other panel agents win 20 of 60. A league of v3, v6, and v7 for 40,000,000 decisions more: the Axis wins 11 of 20 against v6, equal to the panel, but 1 of 20 against v7. A curriculum with gates (v6, then v3, then v7) for 20,000,000 decisions more: gauntlet 58.1 percent. The Axis wins 11 of 20 against v3, 18 of 20 against v6, and 4 of 20 against v7. Two chunks more with v7 in the league (20,000,000 decisions): gauntlet 63.7 percent, second after v7. The Axis wins 10 of 20 against v7, and the panel 20 of 60. Chunk 5 (10,000,000 decisions): gauntlet 66.9 percent, Elo 1743, 9 points below v7. The Axis wins 46 of 100 in the gate against v7 and 11 of 20 in the gauntlet |
 | Review pass, 2026-09-24 | The frame ID is an opaque token for each connection, and no client gets a state hash. A seat token gets a seat back after a drop. The host names each unit, labels each legal command with its hexes and its odds. The undo cancels a command that rolled no die. `sl-cli host --resume FILE` continues a saved game with a hash check at each command. The engine is a table of handlers, and `slcore.api` is the public surface of the core |
 
 What works: `sl-cli play --scenario s01_guards_counterattack` plays scenario 1 headless with two scripted agents and replays it. `sl-cli tournament` plays N games with the sides balanced and writes a run artifact. `sl-cli bench` measures the environment step rate. `sl-cli boards` makes boards and checks them.

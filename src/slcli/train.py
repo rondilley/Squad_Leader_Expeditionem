@@ -274,6 +274,11 @@ def run_training(
     finally:
         if pool is not None:
             pool.close()
+    # The policy at the end, also when the count is not a multiple of the interval: a run
+    # of 1,996,416 decisions with an interval of 2,000,000 kept no net (2026-10-16).
+    if snapshot_every and done and (not snapshots or snapshots[-1]["step"] != done):
+        path = league.take_snapshot(policy, out / "snapshots", done, net)
+        snapshots.append({"step": done, "path": str(path)})
     seconds = time.perf_counter() - started
     if not rates:
         rates.append({"step": done, "seconds": round(seconds, 1), "steps_per_second": round(done / max(1e-9, seconds), 1)})
@@ -286,6 +291,7 @@ def run_training(
         "steps_per_second": round(done / max(1e-9, seconds), 1),
         "rate_reports": rates,
         "snapshots": snapshots,
+        "dropped_workers": [] if pool is None else pool.dropped,
         "elo": league.table(LEARNER),
         "league": league.record_table(),
         "evaluation": evaluation,

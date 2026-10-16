@@ -32,6 +32,7 @@ sends the next reset. A member spec is `("random",)`, `("scripted", kind)`, or
 from __future__ import annotations
 
 import multiprocessing as mp
+import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, field
@@ -41,6 +42,11 @@ from typing import Any, Callable, Sequence
 import numpy as np
 
 MemberSpec = tuple[str, ...]
+
+# A remote worker that stops leaves the pool, and the run goes on while at least this share
+# of the workers it started with is live (2026-10-16). One bad line from one farm host
+# stopped all 120 workers of a run before.
+MIN_LIVE_SHARE = 0.5
 
 
 def agent_key(agent: Any, env: Any) -> tuple[int, int, int, int]:
@@ -198,6 +204,10 @@ class WorkerPool:
     trainer a pipe end to it, so the trainer reads a remote worker as it reads a local one
     (2026-10-14).
     `remote_envs` is the count of them on each host; zero is the slots of the host.
+
+    A remote worker that stops (its host, its bridge, or the network) leaves the pool by
+    `drop`, and `dropped` records it. A local worker that stops is a fault of the code on
+    this machine, so it stops the run.
     """
 
     def __init__(
@@ -212,6 +222,8 @@ class WorkerPool:
         self.spaces = spaces
         self.workers: list[Worker] = []
         self.bridges: list[Any] = []
+        self.dropped: list[dict[str, Any]] = []
+        self.started_with = 0
         for index in range(workers):
             ours, theirs = context.Pipe()
             process = context.Process(
@@ -229,6 +241,7 @@ class WorkerPool:
             except BaseException:
                 self.close()
                 raise
+        self.started_with = len(self.workers)
 
     def _open_remote(self, farm: Any, remote_envs: int, scenario: str, seed: int, max_commands: int) -> None:
         """One bridge process for each host (`slfarm.client.host_bridge_main`), so the JSON
@@ -288,19 +301,45 @@ class WorkerPool:
         worker.learner = learner
         worker.guide_turns = 0 if guide is None else int(guide[1])
         worker.steps = []
-        worker.connection.send(("reset", spec, learner, seed, guide))
+        self._send(worker, ("reset", spec, learner, seed, guide))
 
     def act(self, worker: Worker, quad: tuple[int, int, int, int]) -> None:
-        worker.connection.send(("act", quad))
+        self._send(worker, ("act", quad))
+
+    def _send(self, worker: Worker, message: tuple) -> None:
+        try:
+            worker.connection.send(message)
+        except (OSError, ValueError) as exc:
+            raise WorkerDied(f"{self._where(worker)} (worker {worker.index}) stopped during the rollout: {exc}") from exc
 
     def receive(self, worker: Worker) -> Decision:
         try:
             decision = worker.connection.recv()
-        except EOFError as exc:
-            where = "a remote worker of the farm" if worker.process is None else "a worker process"
-            raise WorkerDied(f"{where} (worker {worker.index}) stopped during the rollout") from exc
+        except (EOFError, OSError) as exc:
+            raise WorkerDied(f"{self._where(worker)} (worker {worker.index}) stopped during the rollout") from exc
         worker.pending = decision
         return decision
+
+    @staticmethod
+    def _where(worker: Worker) -> str:
+        return "a remote worker of the farm" if worker.process is None else "a worker process"
+
+    def drop(self, worker: Worker, error: WorkerDied) -> None:
+        """Take a remote worker that stopped out of the pool, or raise `error` again.
+
+        It raises for a local worker, and when the live workers would fall below
+        `MIN_LIVE_SHARE` of the workers the pool started with.
+        """
+        live = len(self.workers) - 1
+        if worker.process is not None or worker not in self.workers or live < MIN_LIVE_SHARE * self.started_with:
+            raise error
+        self.workers.remove(worker)
+        try:
+            worker.connection.close()
+        except OSError:
+            pass
+        self.dropped.append({"worker": worker.index, "error": str(error)})
+        print(f"train: {error}; the run goes on with {live} workers", file=sys.stderr, flush=True)
 
     def close(self) -> None:
         for worker in self.workers:

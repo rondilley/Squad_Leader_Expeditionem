@@ -1,5 +1,5 @@
 {
-  "provenance": "Each picture is the output of this project's own code. The board comes from the generator with the seed below, and the drawing comes from slwindow. No scan and no photograph is in any of them (SR-07).",
+  "provenance": "Each picture is the output of this project's own code. The board comes from the generator with the seed below. A board drawing comes from slwindow, and a game picture comes from the 3D window, slwindow3d. No scan and no photograph is in any of them (SR-07).",
   "tool": "tools/make_docs_images.py",
   "images": [
     {
@@ -36,15 +36,30 @@
       "rows": 10
     },
     {
-      "file": "window_armor_probe.png",
-      "shows": "The desktop window in turn 4 of scenario 4: the board, the counters of the two sides with their vehicles, and the panel with the legal commands and the action log",
+      "file": "window3d_plan.png",
+      "shows": "The 3D window in its 2D camera mode, in turn 3 of scenario 4: the board from above, the counter cards of the two sides with their vehicles, and the panel with the legal commands and the action log",
       "tool": "tools/make_docs_images.py",
       "width": 1440,
       "height": 900,
       "scenario": "s04_armor_probe",
       "game_seed": 21,
       "agent": "v3",
-      "commands": 245
+      "commands": 245,
+      "window": "slwindow3d",
+      "camera": "2d"
+    },
+    {
+      "file": "window3d_board.png",
+      "shows": "The 3D window in its 3D camera mode, at the same position: the hex prisms, the buildings, and the counter cards seen from the south",
+      "tool": "tools/make_docs_images.py",
+      "width": 1440,
+      "height": 900,
+      "scenario": "s04_armor_probe",
+      "game_seed": 21,
+      "agent": "v3",
+      "commands": 245,
+      "window": "slwindow3d",
+      "camera": "3d"
     }
   ]
 }
