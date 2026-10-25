@@ -65,7 +65,8 @@ def terrain_planes(board: Board, objectives: Mapping[str, tuple[HexRef, ...]]) -
     kinds = {name: i for i, name in enumerate(TERRAIN_KINDS)}
     for h in board:
         col, row = h.ref
-        index = kinds.get(h.terrain)
+        # PR-56: an orchard has the rules of a wheatfield, so it takes the wheat plane.
+        index = kinds.get("wheat" if h.terrain == "orchard" else h.terrain)
         if index is not None:
             planes[index, col, row] = 1
         if h.road:

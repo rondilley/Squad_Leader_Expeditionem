@@ -101,8 +101,16 @@ def test_a_band_of_columns_reads_as_a_place_and_fits_two_lines() -> None:
     labels = {g["id"]: card._group_label(g) for side in data["sides"] for g in side["groups"]}
     assert labels["a_tanks"] == "Anywhere in columns A to C, not in buildings or woods"
     assert labels["l_tanks"] == "Anywhere in columns W to Y, not in buildings or woods"
-    assert labels["a_stahler"] == "In the largest stone building"
+    assert labels["a_stahler"] == "In the largest stone building in columns C to J"
     font = pygame.font.SysFont("dejavusans,arial,helvetica", 13, bold=True)
     for text in labels.values():
         assert "a columns" not in text
         assert len(card._wrap(text, font, 260)) <= card.TITLE_LINES
+
+
+def test_two_buildings_of_the_same_rank_in_two_bands_have_two_labels() -> None:
+    """The rank of a building is its rank in the band, so the label names the band."""
+    west = {"area": {"zone": "stone_building", "min_col": 2, "max_col": 8, "rank": 0}}
+    east = {"area": {"zone": "stone_building", "min_col": 20, "max_col": 30, "rank": 0}}
+    assert card._group_label(west) == "In the largest stone building in columns C to I"
+    assert card._group_label(east) == "In the largest stone building in columns U to EE"

@@ -313,6 +313,14 @@ Two rules hold for each board type. First, the outer ring of the board stays on 
 
 Each generated board has a parameter record: the seed, the generator version, the board type, the style parameters, and the zone constraints it was built with.
 
+Orchards and landmarks (2026-10-17) come after the polygon pass, and only when the record names them. The style `orchards` gives the count of orchards on the board. Each orchard is a row of three to five open hexes adjacent to a road. The orchard pass has a random state of its own, so the other hexes of the board do not change.
+
+A record can also have `landmarks`. A mill goes on a stone building, and a windmill goes on a wooden building. Each goes on the building of its rank in its band, in the order that a `stone_building` set up area uses. The default of `orchards` is 0, and a record with no `landmarks` writes no key. Thus each record from before builds the same board, and the generator version stays 8.
+
+The rules come from two project rulings. PR-56: an orchard has the effects of a wheatfield of rule 44.2 in each season. PR-57: a mill is a stone building and a windmill is a wooden building. Thus a landmark changes only the picture and the name on the card.
+
+Where it breaks: an orchard is a new terrain type, so each consumer that lists the terrain types must have it. The learned agent puts an orchard in the plane of the wheatfield, because the two have the same rules. Thus each net from before keeps the shape of its input.
+
 Generator version 4 adds the four board types, the style record, the hill levels, and the wall and hedge hexsides. An older record with a `building_density` field continues to build its board, because that field is the `buildings` style. Version 5 sets each seam hex of FR-24, and version 6 adds the cliff hexsides of rule 44.1. A run artifact stores the record. A future session regenerates the board from the record and gets the same board. A change to the generator changes its version, and an earlier record names the earlier version.
 
 <!-- AI review 20260907-163721: openai, the generator parameter record -->
@@ -327,6 +335,20 @@ picture on the rules sheet, and the text of the rulebook does not hold its numbe
 project cannot transcribe it the way it transcribed the Infantry Fire Table. Open item O-08
 gives that task to the owner. Until then the scale is the project's own, built from the
 counter values, and it says so.
+
+`library.py` (2026-10-16) makes the 12 scenarios of the library from the slots of `sldata/library/slots.json`. The decision of the owner: the project does not copy the 1977 scenarios. Each slot gives its board types, its armies, its rule level, and the bands of its points and turns. Two seeds give the rest.
+
+The draw seed sets the forces, the turns, and the victory condition. The board seed sets the board, so a search of the board seeds keeps the forces the same. That is the balance method of the owner: the board seed first. The forces change only when no seed gives 45 to 55 percent for the first side, with v7 against v7 in 1,600 games.
+
+A slot of two or more boards stacks them from north to south. Thus the front gets wider with the force, and the depth of the fight stays one board. Each side has a group on each board, and the defender holds one stone building on each board.
+
+Where it breaks: the point scale is the project's own, so two forces of equal points are possibly not equal in play. The seed search finds a board that corrects a small difference only. When the forces of a slot are far apart, a change of the slot bands is necessary.
+
+A two-sided slot (L03) gives each side a building at its own end, and a die roll decides which side moves first. It uses the same attack share as the other slots. The first L03 search gave the two sides equal points and the condition `building_swing`, and the best of 1,600 games was 19.1 percent for the German side: when nothing occurs, the Russians win. With the attack share and `hex_control` of the Russian building, draw seed 8 and board seed 10 gave 50.1 percent (2026-10-17).
+
+A support weapon goes to a group only with a squad or a leader. A weapon with no group stays with the units in the building. The second L03 search found a group of one MMG, which no player would set up.
+
+The card text comes from the slot and the draw, and each sentence must agree with the rules of the scenario (owner, 2026-10-17). Nothing on the board marks a building. Thus the card names a victory building by its rank and its band of columns, as the set up area does. The rank of a building applies in its band, so the set up label of the card names the band too. Without the band, the two sides of L03 each read "the largest stone building" for two buildings.
 
 `generator.py` is the random scenario construction. The printed method uses playing cards.
 This project uses the seeded generator of the core. A game is its seed, and a scenario that
@@ -803,7 +825,39 @@ Two chunks more against v6, v3, and v7 from the curriculum net (2026-10-16) gave
 
 Chunk 5 (2026-10-16, 10,000,000 decisions more) gave a gauntlet of 66.9 percent, Elo 1743, 9 points below v7. In the gate against v7, the Axis won 46 of 100 (37 before), and the Allied side won 42 of 100 (62 before). The training updates only the Axis side, so the Allied side can become worse while the Axis becomes better.
 
+Chunk 6 (10,000,000 decisions more) showed the limit of this method. The Axis won 49 of 100 in the gate against v7, approximately the same as chunk 5. The Allied side won 20 of 100 (42 before), and 1 of 20 in the gauntlet. The gauntlet fell to 60.6 percent, so chunk 5 stays the best net.
+
+Chunk 7 trains the two sides from chunk 5 (`--player both`, 10,000,000 decisions). The gauntlet gave 67.5 percent, equal to chunk 5 in this sample. In the gate against v7, the Axis won 56 of 100, the best result, and the Allied side won 31 of 100 (chunk 6: 20, chunk 5: 42).
+
+Thus the training of the two sides keeps the defence and does not decrease the attack. A chunk that trains one side must also have a gate for the other side.
+
+Chunk 8 was 10,000,000 decisions more of the two sides. The gauntlet gave 70.6 percent and rank 1, with Elo 1787 against 1738 for v7. Against v7 in the gate and the gauntlet, the Axis won 67 of 120 and the Allied side 47 of 120. It is the first learned s04 net that ranks above each scripted agent. The method that worked: imitation, then a curriculum with gates on the attacking side, then chunks of the two sides.
+
 Mitigation: the curriculum with gates is the method that worked. A gate needs 100 games on the side that it measures, because a gate of 50 games was satisfied by chance. Two levers are not tried: more DAgger rounds and an anchor weight that decreases.
+
+#### The routes and the approach term (2026-10-20)
+
+Gate item 5 of the library gave defenders and no attackers. On L01 the attack against v7 was 0 to 2 of 100 after each chunk. On L02 the imitation net won 0 of 50 attacks, and two attacker chunks gave 0 and 1 of 100. The examination of 2026-10-20 (`docs/reports/2026-10-20_attack_movement_design.md`) found the causes in the Movement Phase:
+
+- The net moved a unit back and forth between two hexes until it had no movement points. The repeat guards did not find it. The cause: `mf_used` is a part of the position key.
+- A move of the core is one hex. Thus a route of four hexes is four decisions of the net, and the net has no memory of the route. The squads stopped 12 hexes from the objective, and the teacher's squads came to 3.
+- The option of a stack move is its place in the order of the hashed command IDs. Thus the net could not learn which stack an option names.
+- No reward term paid a side for getting nearer to its objective. Cover and sneak paid a squad that stayed far back, at about 0.4 each turn.
+
+The changes:
+
+- The no-return filter (`routes.PhaseMemory`): a move into a hex that its unit held in the phase goes last in the agent and out of the masks.
+- The route actions `route` and `stack_route` (`routes.py`): the net selects a destination, and the agent or the environment plays the single steps through the core. For PPO a route is one decision. The option of a stack route is the bit mask of its squads by unit ID. A snapshot with fewer actions than `stack_route` needs plays with the core commands as before.
+- The labels: a run of moves of the teacher in a phase is one route row, to the last hex of the run.
+- The approach term (`reward.Approach`, weight `approach` 0.2): the potential is minus the sum of the distances of the squads of a side to its objective. The side gets its change at each player turn end. A potential term does not change which policy is best (Ng, Harada, and Russell, 1999). A side with a positional condition gets cover and sneak only near its objective: `cover_radius`, 4 hexes or less.
+
+The first measurement: the L02 imitation net with routes won 0 of 100 attacks against v7 and 69 of 100 defences. The routes play correctly, but the net does not copy the plan of the teacher: first the leader goes to the squads, and then the stack moves. The approach term is for PPO.
+
+The PPO measurement: three chunks on L02 from that net, on the schedule of the first method. The attack against v7 after chunk 3 was 8 of 100 (the first method: 11), and the defence was 88 of 100 (the first method: 73).
+
+The gauntlet gave 58.1 percent, rank 3 of 5 above v3 and v5 (the first method: 34.4 percent, rank 5). As the attacker the net won 35 of 60 against v3, v5, and v6 (the first method: 11 of 60), and 0 of 20 against v7. Thus the attack is better against the weaker agents, but not against v7.
+
+Where it breaks: the path of a route is the cheapest path, not the teacher's path, so it can cross open ground where the teacher goes through cover. The s04 attacker of chunk 8 learned with the reward from before this change. The forces of s04 start nearer to each other than the forces of the library scenarios. Thus that reward is not the cause in each scenario.
 
 #### Prompted and tuned model agents
 
@@ -976,7 +1030,8 @@ Squad_Leader_AI/
       audio.py                   the sound board: plays the sounds of the new events
     slcards/                     card.py, the printable scenario cards
     slcampaign/                  the design-your-own tools and the campaign game of Game Set IV
-    slcli/                       main.py, play.py, bench.py, tournament.py, gauntlet.py, gates.py, host_cmd.py, runs_cmd.py, boards_cmd.py, agents_cmd.py, cards_cmd.py, train.py, imitate_cmd.py, evolve.py, farm_cmd.py, shape_cmd.py, traces_cmd.py, finetune_cmd.py, campaign_cmd.py, window_cmd.py, window3d_cmd.py, worker_limit.py
+                                 library.py, the 12 slots of the scenario library
+    slcli/                       main.py, play.py, bench.py, tournament.py, gauntlet.py, gates.py, host_cmd.py, runs_cmd.py, boards_cmd.py, agents_cmd.py, cards_cmd.py, train.py, imitate_cmd.py, evolve.py, farm_cmd.py, shape_cmd.py, traces_cmd.py, finetune_cmd.py, campaign_cmd.py, library_cmd.py, window_cmd.py, window3d_cmd.py, worker_limit.py
   client/                        TypeScript, Vite, PixiJS or Canvas
     src/
       board/                     render the polygons in the 1977 look, with the base tones of

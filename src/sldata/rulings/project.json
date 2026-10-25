@@ -387,6 +387,20 @@
       "ruling": "An infantry unit may board or debark one time in each Movement Phase. A unit that boarded may not debark in the same phase, and a unit that debarked may not board in the same phase. A passenger may debark only when its vehicle has two movement points left to pay the penalty of rule 31.3. A broken passenger leaves under rule 31.6, and rule 31.7 puts the passengers off also when the vehicle has no movement points left.",
       "cause": "Rule 31.4 gives boarding no extra movement penalty and limits a unit that debarks to the same or an adjacent hex in that phase. It does not say if a unit may board again after it debarks, or debark after it boards. Rule 31.3 says the vehicle must pay two movement points for the debark, and it does not say what occurs when the vehicle has spent its movement points. Before this ruling the core let a unit board and debark with no limit, and a learned policy got a squad on a tank and off it 250 times in one phase (2026-10-13). Each debark added two movement points to the vehicle above its allowance. A board after a debark, or a debark after a board, gives the unit nothing that the rules give a reason for: the vehicle may not move in the turn infantry board it (rule 31.3), so a board and a debark in one phase is a free move of one hex for a unit that has no movement factors left. A penalty the vehicle cannot pay is not paid, so the debark waits for a Movement Phase in which the vehicle has the points.",
       "decided": "2026-10-13"
+    },
+    {
+      "id": "PR-56",
+      "extends": "44.2",
+      "ruling": "An orchard hex has the effects of a wheatfield hex of rule 44.2, in each season. A unit sees into an orchard hex and not through it. Fire that goes through an orchard hex is half strength as Area Fire, and a unit with a height advantage over the orchard is not affected. An orchard hex is not open ground, it has no terrain effects modifier, and it costs 1 MF to enter. A vehicle pays the cost of a wheatfield, and an infantry unit in an orchard reads the wheatfield row of the rule 36 chart. A unit may not set up hidden in an orchard (rule 42.1 names woods and buildings).",
+      "cause": "The printed boards have orchards (RV-2: board 2 at U7 to V8, board 3 along the road at G6 to J4), and rules 1 to 44 give them no rule. The owner selected this ruling on 2026-10-17 for the library slot L05, an orchard village. The trees of an orchard stand in rows with space between them, so they hide a unit behind them as a standing crop does, and they give no cover that a woods hex gives. The core has no hindrance modifier in rules 1 to 44, so the ruling uses the wheatfield effects that the core already applies. An orchard does not lose its trees out of season, so the switch of rule 44.24 does not change it.",
+      "decided": "2026-10-17"
+    },
+    {
+      "id": "PR-57",
+      "extends": "7.4",
+      "ruling": "A mill is a stone building and a windmill is a wooden building, with the rules of that building. The landmark changes only the picture and the name on the scenario card.",
+      "cause": "The owner asked for mills and windmills on the boards (2026-10-17), so that a scenario card can name one. Rules 1 to 44 give no rule for them, and a rule of its own would change play that the balance of each scenario measured. The owner selected a building with a landmark.",
+      "decided": "2026-10-17"
     }
   ]
 }

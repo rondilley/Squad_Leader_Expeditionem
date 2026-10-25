@@ -69,6 +69,7 @@ def encode_decision(decision: Any) -> dict[str, Any]:
         "reward_delta": float(decision.reward_delta),
         "ended": bool(decision.ended),
         "result": float(decision.result),
+        "work_seconds": float(decision.work_seconds),
     }
 
 
@@ -78,9 +79,9 @@ def decode_decision(message: dict[str, Any]) -> Any:
     observation = message.get("observation")
     if not isinstance(observation, dict) or not all(isinstance(name, str) for name in observation):
         raise p.FarmProtocolError("an observation is an object of arrays")
-    numbers = [message.get("reward_delta"), message.get("result")]
+    numbers = [message.get("reward_delta"), message.get("result"), message.get("work_seconds")]
     if not all(isinstance(n, (int, float)) and not isinstance(n, bool) and math.isfinite(n) for n in numbers):
-        raise p.FarmProtocolError("the reward and the result of a decision are numbers")
+        raise p.FarmProtocolError("the reward, the result, and the work time of a decision are numbers")
     if not isinstance(message.get("ended"), bool):
         raise p.FarmProtocolError("the end mark of a decision is true or false")
     return Decision(
@@ -89,6 +90,7 @@ def decode_decision(message: dict[str, Any]) -> Any:
         float(numbers[0]),
         message["ended"],
         float(numbers[1]),
+        float(numbers[2]),
     )
 
 

@@ -40,6 +40,9 @@ RULE_44_24 = "44.24"
 RULE_44_32 = "44.32"
 
 WHEAT = "wheat"
+# PR-56: an orchard has the effects of a wheatfield in each season.
+ORCHARD = "orchard"
+RULE_PR_56 = "PR-56"
 SHELLHOLE = "shellhole"
 CLIFF = "cliff"
 
@@ -80,9 +83,20 @@ def is_wheat(board: Board, ref: HexRef, in_season: bool = True) -> bool:
     return in_season and board.hex(ref).terrain == WHEAT
 
 
+def is_orchard(board: Board, ref: HexRef) -> bool:
+    """PR-56: an orchard hex. It has no season."""
+    return board.hex(ref).terrain == ORCHARD
+
+
 def crop_hexes(board: Board, traced: Iterable[HexRef], in_season: bool = True) -> tuple[HexRef, ...]:
-    """The wheatfield hexes that the thread goes through, between the two ends."""
-    return tuple(ref for ref in traced if is_wheat(board, ref, in_season))
+    """The wheatfield and orchard hexes that the thread goes through, between the two ends."""
+    return tuple(ref for ref in traced if is_wheat(board, ref, in_season) or is_orchard(board, ref))
+
+
+def crop_rules(board: Board, crop: Sequence[HexRef]) -> tuple[str, ...]:
+    """The rule IDs of the halving: 44.21 for a wheatfield, PR-56 for an orchard."""
+    kinds = {board.hex(ref).terrain for ref in crop}
+    return tuple(rule for kind, rule in ((WHEAT, RULE_44_21), (ORCHARD, RULE_PR_56)) if kind in kinds)
 
 
 def height_over(board: Board, firer: HexRef, target: HexRef, crop: Sequence[HexRef]) -> bool:

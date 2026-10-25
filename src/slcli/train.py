@@ -25,7 +25,7 @@ from slagents.learned.jumpstart import JumpStart
 from slagents.learned.league import League, Member, load_snapshot
 from slagents.learned.nets import NetConfig, Policy
 from slagents.learned.workers import agent_key
-from slcli.gauntlet import add_farm_arguments, farm_of
+from slcli.gauntlet import add_farm_arguments, farm_of, split_agent_names
 from slcli.play import build_engine_with_record, make_agent
 from slruns import artifact
 from slruns.elo import wilson_interval
@@ -179,7 +179,10 @@ def run_training(
     started = time.perf_counter()
     deadline = started + hours * SECONDS_IN_HOUR if hours else None
     last_rate_report = started
-    rates: list[dict[str, float]] = []
+    rates: list[dict[str, Any]] = []
+    # The wall time of the trainer's parts (ppo.CollectTiming); the parallel path fills it.
+    timing = ppo.CollectTiming()
+    timing_at_report = timing.copy()
     stopped = "the step count is complete"
     side = learner_player
     pool = None
@@ -234,6 +237,7 @@ def run_training(
                     record_result,
                     alternate_sides=alternate_sides,
                     jump_start=jump_start,
+                    timing=timing,
                 )
             else:
                 rollout = ppo.collect(
@@ -248,10 +252,12 @@ def run_training(
                     next_opponent=next_opponent,
                 )
                 side = rollout.next_learner
+            began = time.perf_counter()
             stats = ppo.update(
                 policy, optimizer, rollout, config, env.spaces_record, anchor,
                 value_only=done < config.value_warmup_steps,
             )
+            timing.update += time.perf_counter() - began
             done += len(rollout)
             updates += 1
             warmup_updates += int(stats["value_only"])
@@ -262,13 +268,23 @@ def run_training(
                 writer.add_scalar("jump_start/turns", jump_start.turns, done)
                 writer.add_scalar("jump_start/win_rate", jump_start.win_rate(), done)
             if now - last_rate_report >= RATE_INTERVAL_SECONDS:
-                rates.append({"step": done, "seconds": round(now - started, 1), "steps_per_second": round(rate, 1)})
+                part = timing.since(timing_at_report)
+                rates.append({
+                    "step": done, "seconds": round(now - started, 1), "steps_per_second": round(rate, 1),
+                    "timing": part.summary(),
+                })
+                _log_timing(writer, part, done)
                 last_rate_report = now
+                timing_at_report = timing.copy()
             if snapshot_every and done // snapshot_every > league.snapshots - 1 and done >= snapshot_every:
                 path = league.take_snapshot(policy, out / "snapshots", done, net)
                 if opponents is None:
                     league.add(snapshot_member(path, policy, generator, done))
                 snapshots.append({"step": done, "path": str(path)})
+        if done < steps:
+            # The loop stopped at the deadline. The default said the count was complete
+            # for a run that stopped at --hours (2026-10-24).
+            stopped = "the hours limit"
     except KeyboardInterrupt:
         stopped = "a keyboard interrupt"
     finally:
@@ -290,6 +306,7 @@ def run_training(
         "seconds": round(seconds, 1),
         "steps_per_second": round(done / max(1e-9, seconds), 1),
         "rate_reports": rates,
+        "timing": timing.summary(),
         "snapshots": snapshots,
         "dropped_workers": [] if pool is None else pool.dropped,
         "elo": league.table(LEARNER),
@@ -478,6 +495,21 @@ def _log(writer, stats: dict[str, float], league: League, step: int, rate: float
             writer.add_scalar(f"elo/{other.name}", league.elo.rating(other.name), step)
 
 
+def _log_timing(writer, part: ppo.CollectTiming, step: int) -> None:
+    """The trainer's parts in one rate interval, as scalars (2026-10-24)."""
+    if writer is None:
+        return
+    summary = part.summary()
+    for name in ("choose", "idle", "gather", "receive", "send", "tail", "update"):
+        writer.add_scalar(f"timing/{name}_seconds", summary[name], step)
+    writer.add_scalar("timing/mean_batch", summary["mean_batch"], step)
+    writer.add_scalar("timing/choose_ms_per_call", summary["choose_ms_per_call"], step)
+    for kind in ppo.WORKER_KINDS:
+        for name, value in summary.get(kind, {}).items():
+            if name.endswith("_ms"):
+                writer.add_scalar(f"timing/{kind}_{name}", value, step)
+
+
 def run(args: Any) -> int:
     out = Path(args.out)
     config = ppo.PpoConfig(
@@ -508,7 +540,7 @@ def run(args: Any) -> int:
         start_from=Path(args.start_from) if args.start_from else None,
         workers=args.workers,
         opponent_cap=args.opponent_cap,
-        opponents=[k.strip() for k in args.opponents.split(",") if k.strip()] or None,
+        opponents=split_agent_names(str(args.opponents)) or None,
         jump_start=(
             JumpStart(args.jump_start, args.jump_start_turns, args.jump_start_threshold, args.jump_start_window)
             if args.jump_start else None
@@ -520,6 +552,20 @@ def run(args: Any) -> int:
     print(f"device {art.config['device']}")
     print(f"{stats['steps']} steps in {stats['seconds']} s = {stats['steps_per_second']} steps/s, {stats['updates']} updates")
     print(f"stopped because of {stats['stopped_because']}")
+    timing = stats.get("timing") or {}
+    if timing.get("choose_calls"):
+        print(
+            "trainer seconds: "
+            + ", ".join(f"{name} {timing[name]}" for name in ("choose", "idle", "gather", "receive", "send", "tail", "update"))
+            + f"; mean batch {timing['mean_batch']}, {timing['choose_ms_per_call']} ms per choice call"
+        )
+        for kind in ppo.WORKER_KINDS:
+            if kind in timing:
+                row = timing[kind]
+                print(
+                    f"{kind} workers: round trip {row['round_trip_ms']} ms = work {row['work_ms']} + transit "
+                    f"{row['transit_ms']}; queue in the trainer {row['queue_ms']} ms; {row['round_trips']} round trips"
+                )
     if stats.get("jump_start"):
         js = stats["jump_start"]
         print(f"jump start: the guide {js['guide']} plays {js['turns']} turns at the end, after {len(js['changes'])} changes in {js['games']} games")

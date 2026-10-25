@@ -61,6 +61,8 @@ def _remote_worker(address: Address, seed: int):
 def _same(a, b) -> None:
     assert a.legal == b.legal
     assert a.reward_delta == b.reward_delta and a.ended == b.ended and a.result == b.result
+    # The work time is the worker's own measure, so it differs; each one has it.
+    assert a.work_seconds > 0.0 and b.work_seconds > 0.0
     assert set(a.observation) == set(b.observation)
     for name in a.observation:
         assert a.observation[name].dtype == b.observation[name].dtype, name
@@ -109,6 +111,11 @@ def test_a_short_training_run_plays_on_the_farm(server, tmp_path: Path):
     )
     assert art.stats["steps"] == 128 and art.stats["updates"] == 2
     assert art.config["remote_workers"] == 2 and art.config["farm"] == [str(server)]
+    timing = art.stats["timing"]
+    assert timing["update"] > 0.0 and timing["choose_calls"] >= 1
+    remote = timing["remote"]
+    assert remote["round_trips"] > 0 and remote["work_ms"] > 0.0
+    assert remote["round_trip_ms"] == pytest.approx(remote["work_ms"] + remote["transit_ms"], abs=0.11)
 
 
 STOP_AFTER = 20
@@ -232,6 +239,17 @@ def test_the_wire_checks_an_array_and_a_command():
             envwire.check_command(command)
     with pytest.raises(p.FarmProtocolError):
         envwire.check_command(["reset", ["random"], 2, 1, None])
+
+
+def test_the_wire_carries_the_work_time_of_a_decision():
+    from slagents.learned.workers import Decision
+
+    decision = Decision({"board": np.zeros((2, 3), dtype=np.float32)}, [(1, 2, 3, 4)], 0.5, False, 0.0, 0.25)
+    message = envwire.encode_decision(decision)
+    assert envwire.decode_decision(message).work_seconds == 0.25
+    for bad in (None, "fast", float("nan"), True):
+        with pytest.raises(p.FarmProtocolError):
+            envwire.decode_decision({**message, "work_seconds": bad})
 
 
 def test_the_trainer_waits_on_more_pipes_than_one_windows_wait_takes():

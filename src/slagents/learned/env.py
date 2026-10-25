@@ -37,6 +37,14 @@ that boarded or debarked in the current phase. `choices` is that set, and the ma
 from it.
 `groups` stays the whole legal list, so a scripted agent, which reads the frame, plays the
 game it plays outside the environment, and `step` takes its command.
+
+The masks also leave out a move of a unit into a hex that the unit held in the phase, unless
+nothing else is legal. A net moved one squad eight times between two hexes in one phase,
+and no position repeated, because each step used a movement factor (2026-10-20). With the
+route actions of a net that has them (`routes.uses_routes`), a Movement Phase offers a
+destination for each unit and stack in place of its single steps. `routes` holds the route
+of each such key, and `step` plays the route as forced steps of the side, whose rewards
+accrue to the route decision (`slagents.learned.routes`).
 """
 
 from __future__ import annotations
@@ -47,10 +55,10 @@ import numpy as np
 from gymnasium import spaces as gym_spaces
 from pettingzoo import AECEnv
 
-from slagents.learned import encoding
+from slagents.learned import encoding, routes
 from slagents.learned.agent import RIDE_ACTIONS, WEAPON_ACTIONS
 from slagents.learned.encoding import position_key
-from slagents.learned.reward import RewardWeights, objective_progress, result_rewards, step_rewards, weights_for_scenario
+from slagents.learned.reward import Approach, RewardWeights, objective_progress, result_rewards, step_rewards, weights_for_scenario
 from slcore.engine import Engine
 from slcore.frame import DecisionFrame
 from slcore.game import State
@@ -61,6 +69,14 @@ MAX_COMMANDS = 20000
 WIN = 1.0
 LOSS = -1.0
 DRAW = 0.0
+
+
+# A worker plays thousands of games on one engine, and the line of sight table of the engine
+# keeps each pair of hexes that a game used. On three or four boards it becomes larger by
+# hundreds of MB with each game, so a reset clears it above this count, as the game workers
+# of the farm do (slcli.gauntlet.LOS_ENTRY_LIMIT, 2026-10-17). The table holds results that
+# read the board only, so a clear changes no game.
+LOS_ENTRY_LIMIT = 250_000
 
 
 class NoLegalCommand(RuntimeError):
@@ -83,6 +99,7 @@ class SquadLeaderEnv(AECEnv):
         max_commands: int = MAX_COMMANDS,
         weights: RewardWeights | tuple[RewardWeights, RewardWeights] | None = None,
         skip_forced: bool = True,
+        use_routes: bool | None = None,
     ) -> None:
         super().__init__()
         self.engine = engine
@@ -102,6 +119,21 @@ class SquadLeaderEnv(AECEnv):
         self.results: dict[str, float] = {}
         self.progress: tuple[int, int] = (0, 0)
         self.spaces_record = encoding.spaces_for(engine.board, len(engine.new_game(seed).units))
+        # The routes go with the spaces of the net; a caller can turn them off for a net that
+        # was trained without them.
+        self.use_routes = routes.uses_routes(self.spaces_record) if use_routes is None else bool(use_routes)
+        if not self.use_routes and routes.uses_routes(self.spaces_record):
+            self.spaces_record = encoding.Spaces(
+                units=self.spaces_record.units,
+                actions=encoding.ACTION_INDEX[routes.ROUTE],
+                targets=self.spaces_record.targets,
+                cols=self.spaces_record.cols,
+                rows=self.spaces_record.rows,
+                options=self.spaces_record.options,
+            )
+        self.memory = routes.PhaseMemory()
+        self.routes: dict[tuple[int, int, int, int], tuple[routes.Route, Any]] = {}
+        self._routing = False
         self.hexes = encoding.hex_slots(engine.board)
         self.objectives = encoding.objectives_for(engine)
         self.possible_agents = list(AGENT_NAMES)
@@ -153,6 +185,8 @@ class SquadLeaderEnv(AECEnv):
         self.truncations = {a: False for a in self.agents}
         self.infos: dict[str, dict[str, Any]] = {a: {} for a in self.agents}
         self.results = {a: 0.0 for a in self.agents}
+        if self.engine.los.entries() > LOS_ENTRY_LIMIT:
+            self.engine.los.clear()
         self.state_ = self.engine.new_game(self.seed_value)
         self.commands_applied = 0
         self.forced_applied = 0
@@ -162,7 +196,11 @@ class SquadLeaderEnv(AECEnv):
         self.handled = set()
         self.rode = set()
         self.handled_phase = None
+        self.memory.clear()
         self.progress = objective_progress(self.engine, self.state_)
+        # The approach potential and the near limit of cover (reward.Approach, 2026-10-20).
+        self.approach = Approach(self.engine, self.weights)
+        self.approach.start(self.state_)
         self._refresh()
         self._apply_forced()
 
@@ -203,6 +241,11 @@ class SquadLeaderEnv(AECEnv):
             key = (int(action[0]), int(action[1]), int(action[2]), int(action[3]))
         else:
             key = (int(action[0]), int(action[1]), int(action[2]), 0)
+        planned = self.routes.get(key)
+        if planned is not None:
+            self._apply_route(planned[0], planned[1], self.player_of(agent))
+            self._apply_forced()
+            return
         legal = self.groups.get(key)
         if legal is None:
             raise ValueError(f"the command {key} is not legal in this state; read the masks")
@@ -257,6 +300,26 @@ class SquadLeaderEnv(AECEnv):
         self._rewards_and_ends(before, events, acted, repeated)
         self._refresh()
 
+    def _apply_route(self, route: routes.Route, first: Any, acted: int) -> None:
+        """A route: its first step, then each next step that the frame offers to the same side.
+
+        The steps need the frame and not the choices, so the route table, which costs a
+        path search for each unit, is made once at the end of the route and not at each step.
+        """
+        self._routing = True
+        try:
+            self._apply(first, acted)
+            done = 1
+            while not self._ended() and self.frame is not None and self.frame.player == acted:
+                legal = routes.next_step(route, done, self._state(), self.frame)
+                if legal is None:
+                    break
+                self._apply(legal, acted)
+                done += 1
+        finally:
+            self._routing = False
+        self._refresh_choices()
+
     def _apply_forced(self) -> None:
         """Apply each frame that holds one legal command, until a frame holds a choice.
 
@@ -277,12 +340,21 @@ class SquadLeaderEnv(AECEnv):
         state = self._state()
         self.frame = self.engine.legal_commands(state)
         self.groups = encoding.group_commands(self.frame, self.hexes)
-        self.choices = self._without_weapons_handled(state)
+        self.memory.update(state, self.frame.player)
+        self._refresh_choices()
         self.agent_selection = self.agent_of(self.frame.player)
         if state.game_over:
             return
         if not self.frame.commands:
             raise NoLegalCommand(f"no legal command in {state.phase}/{self.frame.sub_step}")
+
+    def _refresh_choices(self) -> None:
+        """The choices of the current frame: no second handling, no return, and the routes."""
+        state = self._state()
+        choices = routes.without_returns(self._without_weapons_handled(state), self.memory)
+        build = self.use_routes and not self._routing and not state.game_over
+        self.routes = routes.route_table(self.engine, state, self.frame, self.hexes, self.memory) if build else {}
+        self.choices = routes.with_routes(choices, self.routes) if self.routes else choices
 
     def _without_weapons_handled(self, state: State) -> dict[tuple[int, int, int, int], Any]:
         """`groups` with no second pickup or drop of a weapon and no second board or debark
@@ -299,7 +371,7 @@ class SquadLeaderEnv(AECEnv):
 
     def _rewards_and_ends(self, before: State, events: list, acted: int, repeated: bool = False) -> None:
         state = self._state()
-        shaped, self.progress = step_rewards(self.engine, before, state, events, acted, self.weights, self.progress)
+        shaped, self.progress = step_rewards(self.engine, before, state, events, acted, self.weights, self.progress, self.approach)
         self.rewards = {self.agent_of(0): shaped[0], self.agent_of(1): shaped[1]}
         over = state.game_over
         long = self.commands_applied >= self.max_commands
@@ -351,7 +423,8 @@ def make_env(
     max_commands: int = MAX_COMMANDS,
     weights: RewardWeights | tuple[RewardWeights, RewardWeights] | None = None,
     skip_forced: bool = True,
+    use_routes: bool | None = None,
 ) -> SquadLeaderEnv:
-    env = SquadLeaderEnv(engine, seed=seed, max_commands=max_commands, weights=weights, skip_forced=skip_forced)
+    env = SquadLeaderEnv(engine, seed=seed, max_commands=max_commands, weights=weights, skip_forced=skip_forced, use_routes=use_routes)
     env.reset(seed=seed)
     return env

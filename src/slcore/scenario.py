@@ -191,11 +191,19 @@ def zone_filter(board: Board, params: Mapping[str, Any]):
 
 
 def resolve_columns(board: Board, params: Mapping[str, Any]) -> tuple[HexRef, ...]:
-    """A band of columns, which is how a card names a whole board or a part of one."""
+    """A band of columns, which is how a card names a whole board or a part of one.
+
+    `min_row` and `max_row` cut the band to rows too. A scenario on boards stacked from
+    north to south gives each board its own rows this way (the library, 2026-10-16).
+    """
     low = int(params.get("min_col", 0))
     high = int(params.get("max_col", board.cols - 1))
+    low_row = int(params.get("min_row", 0))
+    high_row = int(params.get("max_row", board.rows + 1))
     keep = zone_filter(board, params)
-    return tuple(sorted(ref for ref in board.order if low <= ref[0] <= high and keep(ref)))
+    return tuple(
+        sorted(ref for ref in board.order if low <= ref[0] <= high and low_row <= ref[1] <= high_row and keep(ref))
+    )
 
 
 def resolve_edge(board: Board, params: Mapping[str, Any]) -> tuple[HexRef, ...]:
@@ -233,7 +241,7 @@ def resolve_zone(board: Board, zone: str, params: Mapping[str, Any]) -> tuple[He
     Three zones, which are the set up areas that RV-2 section 6 reads off the cards:
 
     - `stone_building`: one building of a column band, by rank.
-    - `columns`: each hex of a column band, with an optional terrain test.
+    - `columns`: each hex of a column band, with an optional row band and terrain test.
     - `edge`: each hex within a depth of one named edge, with the same test.
 
     The parameters of `stone_building`:

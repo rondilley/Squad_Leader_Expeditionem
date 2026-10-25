@@ -52,7 +52,9 @@ def window():
 
 def test_push_out_is_the_last_action_of_the_encoding(window):
     engine, _state, frame = window
-    assert encoding.ACTIONS[-1] == "push_out"
+    # The route actions of the learned agent (2026-10-20) come after it. They are not
+    # commands of the core, so push_out is the last action of a core command.
+    assert encoding.ACTIONS[-3:] == ("push_out", "route", "stack_route")
     hexes = encoding.hex_slots(engine.board)
     for lc in frame.commands:
         _unit, action, _target = encoding.command_triple(lc.command, hexes)

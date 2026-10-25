@@ -23,7 +23,7 @@ parameter record in a run artifact builds it again.
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Mapping, Sequence
 
 from slboards import edges, polygons
@@ -57,33 +57,44 @@ VILLAGE_RADIUS = 6
 # Rule 7.4 makes a building of three hexes or more a multi-story building, and a wooden
 # building on the printed boards is a small one.
 WOODEN_MAX = 2
+# PR-56: an orchard is a row of trees along a road, of three to five hexes, as on the
+# printed village board. The orchard pass has a random state of its own, so a board with
+# no orchard takes the same draws as before the pass existed.
+ORCHARD = "orchard"
+ORCHARD_SALT = 0x0C4A
+ORCHARD_LENGTHS = (3, 4, 5)
+ORCHARD_ATTEMPTS = 60
+# PR-57: the building kind of each landmark.
+LANDMARK_KINDS = {"mill": "stone_building", "windmill": "wooden_building"}
 
 # FR-26. `buildings` is a divisor, so a larger number gives fewer buildings. `woods`,
 # `grain`, and `shellholes` are the weights the fill pass gives those tiles. `hills` is
 # how many hill masses the structure pass raises and `hill_levels` is the top level of
 # each. `walls` and `hedges` are how many hexside features the board gets. `roads` is how
-# many of the three interior road columns carry a road.
+# many of the three interior road columns carry a road. `orchards` is how many orchards
+# the orchard pass sets along the roads (PR-56). Its default is 0 on each board type, so
+# each board that a scenario names already is the board it was (2026-10-17).
 STYLE_KEYS = (
     "buildings", "wooden", "woods", "grain", "shellholes",
-    "hills", "hill_levels", "walls", "hedges", "roads", "cliffs",
+    "hills", "hill_levels", "walls", "hedges", "roads", "cliffs", "orchards",
 )
 
 STYLE_DEFAULTS: dict[str, dict[str, int]] = {
     TYPE_CITY: {
         "cliffs": 0, "wooden": 0, "buildings": 3, "woods": 12, "grain": 4, "shellholes": 16,
-        "hills": 0, "hill_levels": 0, "walls": 0, "hedges": 0, "roads": 3,
+        "hills": 0, "hill_levels": 0, "walls": 0, "hedges": 0, "roads": 3, "orchards": 0,
     },
     TYPE_HILLS: {
         "cliffs": 4, "wooden": 45, "buildings": 14, "woods": 30, "grain": 8, "shellholes": 4,
-        "hills": 2, "hill_levels": 3, "walls": 0, "hedges": 6, "roads": 1,
+        "hills": 2, "hill_levels": 3, "walls": 0, "hedges": 6, "roads": 1, "orchards": 0,
     },
     TYPE_VILLAGE: {
         "cliffs": 0, "wooden": 35, "buildings": 5, "woods": 20, "grain": 14, "shellholes": 5,
-        "hills": 1, "hill_levels": 1, "walls": 10, "hedges": 8, "roads": 2,
+        "hills": 1, "hill_levels": 1, "walls": 10, "hedges": 8, "roads": 2, "orchards": 0,
     },
     TYPE_RURAL: {
         "cliffs": 2, "wooden": 55, "buildings": 16, "woods": 18, "grain": 40, "shellholes": 3,
-        "hills": 1, "hill_levels": 2, "walls": 2, "hedges": 18, "roads": 2,
+        "hills": 1, "hill_levels": 2, "walls": 2, "hedges": 18, "roads": 2, "orchards": 0,
     },
 }
 
@@ -187,6 +198,40 @@ class ZoneConstraint:
 
 
 @dataclass(frozen=True)
+class Landmark:
+    """A mill or a windmill on one building of a band (PR-57).
+
+    The building is the one of that kind at `rank` in the band, sorted by hex count from
+    the largest and then from the west: the order a `stone_building` set up area uses. So
+    a landmark of rank 0 in the band of a set up area of rank 0 is the building that area
+    holds, and the card can name it.
+    """
+
+    kind: str
+    rank: int = 0
+    min_col: int | None = None
+    max_col: int | None = None
+    min_row: int | None = None
+    max_row: int | None = None
+
+    def band(self) -> dict[str, int]:
+        keys = ("min_col", "max_col", "min_row", "max_row")
+        return {k: getattr(self, k) for k in keys if getattr(self, k) is not None}
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"kind": self.kind, "rank": self.rank, **self.band()}
+
+    @staticmethod
+    def from_dict(d: Mapping[str, Any]) -> "Landmark":
+        kind = str(d["kind"])
+        if kind not in LANDMARK_KINDS:
+            raise GeneratorError(f"{kind!r} is not a landmark; the landmarks are {tuple(LANDMARK_KINDS)}")
+        keys = ("min_col", "max_col", "min_row", "max_row")
+        band = {k: int(d[k]) for k in keys if d.get(k) is not None}
+        return Landmark(kind, int(d.get("rank", 0)), **band)
+
+
+@dataclass(frozen=True)
 class GeneratorParameters:
     """The record that a run artifact stores, so that a board can be built again."""
 
@@ -198,6 +243,7 @@ class GeneratorParameters:
     building_density: int | None = None
     style: tuple[tuple[str, int], ...] = field(default_factory=tuple)
     zones: tuple[ZoneConstraint, ...] = field(default_factory=tuple)
+    landmarks: tuple[Landmark, ...] = field(default_factory=tuple)
 
     def styles(self) -> dict[str, int]:
         """The style of this board: the default of its type, with the overrides on top.
@@ -226,6 +272,8 @@ class GeneratorParameters:
         }
         if self.building_density is not None:
             doc["building_density"] = self.building_density
+        if self.landmarks:
+            doc["landmarks"] = [m.to_dict() for m in self.landmarks]
         return doc
 
     @staticmethod
@@ -240,6 +288,7 @@ class GeneratorParameters:
             building_density=None if density is None else int(density),
             style=tuple(sorted((str(k), int(v)) for k, v in dict(d.get("style", {})).items())),
             zones=tuple(ZoneConstraint.from_dict(z) for z in d.get("zones", [])),
+            landmarks=tuple(Landmark.from_dict(m) for m in d.get("landmarks", [])),
         )
 
 
@@ -608,6 +657,86 @@ def polygon_pass(
         rng, index = choice_index(rng, len(polygons.SHAPES))
         out[ref] = polygons.polygons_for(ref[0], ref[1], kind, terrain, index)
     return rng, out
+
+
+def orchard_pass(
+    kinds: dict[HexRef, str],
+    roads: set[HexRef],
+    shapes: dict[HexRef, tuple],
+    params: GeneratorParameters,
+    terrain: Mapping[str, TerrainType],
+) -> None:
+    """PR-56: the orchards of the style, each a row of open hexes beside a road.
+
+    The pass runs after the polygon pass and draws from a random state of its own, so the
+    hexes that are not in an orchard are the hexes of the board with no orchard. An orchard
+    hex fills its hex, as a wheatfield does (rule 44.2).
+    """
+    wanted = params.styles().get("orchards", 0)
+    if wanted <= 0:
+        return
+    if ORCHARD not in terrain:
+        raise GeneratorError("the terrain table has no orchard row (PR-56)")
+    rng = seed_state(params.seed ^ ORCHARD_SALT)
+
+    def free(ref: HexRef) -> bool:
+        return (
+            kinds.get(ref) == tile_rules.OPEN
+            and ref not in roads
+            and not on_the_rim(ref, params.cols, params.rows)
+        )
+
+    starts = sorted(ref for ref in kinds if free(ref) and any(n in roads for n in geometry.neighbors(*ref)))
+    placed = 0
+    for _ in range(ORCHARD_ATTEMPTS):
+        if placed == wanted or not starts:
+            break
+        rng, i = choice_index(rng, len(starts))
+        rng, direction = choice_index(rng, 6)
+        rng, j = choice_index(rng, len(ORCHARD_LENGTHS))
+        row = [starts[i]]
+        while len(row) < ORCHARD_LENGTHS[j]:
+            nxt = geometry.neighbor(*row[-1], direction)
+            if nxt not in kinds or not free(nxt):
+                break
+            row.append(nxt)
+        if len(row) < ORCHARD_LENGTHS[0]:
+            continue
+        for ref in row:
+            kinds[ref] = ORCHARD
+            shapes[ref] = (polygons.polygon_at(ref[0], ref[1], ORCHARD, 0),)
+        starts = [ref for ref in starts if kinds[ref] == tile_rules.OPEN]
+        placed += 1
+    if placed < wanted:
+        raise GeneratorError(f"the board has room for {placed} orchards beside its roads, and the style asks for {wanted}")
+
+
+def landmark_pass(hexes: list[Hex], params: GeneratorParameters) -> list[Hex]:
+    """PR-57: put each landmark of the parameters on its building. No rule changes."""
+    if not params.landmarks:
+        return hexes
+    out = list(hexes)
+    for mark in params.landmarks:
+        kind = LANDMARK_KINDS[mark.kind]
+        groups: dict[str, list[HexRef]] = {}
+        for h in out:
+            if h.building is not None and h.terrain == kind:
+                groups.setdefault(h.building.id, []).append(h.ref)
+        band = [(name, sorted(refs)) for name, refs in groups.items() if scenario.in_band(sorted(refs), mark.band())]
+        band.sort(key=lambda item: (-len(item[1]), item[1][0]))
+        if mark.rank >= len(band):
+            raise GeneratorError(
+                f"the board has {len(band)} buildings of the kind {kind} {scenario.band_text(mark.band())}, "
+                f"and the {mark.kind} asks for rank {mark.rank}"
+            )
+        name = band[mark.rank][0]
+        out = [
+            replace(h, building=replace(h.building, landmark=mark.kind))
+            if h.building is not None and h.building.id == name
+            else h
+            for h in out
+        ]
+    return out
 
 
 # ------------------------------------------------------------------- buildings
@@ -1175,6 +1304,7 @@ def generate(params: GeneratorParameters, terrain: Mapping[str, TerrainType]) ->
     for ref, building in buildings.items():
         kinds[ref] = tile_rules.WOODEN if building.kind == "wooden" else tile_rules.STONE
     rng, shapes = polygon_pass(rng, kinds, terrain)
+    orchard_pass(kinds, roads, shapes, params, terrain)
     # Rule 27 is a city rule, and the printed sewer entrances are on the city board, so a
     # country board has none. A scenario that asks for a sewer move on one gets no move.
     sewers = sewer_pass(building_shapes(buildings)) if params.board_type == TYPE_CITY else set()
@@ -1197,6 +1327,7 @@ def generate(params: GeneratorParameters, terrain: Mapping[str, TerrainType]) ->
         )
         for ref in all_refs(params.cols, params.rows)
     ]
+    hexes = landmark_pass(hexes, params)
     name = f"{params.board_type}-{params.seed}-v{params.version}"
     return Board(params.cols, params.rows, hexes, terrain, name=name)
 
@@ -1220,6 +1351,7 @@ def generate_with_retry(
             building_density=params.building_density,
             style=params.style,
             zones=params.zones,
+            landmarks=params.landmarks,
         )
         try:
             return generate(attempt, terrain), attempt

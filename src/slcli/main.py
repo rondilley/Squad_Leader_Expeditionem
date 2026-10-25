@@ -17,6 +17,7 @@ from slcli import (
     gates,
     gauntlet,
     host_cmd,
+    library_cmd,
     play,
     runs_cmd,
     shape_cmd,
@@ -78,6 +79,7 @@ from slfarm.protocol import FarmError
 from slruns.artifact import ArtifactError
 from slruns.index import IndexError_
 from sldata.loaders import DataError
+from slcampaign.generator import ScenarioError
 
 
 class ExtraNotInstalled(Exception):
@@ -118,6 +120,7 @@ def build_parser() -> argparse.ArgumentParser:
     agents_cmd.add_parser(sub)
     traces_cmd.add_parser(sub)
     campaign_cmd.add_parser(sub)
+    library_cmd.add_parser(sub)
     window_cmd.add_parser(sub)
     window3d_cmd.add_parser(sub)
     if train_cmd is not None:
@@ -167,7 +170,7 @@ def main(argv: list[str] | None = None) -> int:
     except FarmError as exc:
         print(f"ERROR farm: {exc}", file=sys.stderr)
         return 5
-    except (RuntimeError, ValueError, NotImplementedError) as exc:
+    except (RuntimeError, ValueError, NotImplementedError, ScenarioError) as exc:
         print(f"ERROR {exc}", file=sys.stderr)
         return 1
 

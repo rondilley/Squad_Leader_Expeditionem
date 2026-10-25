@@ -27,6 +27,12 @@
    "los": "hinder",
    "note": "Wheatfield 0, 1 MF. Rule 44.21: a unit sees into a wheatfield hex and not through it. Fire that goes through one is half strength as Area Fire, and a height advantage takes that away. Rule 44.23 keeps the minus two of rule 16.5 off a unit that moved in one. Rule 44.24 makes the crop seasonal, and out of season the hex is open ground."
   },
+  "orchard": {
+   "tem": 0,
+   "mf_halves": 2,
+   "los": "hinder",
+   "note": "PR-56: an orchard has the effects of a wheatfield of rule 44.2 in each season. 0, 1 MF. A unit sees into it and not through it, fire through it is half strength, and a height advantage takes that away."
+  },
   "woods": {
    "tem": 1,
    "mf_halves": 4,

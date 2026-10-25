@@ -92,6 +92,11 @@ ACTIONS: tuple[str, ...] = (
     # Rule 35.8: the push out of an overrun, after the Defensive Fire Phase. It is last, so
     # each index before it keeps its meaning.
     "push_out",
+    # The routes of the learned agent (`slagents.learned.routes`, 2026-10-20). They are not
+    # commands of the core: the agent plays each one as single steps. A snapshot with fewer
+    # actions than these has no routes.
+    "route",
+    "stack_route",
 )
 ACTION_INDEX = {name: i for i, name in enumerate(ACTIONS)}
 
@@ -103,6 +108,9 @@ TERRAIN_KINDS: tuple[str, ...] = (
     "stone_building",
     "wooden_building",
 )
+# PR-56: an orchard has the rules of a wheatfield, so it takes the wheat plane, and a net
+# that was trained before the orchard keeps the shape of its input (2026-10-17).
+TERRAIN_PLANE_OF: dict[str, str] = {"orchard": "wheat"}
 KIND_ORDER: tuple[str, ...] = (KIND_SQUAD, KIND_CREW, KIND_LEADER, KIND_SW, KIND_VEHICLE)
 
 # Four planes of terrain features, six of units, four of counters (rules 24 and 25), one
@@ -300,7 +308,7 @@ def _terrain_planes(board: Board, spaces: Spaces) -> np.ndarray:
         base = len(TERRAIN_KINDS)
         for h in board:
             col, row = h.ref
-            index = kinds.get(h.terrain)
+            index = kinds.get(TERRAIN_PLANE_OF.get(h.terrain, h.terrain))
             if index is not None:
                 planes[index, col, row] = 1.0
             planes[base + 0, col, row] = 1.0 if h.road else 0.0

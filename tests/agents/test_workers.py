@@ -77,6 +77,44 @@ def test_a_pool_collects_the_steps_of_each_worker_with_their_rewards_and_ends():
         assert adv.shape == (20,) and np.all(np.isfinite(adv))
 
 
+def test_the_timers_of_a_collection_split_each_round_trip_into_its_parts():
+    torch.manual_seed(0)
+    engine = build_engine(SCENARIO)
+    env = make_env(engine, seed=3)
+    policy = Policy(env.spaces_record, SMALL)
+    generator = torch.Generator().manual_seed(0)
+    league = build_league(engine, 3)
+    seeds = iter(range(100, 200))
+    timing = ppo.CollectTiming()
+    with WorkerPool(SCENARIO, 2, 3, 40, env.spaces_record) as pool:
+        rollout = ppo.collect_parallel(
+            pool, policy, 60, generator,
+            lambda: (member_spec(league.members[0]), league.members[0].name),
+            lambda: next(seeds), None, timing=timing,
+        )
+        assert timing.decisions == len(rollout) == 60
+        assert 1 <= timing.choose_calls <= 60 and timing.choose > 0.0
+        # Each command of the collection came back: the 60 choices and the game starts.
+        assert timing.round_trips["local"] >= 60 and timing.round_trips["remote"] == 0
+        assert 0.0 < timing.work["local"] <= timing.round_trip["local"]
+        assert timing.queued["local"] >= 58, "a decision read in this collection waited for its choice"
+        before = timing.copy()
+        ppo.collect_parallel(
+            pool, policy, 20, generator,
+            lambda: (member_spec(league.members[0]), league.members[0].name),
+            lambda: next(seeds), None, timing=timing,
+        )
+    part = timing.since(before)
+    assert part.decisions == 20 and timing.decisions == 80
+    assert part.round_trips["local"] == timing.round_trips["local"] - before.round_trips["local"]
+    summary = timing.summary()
+    assert summary["mean_batch"] == round(80 / timing.choose_calls, 2)
+    assert "remote" not in summary
+    local = summary["local"]
+    assert local["round_trips"] == timing.round_trips["local"]
+    assert local["transit_ms"] == round(1000 * (timing.round_trip["local"] - timing.work["local"]) / local["round_trips"], 1)
+
+
 def test_the_advantage_runs_along_each_worker_s_own_steps():
     """Interleaved steps of two workers give the same estimate as the two sequences apart."""
     config = ppo.PpoConfig(gae_lambda=1.0, discount=1.0)

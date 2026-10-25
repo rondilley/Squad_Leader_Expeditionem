@@ -205,7 +205,8 @@ def rural_halves(
             )
             if after != halves:
                 halves = after
-                modifiers.append(r44_rural.RULE_44_21)
+                crop = r44_rural.crop_hexes(ctx.board, traced, in_season)
+                modifiers.extend(r44_rural.crop_rules(ctx.board, crop))
             if r08_fire.RULE_9_1 in modifiers:
                 point_blank = r44_rural.point_blank_halves(ctx.board, firer, group.target)
                 if point_blank != r44_rural.POINT_BLANK_HALVES:

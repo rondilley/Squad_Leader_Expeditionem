@@ -290,6 +290,10 @@ def _group_label(group: dict[str, Any]) -> str:
         rank = area.get("rank")
         ordinals = {0: "largest", 1: "second largest", 2: "third largest", 3: "fourth largest", 4: "fifth largest"}
         size = "a" if rank is None else "the " + ordinals.get(rank, str(rank) + "th")
+        # The rank is a rank in the band, so the card names the band: two sides that each
+        # hold "the largest stone building" hold two buildings (2026-10-17).
+        if any(area.get(k) is not None for k in ("min_col", "max_col", "min_row", "max_row")):
+            return f"In {size} stone building {band_text(area)}"
         return f"In {size} stone building"
     if zone == "edge":
         text = f"Within {int(area.get('depth', 1))} hexes of the {area.get('side', 'west')} edge"

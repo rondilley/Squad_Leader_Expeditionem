@@ -434,6 +434,9 @@ def board_document(board: Any) -> dict[str, Any]:
             item["elevation"] = h.elevation
         if h.building is not None:
             item["building"] = {"id": h.building.id, "size": h.building.size, "kind": h.building.kind}
+            if h.building.landmark is not None:
+                # PR-57: a mill or a windmill. The drawings read it, and no rule does.
+                item["building"]["landmark"] = h.building.landmark
         sides = {str(d): f for d, f in enumerate(h.hexsides) if f is not None}
         if sides:
             item["hexsides"] = sides

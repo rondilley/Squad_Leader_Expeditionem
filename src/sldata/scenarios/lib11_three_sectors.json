@@ -1,0 +1,345 @@
+{
+ "id": "lib11_three_sectors",
+ "title": "Three Sectors",
+ "board": "city",
+ "board_composition": {
+  "side": "south",
+  "boards": [
+   {
+    "seed": 30,
+    "board_type": "city",
+    "cols": 33,
+    "rows": 10,
+    "zones": [
+     {
+      "count": 1,
+      "min_hexes": 2,
+      "max_hexes": 6,
+      "min_col": 20,
+      "max_col": 30
+     }
+    ]
+   },
+   {
+    "seed": 31,
+    "board_type": "village",
+    "cols": 33,
+    "rows": 10,
+    "zones": [
+     {
+      "count": 1,
+      "min_hexes": 2,
+      "max_hexes": 6,
+      "min_col": 20,
+      "max_col": 30
+     }
+    ]
+   },
+   {
+    "seed": 32,
+    "board_type": "hills",
+    "cols": 33,
+    "rows": 10,
+    "zones": [
+     {
+      "count": 1,
+      "min_hexes": 2,
+      "max_hexes": 6,
+      "min_col": 20,
+      "max_col": 30
+     }
+    ]
+   }
+  ]
+ },
+ "board_retries": 48,
+ "turns": 10,
+ "first_mover": "allied",
+ "setup_order": [
+  "axis",
+  "allied"
+ ],
+ "rules_used": [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "11",
+  "12",
+  "13",
+  "14",
+  "15",
+  "16",
+  "17",
+  "18",
+  "19",
+  "20",
+  "21",
+  "22",
+  "23",
+  "24",
+  "25",
+  "26",
+  "27",
+  "28",
+  "29",
+  "30",
+  "31",
+  "32",
+  "33",
+  "34",
+  "35",
+  "36",
+  "37",
+  "38",
+  "39",
+  "40",
+  "41",
+  "42",
+  "43",
+  "44"
+ ],
+ "switches": {
+  "predesignation": "basic",
+  "semi_simultaneous": "off"
+ },
+ "smoke_counters": {
+  "allied": 4
+ },
+ "concealment_counters": {
+  "allied": 5,
+  "axis": 8
+ },
+ "hidden_placement": {
+  "side": "axis",
+  "note": "Rule 42: the defender sets up hidden."
+ },
+ "sides": [
+  {
+   "side": "allied",
+   "nationality": "american",
+   "groups": [
+    {
+     "id": "a_line1",
+     "area": {
+      "zone": "columns",
+      "min_col": 2,
+      "max_col": 8,
+      "min_row": 0,
+      "max_row": 10
+     },
+     "units": [
+      {
+       "type": "10-2"
+      },
+      {
+       "type": "6-6-6"
+      },
+      {
+       "type": "8-4-7",
+       "count": 2
+      },
+      {
+       "type": "DC"
+      },
+      {
+       "type": "MMG"
+      }
+     ],
+     "objective": true
+    },
+    {
+     "id": "a_line2",
+     "area": {
+      "zone": "columns",
+      "min_col": 2,
+      "max_col": 8,
+      "min_row": 11,
+      "max_row": 20
+     },
+     "units": [
+      {
+       "type": "10-2"
+      },
+      {
+       "type": "6-6-6"
+      },
+      {
+       "type": "8-4-7",
+       "count": 2
+      },
+      {
+       "type": "DC"
+      }
+     ],
+     "objective": false
+    },
+    {
+     "id": "a_line3",
+     "area": {
+      "zone": "columns",
+      "min_col": 2,
+      "max_col": 8,
+      "min_row": 21,
+      "max_row": 30
+     },
+     "units": [
+      {
+       "type": "6-6-6"
+      },
+      {
+       "type": "8-0"
+      },
+      {
+       "type": "8-4-7"
+      },
+      {
+       "type": "MMG"
+      }
+     ],
+     "objective": false
+    },
+    {
+     "id": "a_armor",
+     "area": {
+      "zone": "columns",
+      "min_col": 0,
+      "max_col": 1,
+      "min_row": 0,
+      "max_row": 30,
+      "not_terrain": [
+       "stone_building",
+       "wooden_building",
+       "woods"
+      ]
+     },
+     "units": [
+      {
+       "type": "M10",
+       "count": 2
+      },
+      {
+       "type": "M4A4"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "side": "axis",
+   "nationality": "german",
+   "groups": [
+    {
+     "id": "d_hold1",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 20,
+      "max_col": 30,
+      "min_row": 0,
+      "max_row": 10,
+      "rank": 0,
+      "min_hexes": 2
+     },
+     "units": [
+      {
+       "type": "7-0"
+      },
+      {
+       "type": "8-3-8",
+       "count": 2
+      },
+      {
+       "type": "MMG"
+      }
+     ]
+    },
+    {
+     "id": "d_hold2",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 20,
+      "max_col": 30,
+      "min_row": 11,
+      "max_row": 20,
+      "rank": 0,
+      "min_hexes": 2
+     },
+     "units": [
+      {
+       "type": "8-1"
+      },
+      {
+       "type": "8-3-8",
+       "count": 2
+      }
+     ]
+    },
+    {
+     "id": "d_hold3",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 20,
+      "max_col": 30,
+      "min_row": 21,
+      "max_row": 30,
+      "rank": 0,
+      "min_hexes": 2
+     },
+     "units": [
+      {
+       "type": "8-3-8"
+      },
+      {
+       "type": "9-1"
+      }
+     ]
+    },
+    {
+     "id": "d_armor",
+     "area": {
+      "zone": "columns",
+      "min_col": 31,
+      "max_col": 32,
+      "min_row": 0,
+      "max_row": 30,
+      "not_terrain": [
+       "stone_building",
+       "wooden_building",
+       "woods"
+      ]
+     },
+     "units": [
+      {
+       "type": "STGIII75",
+       "count": 2
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "victory": [
+  {
+   "kind": "hex_control",
+   "side": "allied",
+   "groups": [
+    "d_hold1",
+    "d_hold2",
+    "d_hold3"
+   ],
+   "count": 2,
+   "note": "The Americans win if they end the game in control of 2 hexes of the 3 largest stone buildings in columns U to EE, one on each board. Otherwise the Germans win."
+  }
+ ],
+ "situation": "A town, a village, and a range of hills on one front, from north to south. The Americans attack with 8 squads under 3 leaders, 4 support weapons, and 3 armored vehicles. The Germans hold with 5 squads under 3 leaders, 1 support weapon, and 2 armored vehicles. The Americans win if they end the game in control of 2 hexes of the 3 largest stone buildings in columns U to EE, one on each board. Otherwise the Germans win. Each German unit that sets up in a woods hex or a building hex is hidden, and the other units set up in full view. A vehicle hides only in woods or in a wooden building. A hidden unit comes on the board when it moves, fires, or makes smoke, when an attack on its hex has an effect, when an enemy enters its hex, or when an enemy is next to it at the end of a Defensive Fire Phase or an Advance Phase. The Americans move first. 10 turns.",
+ "notes": "A project scenario of the library, slot L11 (owner directive, 2026-10-16), not a printed scenario. `sl-cli library` made it from draw seed 5 and board seed 3. The rule level is 44. The defending force is 717 points and the attacking force is 1194 points on the scale of slcampaign.points, a share of 5 to 3. No part of it is card text (SR-07). Balance (gate item 4, 2026-10-17): v7 against v7 gave the American attacker 776 of 1,600 games (48.5 percent), artifact runs/20261018T003753Z-library-l11-s1-10. Gate item 3: v3, v6, and v7 played it to the end on the two sides. The card agrees with the scenario, so it went into the library with no review step (owner, 2026-10-17)."
+}

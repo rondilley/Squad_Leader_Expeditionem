@@ -4,6 +4,484 @@ The session log, newest entry first. This file gives the next session, human or 
 
 ---
 
+## 2026-10-21 - L03, L04, and L05 of gate item 5 with the routes, and the Prep Fire fault of the clones
+
+The chain `runs/chain_20261020b_gate5_L03_L12` stopped at 17:05Z on 2026-10-20 for a workstation reboot, in L03 chunk 2. `resume.sh` started it again at 20:11Z. The farm ping gave the code hash of this tree on the four hosts. L03 chunk 2 started from the chunk 1 net, and the chain continues with L04 to L12.
+
+- Chunk 1 was the training of player 0 (the German attacker) against v6 and v3. Chunk 2 was the training of player 0 against v6, v3, and v7. Chunk 3 was the training of the two sides. Each chunk was 10M steps: 7,369 s, 7,816 s, and 8,451 s.
+- The v7 gate (100 games on each side):
+
+| Chunk | As the German attacker | As the Russian defender |
+|---|---|---|
+| 1 | 37 of 100 | 55 of 100 |
+| 2 | 34 of 100 | 98 of 100 |
+| 3 | 41 of 100 | 100 of 100 |
+
+- Chunk 2 was the training of the attacker only, but the defence wins increased and the attack wins did not. The cause is not known.
+- The gauntlet of chunk 3 (`runs/gate5r/L03/c3/snapshots/snapshot-10000000.pt`, 40 games against each panel agent, with `--mirror`) gave 78.1 percent, Elo 1725, rank 1 of 5. The ranks: the net 1725, v7 1618, v6 1598, v3 1328, v5 1231. This is the first library slot where a learned net is above v7.
+- As the attacker the net won 15 of 20 against v3, 19 against v5, 19 against v6, and 8 against v7. The other panel agents won 21, 34, 20, and 6 of 60. v7 against itself won 17 of 40 as the attacker.
+- As the defender the net won 20, 20, 4, and 20 of 20. Against v6 the net won 4 of 20 as the defender, and the other panel agents won 17 of 60.
+- The artifact is `runs/20261021T010048Z-gauntlet-learned-runs-gate5r-l03-c3-snapshots-snapshot-10000000-pt`.
+- L04 (`lib04_mill_road`, the first slot with armor). The evolution and the imitation took 17.5 minutes. The three chunks took 7,599 s, 7,403 s, and 8,153 s. The v7 gate, attack and defence of 100 each: 9 and 41, 22 and 41, 13 and 52.
+- The gauntlet of the L04 chunk 3 net (`runs/gate5r/L04/c3/snapshots/snapshot-10000000.pt`) gave 65.0 percent, Elo 1659, rank 3 of 5. The ranks: v7 1862, v6 1694, the net 1659, v5 1146, v3 1138.
+- As the attacker the L04 net won 19 of 20 against v3, 16 against v5, 14 against v6, and 2 against v7. As the defender it won 20, 20, 3, and 10 of 20. v7 against itself won 18 of 40 as the attacker.
+- L05 started at 08:25Z with the evolution of v7.
+- The check of L05 (2026-10-21, no change in `src/`) used 4 games against v7 with the net as the attacker. In each game the L05 chunk 2 net made 16.5 infantry group fires and 6.5 tank fires in the Prep Fire Phase. The teacher made 1.2 and 2.0. A unit that fires in that phase does not move. Thus the net made 44 unit moves and 0 vehicle moves in each game, and the teacher made 117 and 25.5.
+- The L05 imitation net also made 0 vehicle moves. On L04 the nets move their tanks more than v7 does. On L05 the choices of the environment have each vehicle move of the frame.
+- The first Prep Fire frame of each turn, with the teacher as player 0 on seeds 1 to 4: the teacher stopped the phase in 19 of 28 frames. In those 19 frames the L05 clone gave 0.25 of its probability to the end of the phase. The action-first rule selected a fire in 19 of 19. The c2 net gave 0.24, the same as the clone.
+- The L03 clone has the same fault with smoke. The teacher stopped the phase in 19 of 22 first frames, and the clone selected `place_smoke` in 18 of those 19. The L04 clone stopped the phase in 30 of 32, and the L04 teacher fired in no first frame.
+- The cause is not sure. Each side has one first Prep Fire frame in each turn, and a game has hundreds of decisions. Thus these rows are a small part of the data. The fit kept epoch 4 of 20. The PPO chunks use `--anchor-kl 0.5`, which holds the net near its start net, and the c2 net did not change these probabilities.
+- The L05 v7 gate after chunks 1, 2, and 3, attack and defence of 100 each: 0 and 6, 0 and 7, 0 and 3. The best chunk is chunk 2.
+- The gauntlet of the L05 chunk 2 net gave 52.5 percent, Elo 1526, rank 3 of 5. The ranks: v7 2374, v6 1933, the net 1526, v5 840, v3 827. Against v7 it won 1 of 40.
+- The chain loop stopped after L05. L06 to L12 wait for `resume_l06.sh`.
+- The chain continued at 19:49Z with `resume_l06.sh`.
+- The L06 v7 gate after chunks 1, 2, and 3, allied and axis of 100 each: 13 and 32, 13 and 43, 34 and 54. Chunk 2 stopped at 9.74M steps at the `--hours 3` limit of `slot.sh`. The best chunk is chunk 3.
+- The gauntlet of the L06 chunk 3 net gave 63.1 percent, Elo 1650, rank 3 of 5. The ranks: v7 1746, v6 1702, the net 1650, v3 1463, v5 940. Against v7 it won 16 of 40, and against v6 17 of 40.
+- The L07 v7 gate after chunks 1, 2, and 3, axis and allied of 100 each: 31 and 50, 44 and 48, 37 and 85. The best chunk is chunk 3.
+- The gauntlet of the L07 chunk 3 net gave 75.0 percent, Elo 1707, rank 1 of 5, above v7. The ranks: the net 1707, v7 1665, v6 1619, v3 1300, v5 1208. Against v7 it won 25 of 40, and against v6 25 of 40.
+- L08 chunk 1 stopped at 8,335,360 steps at the `--hours 3` limit (770.6 steps/s). A system crash at about 16:24Z on 2026-10-22 stopped the chain in the v7 gate of that chunk. `resume_l08.sh` started at 23:12Z. It runs the gate of L08 chunk 1, continues L08 at chunk 2, and then runs L09 to L12.
+- The L08 v7 gate after chunks 1, 2, and 3, allied (the American attacker) and axis of 100 each: 16 and 29, 76 and 32, 84 and 74. Chunks 2 and 3 stopped at the `--hours 3` limit, at 5.0M steps (463 steps/s) and 3.7M steps (343 steps/s). The best chunk is chunk 3.
+- The gauntlet of the L08 chunk 3 net gave 89.4 percent, Elo 1826, rank 1 of 5. The ranks: the net 1826, v6 1562, v7 1480, v5 1399, v3 1232. Against v7 it won 32 of 40 (19 of 20 as the attacker, 13 of 20 as the defender). v7 against itself won 22 of 40 as the attacker.
+- The speed of the slots with two boards falls at each chunk: L08 771, 463, and 343 steps/s, and L09 783, 448, and 326. In each chunk the speed stays flat (L09 by sixths). The check of 2026-10-24 made no change in `src/` (scripts in the session scratchpad). These are not the cause: the length of the games (190 to 200 learner steps), the memory of a worker (0.8 to 1.1 GB), the growth of the LOS table, the length of the legal list (about 170), the GPU (12 percent), and dropped workers. The CPU time of the environment for each learner step increases by only 10 to 25 percent with v7 or with the learner as the defender. In the live L10 chunk 2, the local workers waited for the trainer during 35 to 57 percent of the time, and they were blocked in `send` during 11 to 14 percent more. The trainer was busy during about 64 percent of the time. In a run with local workers only, `choose_batch` took about 9 ms for each call, with a mean batch of 1.4 to 1.5 decisions. Thus the time is lost in the round trip through the one trainer process. Why the round trip is longer in chunks 2 and 3 is not yet known. Two test runs of this check are in `runs/` (`20261024T000102Z` and `20261024T002650Z`, 163,840 steps each). They are not results of gate item 5. The owner deleted them on 2026-10-24.
+- The owner took tars out of the chain on 2026-10-24 at about 03:15Z for other work. The bridge process of tars in the L10 chunk 3 trainer was stopped, and the trainer dropped its 20 workers and continued with 72. `slot.sh` names case, kipp, and plex only from L11 on.
+- The trainer timers went into `src/` at about 04:50Z on 2026-10-24 (owner, option 1): `ppo.CollectTiming`, `Decision.work_seconds` on the farm wire, `timing` in `stats.json` and in each rate report, and the `timing/*` scalars. They will show which part of the round trip increases in chunks 2 and 3 of L11 and L12. A stop at `--hours` now gives `stopped_because` "the hours limit". A change of `choose_batch` was tested and dropped: it gave the same outputs but no measured gain. The numpy masks were slower, because the conversion of a legal list of 399 keys took 237 microseconds and the loop took 32. The full agent and farm test set passed on the work copy (344 passed), and the three changed test files passed after the hours fix (39 passed). The farm must have this code before L11 (`tools/farm_deploy.py` for case, kipp, and plex).
+- L10 chunk 3 failed at 04:31:57Z on 2026-10-24, before the timers went into `src/`. case closed its 20 environments and kipp closed its 20. With tars out, the live workers fell below half of 92, and the run stopped. It wrote no snapshot (about 1.7M steps). The cause on the hosts is not known. The L10 v7 gate, allied and axis of 100 each: chunk 1 34 and 22, chunk 2 17 and 42. The best chunk is chunk 2 (59 of 200). Its gauntlet gave 67.5 percent, Elo 1681, rank 2 of 5. The ranks: v7 1843, the net 1681, v6 1560, v3 1350, v5 1066.
+- L11 and L12 stopped at their evolution at 05:02Z (exit 5), because the farm had the old code. `resume_l11.sh` runs them after the deploy. The resume scripts before it logged "slot exit 0" for each slot, because `$(date)` set `$?` before the log line read it. `resume_l11.sh` keeps the status first.
+- The owner deployed the timer code to case, kipp, and plex (code 47de321e8c10). `resume_l11.sh` started at 05:49Z on 2026-10-24, and the L11 evolution has 12 games on each host.
+- L11: the evolution took 2.5 hours and the imitation 6.7 hours (400 games of three boards in 3.9 hours). The fit kept epoch 1 (holdout cross entropy 2.17, accuracy 37 percent; L10 had 1.56 and 45 percent). Chunk 1 made 3,813,376 steps in 3 hours (353 steps/s). Its v7 gate: 12 of 200 (allied 1 of 100, axis 11 of 100).
+- The first timer data explain the speed fall at a chunk boundary. From L11 chunk 1 to chunk 2 (v7 joins the league), steps/s fell from about 355 to 245. The work in a remote worker for each decision rose from 46 to 63 ms, and in a local worker from about 160 to 175-240 ms. The transit (16 ms remote, 8 ms local), the trainer queue (1 ms), and the choose cost (7.5 ms for each call) did not change. The mean batch fell from 6.3 to 4.7, and the wait for the last workers at the end of each collection rose from about 15 to 31 s in each report period. Thus the cause is the opponent: v7 decides inside the worker's step, and its decisions cost more than those of v6 and v3. A local worker on the workstation does about 3 to 4 times the work time of a remote worker for each decision.
+- L11 completed at 07:49Z on 2026-10-25. Chunks 2 and 3: 2,629,632 steps (243 steps/s) and 2,105,344 steps (195 steps/s). The v7 gate: chunk 1 12, chunk 2 9, chunk 3 17 of 200. The gauntlet of chunk 3: 55.0 percent, Elo 1701, rank 3 of 5 (v7 2266, v6 2070, v5 852, v3 611); 12.5 percent against v6 and 7.5 percent against v7. It is the weakest slot of the chain. The L12 evolution took 5.4 hours.
+- A profile of v7 (cProfile, v7 against v6 on lib10) put 77 percent of its time in `_route_field`: each hex asks `odds.enemy_groups`, which evaluated the line of sight of each enemy before the range test. A pair that the LOS table does not hold costs about 3 ms. `enemy_groups` now tests the range first and evaluates the line of sight one time for each hex that can fire. `armor._step_cost` keeps the cost of a step into a hex with no unit and no smoke for the game, because the core reads the state only for the units and the smoke of that hex. Each game of the old and the new tree had the same hash list (lib10 2, lib11 2, lib05 4, s04 4 games). v7 time for each decision, old and new: lib10 70 and 38 ms, lib11 129 and 45 ms, lib05 20 and 11 ms, s04 9.1 and 6.4 ms. The scripted agent tests and `tests/armor` passed (151). The new code hash is ecd4bf854c43; the change went into `src/` for L12 chunk 1.
+- Not changed: a lib11 game fills the LOS table to about 228,000 entries, so the environment clears it (`LOS_ENTRY_LIMIT`, 250,000) after almost each game. The results part holds about 590 MB after four lib11 games, and a worker holds about 1.5 GB, so a higher limit needs more memory on the hosts.
+- The owner deployed ecd4bf854c43 to case, kipp, and plex. The first two deploys to kipp left the old server in place: an old `farm serve` process that `farm.pid` did not name still held port 5160, and `farm_worker.sh` reported success after 3 seconds. The owner stopped that process by its ID, and the ping at 17:01Z on 2026-10-25 showed the new code on the three hosts.
+- `tools/farm_worker.sh` now succeeds only when the new process group holds port 5160. Before the start, a `farm serve` process that holds the port and that `farm.pid` does not name has its process group stopped; another program on the port, or a process of another user, stops the script with an error. After the start, the script waits up to 60 s for the bind, because the server binds after it starts its pool. If the bind does not occur, it stops the new group, removes `farm.pid`, and exits 1. `bash -n` and `tests/farm/test_deploy.py` passed (3). The stop and the bind logic did not run on Linux yet: this workstation has no `ss`, and its WSL images did not start.
+
+## 2026-10-20 - The attack movement: the routes, the no-return filter, and the approach term
+
+The chain of gate item 5 for L02 to L12 (`runs/chain_20261019b_gate5_L02_L12`) started at 21:54Z on 2026-10-19 with the attacker first: chunk 1 was player 0 against v6 and v3, and chunk 2 was player 0 against v6, v3, and v7. The v7 gate gave 0 and 1 of 100 as the attacker. The imitation net also won 0 of 50 attacks, and it won 46 of 50 defences. The owner stopped the chain after L02.
+
+L02 stopped at 04:13Z. Chunk 3 was the two sides, and its gate against v7 gave 11 of 100 as the attacker and 73 of 100 as the defender. That is the first attack increase on a library slot. The gauntlet of chunk 3 (`runs/gate5/L02/c3/snapshots/snapshot-10000000.pt`, 40 games against each panel agent) gave 34.4 percent, Elo 1397, rank 5 of 5. Against v7 the net won 3 of 20 as the attacker, and the other panel agents won 3 of 60. As the defender it won 14 of 20, and the panel won 30 of 60.
+
+- The examination (`docs/reports/2026-10-20_attack_movement_design.md`) played the clone and the teacher as the L02 attacker against v7. The clone moved one squad 8 times between two hexes in one phase. Its squads stopped 12 hexes from the objective, and the squads of the teacher came to 3. The clone gave almost no stack move, and the teacher gave about 16 in each game.
+- The owner approved the design. `src/slagents/learned/routes.py` adds the actions `route` and `stack_route`, the no-return filter, and the route labels of the imitation. A snapshot with fewer actions than `stack_route` needs plays as before.
+- The owner had a question about the reward. No term paid an attacker for getting nearer to its objective, and cover and sneak paid a squad that stayed far back. The owner approved two changes: the approach term (`reward.Approach`, 0.2 for each hex of each squad, as a potential) and the limit of cover and sneak to 4 hexes of the objective of a side with a positional condition.
+- The L02 imitation net with routes (`runs/routes_L02/imitate/snapshot-0.pt`) won 0 of 100 attacks against v7 and 69 of 100 defences. It does not satisfy the gate of section 7 of the design. The trace shows that it does not copy the plan of the teacher: the leader goes to the squads, and then the stack moves.
+- The PPO chain with routes and the approach term (`runs/chain_20261020a_routes_L02`) ran from 04:49Z to 11:13Z on the schedule of the first L02 chain.
+- The v7 gate after chunks 1, 2, and 3 gave these attack and defence wins of 100 each: 1 and 83, 4 and 73, and 8 and 88. The first method gave 0 and 31, 1 and 73, and 11 and 73.
+- The gauntlet of chunk 3 (`runs/routes_L02/c3/snapshots/snapshot-10000000.pt`, 40 games against each panel agent) gave 58.1 percent, Elo 1554, rank 3 of 5, above v3 and v5. The net of the first method had 34.4 percent, rank 5. As the attacker the new net won 17 of 20 against v3 (the first method: 4), 12 of 20 against v5 (6), 6 of 20 against v6 (1), and 0 of 20 against v7 (3). As the defender it won 17, 18, 6, and 17 of 20.
+- Thus the attack is better against v3, v5, and v6, but the attack against v7 did not increase.
+- `enemy_in_hex` is in the `slcore.rules.r05_movement` entry of `slcore.api.SURFACE`, and `tests/arch/test_core_api.py` has no failure.
+- Two faults of mine in the chain: an edit removed a space in the train command, and a stop of a background task did not stop the first chain script. `tasks/lessons.md` has the two rules.
+- The tests: `tests/agents/test_routes.py` (10) and `tests/agents/test_approach.py` (5). Four tests changed: the mask test reads the routes, two mask tests and one label test run with `use_routes=False`, and the push out test reads the routes after `push_out`.
+
+## 2026-10-19 - Gate item 5 of L01, and a limit of the line of sight table in the PPO workers
+
+`runs/chain_20261019a_gate5_L01/chain.sh` ran from 01:14Z to 06:27Z. In L01 the Allied side moves first and attacks, and the Axis side defends.
+
+- The evolution of v7 (the two sides, against v7, on the farm) took 3 minutes. In the confirm games, on new seeds, the evolved record won 169 of 200 against v7: 100 of 100 as the Axis and 69 of 100 as the Allied side. v7 won 100 of 200 against itself. The record was the teacher of the imitation (artifact `runs/20261019T011413Z-evolve-v7`).
+- The imitation kept epoch 4. Its holdout cross entropy was 1.262.
+- Three PPO chunks of 10M steps, with the two sides against v6, v3, and v7. Each chunk took about 1.6 hours. The v7 gate (100 games on each side):
+
+| Chunk | As the Axis defender | As the Allied attacker |
+|---|---|---|
+| 1 | 100 of 100 | 0 of 100 |
+| 2 | 100 of 100 | 0 of 100 |
+| 3 | 100 of 100 | 2 of 100 |
+
+- The gauntlet of chunk 3 (`runs/gate5/L01/c3/snapshots/snapshot-10000000.pt`, 40 games against each panel agent): 51.9 percent, Elo 1515, rank 4 of 5. The ranks: v6 1563, v3 1534, v7 1524, the net 1515, v5 1365. As the Axis defender the net won 78 of 80, and as the Allied attacker it won 5 of 80. The net learned the defence, and it did not learn the attack, as on s04 before the curriculum of the attacker.
+- The PPO workers did not clear the line of sight table of their engine. On two to four boards it becomes larger by hundreds of MB with each game. `SquadLeaderEnv.reset` clears it above `LOS_ENTRY_LIMIT` (250,000 results), as the game workers do. The test is `test_a_reset_clears_a_line_of_sight_table_above_the_limit`.
+- `runs/chain_20261019b_gate5_L02_L12/chain.sh` runs the same method for L02 to L12, in slot sequence. The board count sets the limits: two boards use 20 farm slots and 20 PPO workers on each host, and three or four boards use 12. It waits for a deploy, because `src/` changed.
+
+## 2026-10-19 - An evolved record can be a teacher and an opponent of the training
+
+Gate item 5 starts with an evolution of v7 on the slot, and the imitation learns from its record. A record has commas in its brackets, as `v7[loss_scale=8,fire_floor=4]`.
+
+- `sl-cli imitate --teachers` and `sl-cli train --opponents` divided the list at each comma. They use `slcli.gauntlet.split_agent_names` at this time, as the gauntlet and the evolution do.
+- `imitate.parse_labels` divides the labels only at a comma before a side number, so `0=v7[a=1,b=2],1=v7[a=1,b=2]` gives one record for each side. The test is `test_a_label_can_be_an_evolved_record_with_commas`.
+- A real check: one imitation game on `lib01_grain_office` with a record teacher, and 512 PPO steps with a record opponent. The two ran to the end. A league member keeps its full record as its `spec`, so a worker builds the record with its parameters.
+- The chain of gate item 5 for L01 is `runs/chain_20261019a_gate5_L01/chain.sh`. It waits for a deploy, because `src/` changed.
+
+## 2026-10-18 - L12 is in the library, and the library has its 12 scenarios
+
+`runs/chain_20261018b_lib12/chain.sh` ran L12 from 14:35Z to 23:00Z with `--remote-slots 12`. Each host played 12 games at a time for all of the search, and no host stopped.
+
+- L12: the pair of draw seed 8 and board seed 4 gave the German attacker 813 of 1,600 games (50.8 percent). The artifact is `runs/20261018T143547Z-library-l12-s1-10`.
+- The L12 forces: the Germans have 9 squads, 4 leaders, 9 support weapons, two Brummbar, a Mk IV F2, and a StuG III with a 105 mm gun. The Americans have 6 squads, 3 leaders, and a Sherman with a 105 mm gun (M4M52). The Russians hold the fourth sector with 3 squads, a 10-2 leader, and an LMG. The Germans must control 2 of the 4 victory buildings in 12 turns.
+- A card fault, corrected before the scenario went into the library: rule 42 names a side, so the Russians of the Allied side also set up hidden. The card said "Each American unit", and it gave the winner as "the Allied side win". `situation_text` and `victory_text` of `src/slcampaign/library.py` name the two armies: "Each American or Russian unit" and "Otherwise the Americans and the Russians win". The test is `test_the_card_of_two_defending_armies_names_the_two`.
+- The text is the one change. The candidate with the new text gives the same hash sequence as the searched file. Only L12 has two defending armies, so no other library card changes.
+- Gate item 3 is satisfied (12 of 12 games). `src/sldata/scenarios/lib12_the_long_front.json` is library scenario 12. Gate items 1 to 4 are satisfied for each of the 12 slots.
+- `src/slcampaign/library.py` changed, so a deploy is necessary before the next farm run.
+
+## 2026-10-18 - L11 is in the library, and a search can cap its games on each host
+
+`runs/chain_20261018a_lib11_12/chain.sh` ran L11 from 00:37Z to 03:26Z with the limit of the line of sight table. The farm kept its 120 slots busy for all of L11.
+
+- L11: the pair of draw seed 5 and board seed 3 gave the American attacker 776 of 1,600 games (48.5 percent). The artifact is `runs/20261018T003753Z-library-l11-s1-10`.
+- The L11 forces: the Americans have 8 squads, two 10-2 leaders and an 8-0, two DC, two MMG, two M10, and a Sherman M4A4. The Germans have 5 squads, a 7-0, an 8-1, and a 9-1 leader, an MMG, and two StuG III 75. The game has 10 turns.
+- The L11 card agrees with the scenario, and gate item 3 is satisfied (12 of 12 games). `src/sldata/scenarios/lib11_three_sectors.json` is library scenario 11.
+- L12 has four boards. Its local workers held about 2.1 GB each. Each farm host has 128 GB of memory for its RAM and its VRAM, and it also runs a language model. With 30 workers at about 2 GB, the hosts stopped their workers, and the farm had no work after 30 minutes. I stopped the chain in L12.
+- The correction: `--remote-slots N` on each command that uses the farm. `Farm.slots_per_host` and `play_all(slots_per_host=...)` send at most N games at a time to one host. Three tests in `tests/farm/test_farm.py` cover it.
+- The L12 search waits for a deploy of the owner, and it will use `--remote-slots 12`.
+
+## 2026-10-17 - L08, L09, and L10 are in the library, and the line of sight table has a limit
+
+The deploy with the engine cache limit ran `runs/chain_20261017p_lib08_to_12/chain.sh` from 20:55Z. The farm kept its 120 slots busy for L08, L09, and L10.
+
+| Slot | Draw seed | Board seed | First side wins, of 1,600 | Artifact |
+|---|---|---|---|---|
+| L08 | 10 | 3 | 848 (53.0 percent) | `runs/20261017T205531Z-library-l08-s1-10` |
+| L09 | 6 | 5 | 789 (49.3 percent) | `runs/20261017T214338Z-library-l09-s1-10` |
+| L10 | 1 | 9 | 808 (50.5 percent) | `runs/20261017T222547Z-library-l10-s1-10` |
+
+- Each card agrees with its scenario, and gate item 3 is satisfied for each (12 of 12 games). The library files are `lib08_village_and_hills`, `lib09_street_by_street`, and `lib10_hills_and_fields`.
+- The farm had no work again in the L11 search, which has three boards. The local workers held about 4.3 GB each with a limit of 2 engines. A measurement with `tracemalloc` found the cause: the line of sight table of the engine.
+- After one L11 game, `los_cache.py` held 408 MB and `los_eval.py` held 112 MB. Other code held less than 10 MB. The table keeps each pair of hexes that a game used, so it becomes larger with each game: 167,000 results after one game and 285,000 after six.
+- The correction: `LosTable.entries()` and `LosTable.clear()` in the core. After each game, a worker clears the table when it holds more than 250,000 results (`slcli.gauntlet.LOS_ENTRY_LIMIT`). The table of one board stays below that. A worker keeps one engine (`ENGINE_LIMIT = 1`). A farm host takes the games in turn, so the next game of a worker is frequently of a different candidate.
+- The table holds results that read the board only. A test plays a game, clears the table, and plays the game again with the same hash sequence.
+- I stopped the chain in L11. L11 and L12 wait for a deploy of the owner.
+
+## 2026-10-17 - L07 is in the library, and the farm workers ran out of memory on two boards
+
+The chain of L07 to L12 (`runs/chain_20261017m_lib07_to_12`) started at 18:07Z.
+
+- L07: the pair of draw seed 9 and board seed 1 gave the German attacker 821 of 1,600 games (51.3 percent). The artifact is `runs/20261017T180716Z-library-l07-s1-10`. The board has 18 hedge hexsides and 49 wheat hexes.
+- The L07 forces: the Germans have four 8-3-8 squads, a 6+1 leader, a DC, an HMG, an MMG, a PF, a Panzer IV F1, and a StuG III 105. The Americans have two 6-6-6 squads and one 8-4-7, an 8-0 leader, a bazooka, a DC, an MMG, and a Priest.
+- The L07 card agrees with the scenario, and gate item 3 is satisfied (12 of 12 games). `src/sldata/scenarios/lib07_hedgerows.json` is library scenario 7.
+- Three times, the L08 search did not get games from the farm. The first time, the L07 file went into `src/` while L08 started, and the hosts refused the changed code (`tasks/lessons.md`). The second and third times, the farm played for about 25 minutes and then had no work, while the local workers continued alone.
+- The cause: `slcli.gauntlet` kept one engine for each scenario in each worker, with no limit. An engine of two boards holds about 200 MB after one game, because of its line of sight cache. A search plays 100 candidates, so each farm worker grew to many GB. The worker processes died, and the search put each host out of the run.
+- The correction: the cache keeps the last 2 scenarios only (`ENGINE_LIMIT`). The jobs of a search come in the order of their candidates, so a worker builds each engine approximately one time. Two tests in `tests/farm/test_engine_cache.py` use real engines.
+- The searches of L08 to L12 wait for a deploy of the owner.
+
+## 2026-10-17 - The themes of L07 to L12 name only what the boards have
+
+The owner said that a balanced candidate with no fault on its card goes into the library with no review step. So each theme must be correct before its search. The themes of L07, L08, L09, L10, and L12 named farms, valleys, a ridge, a steppe, and events of play that no rule makes. Each new theme names the board types from north to south and the building that the defenders hold, which the set up zones always give. The L10 theme says that each side has armored vehicles. With each of the seeds 1 to 10 of the forces, each side gets one vehicle or more.
+
+The new titles are "The Hedgerows" (L07), "Village and Hills" (L08), and "Hills and Fields" (L10).
+
+## 2026-10-17 - L06 is balanced
+
+The owner deployed, and `runs/chain_20261017l_lib06_search/chain.sh` ran from 17:19Z to 17:51Z. The artifact is `runs/20261017T171928Z-library-l06-s1-10`.
+
+- Draw seed 8 with board seed 9 gave the Russian attacker 781 of 1,600 games (48.8 percent).
+- The Russians have three 4-4-7 and three 6-2-8 squads, two 10-2 leaders, an HMG, two MMG, and a T-34. They also have 2 smoke counters and 3 concealment counters. The Germans have three 4-6-7 squads and one 8-3-8, a 7-0 leader, a flamethrower, two LMG, and a Panzer IV F1, with 4 concealment counters. The game has 7 turns.
+- The theme said that a hill crest looks down on two farms and that the high ground sees all of the valley. The board has three buildings and no farm, and 84 woods hexes stop the line of sight. At this time, the theme is: "Hill country with woods and a few buildings. The defenders hold a stone building at the east end." The hash sequence did not change.
+- Gate item 3: v3, v6, and v7 each played 4 games against themselves, and the 12 games completed.
+- `src/sldata/scenarios/lib06_the_crest.json` is library scenario 6, with the same hash sequence as the candidate. The owner said that a card with no fault goes into the library with no review step.
+
+## 2026-10-17 - L05 is balanced with its orchards
+
+The owner deployed, and `runs/chain_20261017k_lib05_orchards/chain.sh` ran from 16:21Z to 17:00Z. The artifact is `runs/20261017T162138Z-library-l05-s1-10`.
+
+- Draw seed 7 with board seed 3 gave the American attacker 792 of 1,600 games (49.5 percent). The board has 2 orchards (8 hexes).
+- The Americans have three 6-6-6 and three 8-4-7 squads, an 8-0 and a 9-1 leader, a demolition charge, an MMG, and an M10. They also have 2 smoke counters and 3 concealment counters. The Germans have three 4-6-7 squads and one 8-3-8, a 9-1 leader, a flamethrower, an MMG, 2 panzerfausts, and a Panzer IV F1. The game has 7 turns.
+- The theme said that the orchards are adjacent to the roads and that the defenders hide in the woods and the buildings. Each orchard starts adjacent to a road, but most of its hexes are not adjacent to one. The Panzer IV and the 8-3-8 can set up in the open. At this time, the theme is: "A village with two orchards. Part of the defending force sets up hidden." The hash sequence did not change.
+- Gate item 3: v3, v6, and v7 each played 4 games against themselves, and the 12 games completed.
+- The owner accepted the card. `src/sldata/scenarios/lib05_orchard_line.json` is library scenario 5, with the same hash sequence as the candidate.
+
+## 2026-10-17 - Orchards, mills, and windmills
+
+The owner said that a scenario with a new terrain type needs its own picture, in the style of the board. The owner selected the rules. An orchard has the effects of a wheatfield in each season. A mill or a windmill is a building with a landmark. The L09 and L11 titles change.
+
+- PR-56: an orchard has the effects of a wheatfield of rule 44.2 in each season. It is in the terrain table and in the vehicle chart with the costs of a wheatfield. Fire through an orchard is half strength (`r44_rural.crop_hexes`), and the log gives PR-56. The rule 36 chart reads the wheatfield row.
+- PR-57: a mill is a stone building and a windmill is a wooden building. `Building.landmark` holds the name. It goes in the board document only when a building has one, so each earlier board document stays the same.
+- The generator: the style `orchards` and the record field `landmarks`. Each orchard is a row of three to five open hexes adjacent to a road. A landmark goes on the building of its rank in its band. The two passes do nothing when the record does not name them, and the orchard pass has a random state of its own. A test shows that the orchards change only the orchard hexes and that a landmark changes only its building record.
+- The pictures (`slwindow/render.py`, so the two windows show them): an orchard is seven small tree crowns in three rows on a lighter ground. A mill has a water wheel at its south wall. A windmill has four sails above its roof. The browser client has the orchard tone.
+- The learned encoding and the shape study put an orchard in the plane of the wheatfield. Thus each net from before keeps the shape of its input.
+- L04 has the mill on the building that the Russians hold. The card says "the mill (the largest stone building in columns U to EE)". Two games of v7 against v7 gave the same hash sequence before and after the change, so the balance result stays valid.
+- L05 has 2 orchards on its board, and its theme says what the board has. The hidden set up sentence of the card writer gives rules 42.1, 42.2, 42.4, 42.5, and 42.7. The L05 search of 15:19Z stopped, because its boards had no orchards.
+- L09 is "Street by Street" and L11 is "Three Sectors". Their themes name only terrain that the boards have.
+- Tests: 13 in `tests/engine/test_orchard_and_landmarks.py` and 3 in `tests/library/`. The board, rules, library, card, conformance, and engine tests pass.
+- The window, 3D window, agent, host, secrecy, and docs tests: 690 are satisfactory and 3 are not. The 3 failures are in `tests/host/test_annotate_coverage.py`. Two look for tables that the older browser client of this tree does not have, and one cannot start node and esbuild on this machine.
+
+## 2026-10-17 - L04 is balanced
+
+The owner deployed, and `runs/chain_20261017i_lib04_search/chain.sh` ran from 08:59Z to 09:37Z. Each pair of the draw seeds 1 to 10 and the board seeds 1 to 10 played 100 games of v7 against v7. Then the best 3 pairs played 1,600 games each. No game had an error. The artifact is `runs/20261017T085956Z-library-l04-s1-10`.
+
+- The screen: the German side won 0 to 86 of 100, with a mean of 13.0.
+
+| Draw seed | Board seed | German wins, of 1,600 |
+|---|---|---|
+| 1 | 8 | 716 (44.8 percent) |
+| 4 | 3 | 794 (49.6 percent) |
+| 6 | 4 | 881 (55.1 percent) |
+
+- Draw seed 4 with board seed 3 is the result. The Germans have 4 squads (three 4-6-7 and one 8-3-8), a 9-2 leader, an HMG, an MMG, an LMG, a panzerfaust, a StuG III 75, and a StuG III 105. They also have 2 smoke counters and 3 concealment counters. The Russians have 3 squads (two 4-4-7 and one 6-2-8), a 9-2 leader, 2 MMG, an LMG, and an SU-122, with 4 concealment counters. The game has 8 turns.
+- The theme said "a mill village" and "Tanks lead the attack". The board has no mill, and this draw has assault guns and no tank. At this time, the theme names the road, the village, and the armored vehicles of the two sides. Each of the 20 first draw seeds gives each side a vehicle, and the road goes across each column of the board. The card text is the only change, and a game of v7 against v7 gave the same hash sequence before and after it.
+- Gate item 3: v3, v6, and v7 each played 4 games against themselves, and the 12 games completed.
+- The owner accepted the card. `src/sldata/scenarios/lib04_mill_road.json` is library scenario 4, with the same hash sequence as the candidate. The change to `slots.json` is in `src/`, so a deploy is necessary before the next farm run.
+
+## 2026-10-17 - The cards agree with the rules, and L03 is in the library
+
+The owner said: "We will never accept an error or conflict in a scenario." A check of each sentence of the L03 card against the code found three errors. Two of them were also on the L01, L02, and s04 cards.
+
+- The L03 theme said "each wants the other end". Only the Germans win by a building. The Russians win when the Germans do not, and the German building does not count. The new theme says that the Germans must get the east end and the Russians must hold it. It also says what the sewers do: a stack with a leader goes from one entrance to the next, and the enemy cannot fire on it there.
+- The cards said "the marked building", but nothing on the board marks a building. At this time, the card names the building by its rank and its band of columns, as the set up area does: "the largest stone building in columns U to EE". The two-sided line names the German building and says that it does not count for the victory.
+- The set up label of the card said "In the largest stone building" with no band. The rank applies in the band, so on the L03 card the two sides read the same words for two buildings. At this time, the label adds the band (`slcards.card._group_label`).
+
+The forces, the boards, and the conditions did not change. A game of v7 against v7 on each earlier file and each new file gave the same hash sequence (339, 372, and 439 hashes). Thus the balance results stay valid.
+
+- `src/sldata/scenarios/lib03_under_the_square.json` is library scenario 3. Its seeds are 8 (forces) and 10 (board), and it gave 50.1 percent.
+- `lib01_grain_office` and `lib02_pump_house` have the new card text, with a sentence about the change in their notes.
+- New tests: no card says "marked", and the two-sided card names the two buildings. Each library file is the candidate of its seeds, and two buildings of the same rank in two bands have two labels. The library, card, scenario, and conformance tests pass (711 passed, 2 skipped).
+
+s00b had the same text error, and its condition named the group `l_robinson`, which sets up in columns DD to GG. The s00b board has no building in those columns, so that entry had no effect. An earlier report of this session said that a player cannot know which building counts. That report was incorrect. At this time, the card names the two buildings that count, and the condition names only `l_dubovich`. Two games of v7 against v7 gave the same hash sequence before and after the change.
+
+## 2026-10-17 - L03 is balanced after the corrections
+
+The owner deployed, and `runs/chain_20261017h_lib03_again/chain.sh` ran from 03:39Z to 04:19Z. Each pair of the draw seeds 1 to 10 and the board seeds 1 to 10 played 100 games of v7 against v7, and the best 3 pairs played 1,600 games each. No game had an error, and no draw seed was skipped. The artifact is `runs/20261017T033921Z-library-l03-s1-10`.
+
+- The screen: the German side won 1 to 66 of 100, with a mean of 26.2.
+
+| Draw seed | Board seed | German wins, of 1,600 |
+|---|---|---|
+| 5 | 5 | 858 (53.6 percent) |
+| 5 | 10 | 707 (44.2 percent) |
+| 8 | 10 | 802 (50.1 percent) |
+
+- Draw seed 8 with board seed 10 is the result. The Germans have 8 squads (five 4-6-7 and three 8-3-8), two 7-0 leaders, 1 demolition charge, 1 LMG, and 2 MMG, with 2 smoke counters and 5 concealment counters. Three squads hold the German building. The Russians have 5 squads (three 4-4-7 and two 6-2-8), a 10-3 and an 8-0, and no support weapon, with 5 concealment counters. The game has 6 turns.
+- Each group has a squad and a leader, and no group is only weapons. Gate item 3: v3, v6, and v7 each played 4 games against themselves, and the 12 games completed.
+- The file is `runs/library/L03s/lib03_under_the_square_s8_b10.json`. It waits for the owner to read the card.
+
+## 2026-10-17 - The second L03 search, and two faults that it found
+
+The owner deployed, and `runs/chain_20261017g_lib03_share/chain.sh` ran from 02:48Z to 03:31Z. The artifact is `runs/20261017T024903Z-library-l03-s1-10`. Each game completed: the search had no game with an error, and a game at the command limit gives an error.
+
+- The screen: the German side won 1 to 77 of 100, with a mean of 27.5.
+- The confirmations were of draw seed 5: board seed 7 gave 56.2 percent, board seed 8 gave 48.4 percent, and board seed 6 gave 59.0 percent.
+- The search took 43 minutes, and at its end the farm had no game. The larger forces of L03 make each game slower. Each local worker keeps an engine for each candidate that it played, approximately 5 GB for each worker. Each game completed, so no game was stuck.
+
+The first fault: the Russian force of draw seed 5 had 3 squads and 3 weapons. The building group took the 3 squads and 2 weapons, and the third weapon (an MMG) went alone into a second group with no unit. Gate item 3 did not find it, because the games completed.
+
+- The correction: when the rest of a force has no squad and no leader, its weapons stay in the building group (`_hold_and_rest`). A test checks that no group of a slot is only weapons.
+- The correction changes the 10 candidates of L03 with draw seed 5, and these include the 3 pairs of the confirmation. The other 90 L03 candidates and the L01 and L02 library files do not change.
+
+The second fault: in 4 slots a low point total with vehicles buys fewer than 3 squads, so the library gives an error for that seed. In the draw seeds 1 to 30, this fault occurs for 1 seed of L05, 2 of L06, 3 of L07, and 4 of L12.
+
+- The correction: the search skips such a draw seed and records its reason (`make_candidates`, `skipped_draw_seeds` in the artifact). A test holds it. The 19 library tests pass.
+
+`runs/chain_20261017h_lib03_again/chain.sh` searches L03 again into `runs/library/L03s`. It waits for a deploy of the owner.
+
+## 2026-10-17 - L03: the attack share and the control of one hex
+
+The owner selected two changes for L03.
+
+- A two-sided slot gets the attack share of the draw too (3 to 2 up to 2 to 1), as the other slots do. Before, the two forces had equal points. With draw seed 1 the Germans attack with 8 squads against 5.
+- The L03 condition is `hex_control`: the Germans win with control of 1 hex of the Russian building at the end. It is not necessary for them to keep their own building. As before, each side holds a building, and a die roll gives the first move.
+- The card says that the Germans also hold a marked building at their own end.
+- The share of a two-sided slot is drawn before the change too, so the draws of the other slots do not change. The L01 and L02 library files stay the same.
+- The 62 library and data key tests pass, and the 100 new L03 candidates set up a game. `runs/chain_20261017g_lib03_share/chain.sh` searches L03 again into `runs/library/L03r`. It waits for a deploy of the owner.
+
+## 2026-10-17 - The L03 search: no candidate is balanced
+
+The owner deployed, and `runs/chain_20261017f_lib03_search/chain.sh` ran from 02:27Z to 02:44Z. Each pair of the draw seeds 1 to 10 and the board seeds 1 to 10 played 100 games of v7 against v7. Then the best 3 pairs played 1,600 games each. Each game completed. The artifact is `runs/20261017T022710Z-library-l03-s1-10`.
+
+- Before the search, the 100 candidates set up a game, and each board had sewer hexes.
+- The German side won 0 to 15 of 100 in the screen, with a mean of 2.4.
+- The confirmations, 1,600 games for each pair. No candidate is in the band.
+
+| Draw seed | Board seed | German wins |
+|---|---|---|
+| 1 | 1 | 13.6 percent |
+| 10 | 4 | 19.1 percent |
+| 10 | 9 | 12.3 percent |
+
+- The cause is the design of the slot and not the board. Each side holds a building, and the two forces have equal points. The condition `building_swing` with a margin of 1 lets the Germans win only when they capture the Russian building and keep their own. When no building changes hands, the Russians win. In 12 local games of the best pair, each Russian win had no building change.
+- The v7 attack is not as good as the v7 defence, so an attack with equal points rarely captures a building.
+- A change of the forces or of the victory condition is necessary. The owner must select it.
+
+## 2026-10-17 - L02 is balanced with its necessary counters
+
+The owner deployed, and `runs/chain_20261017e_lib02_required/chain.sh` ran from 01:58Z to 02:14Z. Each pair of the draw seeds 1 to 10 and the board seeds 1 to 10 played 100 games of v7 against v7. Then the best 3 pairs played 1,600 games each. Each game completed. The artifact is `runs/20261017T015828Z-library-l02-s1-10`.
+
+- The attacker won from 0 to 67 of 100 in the screen. The first search, with no necessary counters, gave 0 to 90.
+
+| Draw seed | Board seed | Screen, of 100 | Attacker wins, of 1,600 |
+|---|---|---|---|
+| 3 | 4 | 48 | 750 (46.9 percent) |
+| 3 | 5 | 54 | 940 (58.8 percent) |
+| 3 | 8 | 56 | 915 (57.2 percent) |
+
+- Draw seed 3 with board seed 4 is balanced. The Germans attack with 5 squads (four 8-3-8 and one 4-6-7), a 10-3 and a 9-2, 1 flamethrower, and 1 demolition charge, with 3 smoke counters and 4 concealment counters. The Russians hold with 4 squads (two 4-4-7 and two 6-2-8), a 10-3, and 2 LMG, with 6 concealment counters. The game has 6 turns, and the attacker must control 1 hex of the Russian building.
+- Gate item 3: v3, v6, and v7 each played 4 games against themselves, and the 12 games completed.
+- The card agrees with the forces. The file is `runs/library/L02r/lib02_pump_house_s3_b4.json`. It waits for the owner to read the card.
+- The owner accepted the card. `src/sldata/scenarios/lib02_pump_house.json` is the second library scenario, with the balance result in its notes. It is the same document as the candidate, and a game of each gives the same hash sequence. The 103 tests of the data keys, the scenario builds, the cards, the briefing, and the library pass.
+
+## 2026-10-17 - Necessary counters for a slot
+
+The owner chose necessary counters to correct the L02 card.
+
+- A slot of `slots.json` can have the field `required`: the counters that each side always gets. The draw adds them after the leader, with no random pick (`slcampaign.library.build_force`). Thus a slot with no necessary counters gives the same draw as before. The L01 library file stays the same, and a test holds it.
+- For L02 the Germans always get 2 assault engineer squads (8-3-8), 1 flamethrower, and 1 demolition charge. The theme says "a demolition charge" and not "charges", because the slot has one charge.
+- A check of each theme against the units and the board that the draw always gives:
+  - The L04 theme named a bridge, and rivers are rule 60, so the bridge is out of the theme.
+  - The L08 theme named guns on the ridge, and the draw does not put a gun on a ridge. The theme says that the hills give the defenders long lines of fire.
+  - The other themes name only what the draw always gives.
+- A necessary counter that is not in the army of the side gives an error with the name of the counter.
+- Tests: each of 20 L02 candidates has the necessary counters, with no more weapons than squads, and an incorrect counter gives the error. The 60 library and data key tests pass. The 100 new L02 candidates of draw seeds 1 to 10 and board seeds 1 to 10 set up a game.
+- The balanced L02 candidate of the first search (51.1 percent) had no flamethrower and no charge, so it does not go into the library. `runs/chain_20261017e_lib02_required/chain.sh` searches L02 again. It writes the candidates to `runs/library/L02r`, so the files of the first search stay. It waits for a deploy of the owner.
+
+## 2026-10-17 - The L02 search: balanced, but the card does not agree with the forces
+
+The owner deployed, and `runs/chain_20261017d_lib02_search/chain.sh` ran from 01:25Z to 01:51Z. It screened draw seeds 1 to 10 with board seeds 1 to 10, with 100 games of v7 against v7 for each pair. Then the best 3 pairs played 1,600 games each. Each game completed. The artifact is `runs/20261017T012553Z-library-l02-s1-10`.
+
+- The attacker won from 0 to 90 of 100 in the screen.
+
+| Draw seed | Board seed | Screen, of 100 | Attacker wins, of 1,600 |
+|---|---|---|---|
+| 1 | 1 | 48 | 890 (55.6 percent) |
+| 4 | 1 | 46 | 631 (39.4 percent) |
+| 3 | 10 | 55 | 817 (51.1 percent) |
+
+- Draw seed 3 with board seed 10 is balanced. The Germans attack with 7 squads (four 4-6-7 and three 8-3-8), a 9-2 and a 9-1, and 2 LMG, with 3 smoke counters and 4 concealment counters. The Russians hold with 4 squads (two 4-4-7 and two 6-2-8), a 10-3, and 2 LMG, with 6 concealment counters. The game has 6 turns, and the attacker must control 1 hex of the Russian building.
+- Gate item 3: v3, v6, and v7 each played 4 games against themselves, and the 12 games completed.
+- The fault: the slot theme names charges and a flamethrower, but this draw did not give the Germans these two weapons. The draw gets weapons from the list of the slot, and no rule makes it get a weapon that the theme names. So the card does not agree with the forces. L02 also introduces the flamethrower and the demolition charge of rules 22 and 23.
+- The candidate does not go into the library before the decision of the owner about this fault.
+
+## 2026-10-17 - The search confirms the best 3 pairs, and L02 starts
+
+The owner said to make the search confirm the best 3 pairs, and then to start L02.
+
+- `sl-cli library search` has `--confirm-top` (default 3). The 3 pairs of the screen nearest to 50 percent each play 1,600 games. The result is the confirmed pair nearest to 50 percent (`best_confirmation`). The artifact keeps each confirmation.
+- The cause: the random variation of a screen of 100 games is approximately 10 points. In the L01 search, two pairs had 44 in the screen and gave 40.9 and 46.6 percent in 1,600 games.
+- Tests: `rank_screen` gives the pairs from the best, and `best_confirmation` gives the confirmed pair nearest to 50 percent with no game failure. The 15 library tests pass.
+- All 100 L02 candidates of draw seeds 1 to 10 and board seeds 1 to 10 set up a game.
+- `runs/chain_20261017d_lib02_search/chain.sh` waits for a deploy of the owner, because this change is in `src/`.
+
+## 2026-10-17 - L01 has a balanced candidate
+
+The owner said to run the two confirmations of draw seed 9. `runs/chain_20261017c_lib01_confirm/chain.sh` played 1,600 games of v7 against v7 for each pair at 01:12Z, with no code change. The artifact is `runs/20261017T011201Z-library-l01-s9`.
+
+| Draw seed | Board seed | Screen, of 100 | Attacker wins, of 1,600 |
+|---|---|---|---|
+| 9 | 9 | 41 | 514 (32.1 percent) |
+| 9 | 10 | 44 | 746 (46.6 percent) |
+
+- Draw seed 9 with board seed 10 is in the band of 45 to 55 percent, so gate item 4 of L01 is satisfied. The file is `runs/library/L01/lib01_grain_office_s9_b10.json`.
+- The forces: the Russians attack with 5 squads (two 4-4-7 and three 6-2-8), a 10-3 and a 9-1, 1 LMG, and 2 MMG. The Germans hold with 4 squads of 4-6-7 and a 9-2. The game has 5 turns, and the attacker must control 1 hex of the German building.
+- The 3,200 games took 28 seconds. Three local games of the pair took 0.8 to 3.9 s each, with 5 full turns and 337 to 371 commands. The forces of L01 are small, so its games are fast.
+- Gate item 3: v3, v6, and v7 each played 4 games against themselves, and the 12 games completed.
+- The card listed two items with a comma ("5 squads under 2 leaders, and 3 support weapons"). At this time the card writer writes a list of two items with no comma, and a test holds it.
+- Open: gate item 2 (the owner reads the card), the copy of the candidate into `src/sldata/scenarios/`, and gate items 5 and 6.
+- The owner accepted the card. `src/sldata/scenarios/lib01_grain_office.json` is the first library scenario. It is the candidate of draw seed 9 and board seed 10, made again with the corrected card writer, and its notes give the balance result. A game of the library file and a game of the candidate give the same hash sequence.
+- The tests that read each scenario file pass: the data keys, each scenario builds, the cards, the briefing, the campaign, and the library. Two tests gave a failure for other causes. `test_protocol_schema` reads the older browser client of this tree, and `test_slow_marker` gives a failure only in a run of the arch folder with other folders.
+
+## 2026-10-17 - The second L01 search, with draw seeds
+
+The owner chose to search the draw seeds too. `sl-cli library search` has a `--seeds` option: it screens each pair of a draw seed and a board seed (`rank_screen` in `slcli/library_cmd.py`, with a test). A new draw seed gives other forces, turns, and victory conditions in the bands of the slot.
+
+- `runs/chain_20261017b_lib01_seeds/chain.sh` ran from 00:45Z to 01:06Z. Each pair of the draw seeds 1 to 10 and the board seeds 1 to 10 played 100 games of v7 against v7. Then the best pair played 1,600 games. That is 11,600 games in 20 minutes, and each game completed. The artifact is `runs/20261017T004548Z-library-l01-s1-10`.
+- The attacker won from 0 to 74 of 100 in the screen. The best pairs:
+
+| Draw seed | Board seed | Attacker wins of 100 |
+|---|---|---|
+| 2 | 1 | 74 |
+| 9 | 2 | 72 |
+| 9 | 10 | 44 |
+| 4 | 1 | 44 |
+| 9 | 9 | 41 |
+
+- The confirmation of the pair of draw seed 4 and board seed 1: the attacker won 655 of 1,600 (40.9 percent), so it is not balanced.
+- Two pairs had 44 in the screen. The search took the pair with draw seed 4, because its number is lower. A screen of 100 games has a random variation of approximately 10 points, so one confirmation is not sufficient.
+- The candidates go from 0 to 74 percent, so balanced candidates of L01 are very possibly in the draw seeds of the screen. With draw seed 9, three boards gave from 41 to 72 percent.
+
+## 2026-10-17 - The first seed search of the library: L01 is not balanced
+
+The owner said to run the L01 seed search on the farm after chunk 8. The first try of the chain (2026-10-16 23:59Z) ran `tools/farm_deploy.py` from a background shell.
+
+Each host refused the ssh login, because that shell has no key of the owner. The ping then found the code before the change on each host, and the search stopped before it played a game. The owner ran the deploy. At this time the chain script does no deploy: it pings first and stops when a host runs other code.
+
+- `runs/chain_20261017a_lib01_search/chain.sh` ran from 00:25Z to 00:28Z on the four farm hosts and 16 local workers: 5,600 games in 3 minutes, and each game completed. The artifact is `runs/20261017T002516Z-library-l01-s1`.
+- The candidate of draw seed 1 has 6 turns and the victory condition `building_count` (control of 1 building). The Russians attack with 7 squads (four 4-4-7 and three 6-2-8), a 9-2 and a 7-0, 2 LMG, and 1 MMG. The Germans hold with 4 squads of 4-6-7, a 9-1, 1 LMG, and 2 MMG.
+- The screen, 200 games of v7 against v7 for each board seed: the Russian attacker won 39.0 percent with board seed 1, 22.5 percent with seed 17, and 13.0 percent with seeds 11 and 13. On the other 16 seeds it won 0 to 9.5 percent.
+- The confirmation of board seed 1, 1,600 games on new game seeds: the attacker won 626 (39.1 percent). The band is 45 to 55 percent, so L01 is not balanced.
+- The board changes the result much: from 0 to 39 percent with the same forces. But no board of the 20 gives the balance, so the rule of the owner applies: a change of the forces, the turns, or the victory condition.
+- v7 defends better than it attacks (the mirror of 2026-10-14). The measure is v7 against v7, so the attacker of a slot must get more than the point scale gives.
+
+## 2026-10-16 - Chunk 8 of the s04 net, with the two sides: first in the gauntlet
+
+The owner said to run chunk 8 with the two sides from the chunk 7 net. `runs/chain_20261016e_s04both8/chain.sh` started at 21:58Z, with the arguments of chunk 7 and seed 20261108.
+
+- The chunk completed at 23:46Z with exit 0: 10,000,000 decisions in 6,376.2 s, 1,568.3 steps/s. No worker stopped. The artifact is `runs/20261016T215846Z-ppo-s04-armor-probe`.
+- The gate against v7 (200 games): the Axis won 53 of 100 (chunk 7: 56, chunk 5: 46), and the Allied side won 38 of 100 (chunk 7: 31, chunk 5: 42).
+- The full gauntlet (`runs/20261016T235146Z-gauntlet-...`) completed at 23:58Z: 70.6 percent, Elo 1787, rank 1 of 5. v7 has 1738 and is second. Chunk 7 had 67.5 percent and rank 2.
+
+| Opponent | Axis wins | Axis, other panel agents | Allied wins | Allied, other panel agents |
+|---|---|---|---|---|
+| v3 | 18 of 20 (chunk 7: 19) | 31 of 60 | 8 of 20 (12) | 14 of 60 |
+| v6 | 19 of 20 (19) | 32 of 60 | 5 of 20 (4) | 10 of 60 |
+| v7 | 14 of 20 (8) | 20 of 60 | 9 of 20 (6) | 13 of 60 |
+
+- Against v7, the gate and the gauntlet give the Axis 67 of 120 (chunk 7: 64, chunk 5: 57) and the Allied side 47 of 120 (chunk 7: 37, chunk 5: 49).
+- It is the first learned s04 net that ranks above each scripted agent. Each side is better than the panel agents against each opponent.
+- A second chunk with the two sides got the Allied side back to approximately the level of chunk 5, and the Axis kept its level.
+- The best s04 net at this time: `runs/ppo_s04_curriculum/c8both/snapshots/snapshot-10000000.pt`.
+
+## 2026-10-16 - `sl-cli library`: the first part of the scenario library
+
+The owner gave approval of the 12 slots and said to start `sl-cli library`.
+
+- `src/sldata/library/slots.json`: the 12 slots, with a title and a theme of the project for each. `sldata.loaders.load_library_slots` reads it with a closed key set (`LIBRARY_KEYS`).
+- `src/slcampaign/library.py`: the draw of a candidate. The draw seed gives the point total, the turns, the victory condition, the attack share, and the two forces. The board seed gives the board, so a new board seed keeps the forces.
+- A force gets its vehicles first. Then it gets a leader, squads to 80 percent of the budget, one leader for each four squads, and the weapons of the slot. The draw takes squads only and no crews. The second army of L12 has no vehicles, because a tank took most of its small budget.
+- The rule level of a slot sets the features. Rules 1 to 21 have no smoke, no concealment, no engineers, and no vehicles. Rule 41 and more have the armor, and the slot file names the tanks and the guns of each army. Halftracks, trucks, and jeeps wait for rules 47, 51, and 52.
+- A slot of two or more boards stacks them to the south. Each side has a group on each board, and the defender holds one stone building on each board. Two set up areas share no hex. Thus the seam row belongs to the board above it, and the vehicles have the two columns at the edge of their side.
+- The core change: a `columns` set up area can have `min_row` and `max_row` (`slcore.scenario.resolve_columns`). No scenario before this one had a row band on a `columns` area, so no recorded game changes.
+- The card text comes from the slot theme and the draw. It counts each item correctly ("1 leader", "3 leaders").
+- `src/slcli/library_cmd.py`: `sl-cli library slots`, `draw`, `check` (gate item 3), and `search` (gate item 4, the board seeds on the farm, with a run artifact of kind `library-search`).
+- For each of the 12 slots, the tool makes a candidate, and the candidate satisfies the checks of a scenario file. Each one played a full game of v7 against v7 to the end. A game of one board took 13 to 29 s, and the game of four boards took 445 s.
+- A local test of `search` on L01 (3 board seeds, 4 games each): the attacker won 0 to 1 of 4. So the slot forces can be too far apart for a seed search, and then a change of the slot bands is necessary.
+- `tests/library/test_library.py`: 13 tests. They pass, and the data key tests pass.
+- Not done: the seed search of each slot on the farm, the card review, and the training. The farm is in use by chunk 8.
+
+## 2026-10-16 - The decision: a library of 12 project scenarios
+
+The owner said that the project must have a library of scenarios, with the same count as the 1977 game. The library is the base for the training, the evolution, the tests, the play tests, and the balance.
+
+- The printed game has 12 scenarios. The core plays the rules of the first three. Scenarios 4 to 12 add rules 45 to 60, which the core does not have.
+- The decision of the owner: the project does not copy the 1977 scenarios. A project tool makes 12 scenarios of its own: the cards, the forces, the turns, and the victory conditions.
+- Balance: the board seed first, and a change of the forces only when no seed gives the balance. The measure is v7 against v7, 1,600 games on the farm, with 45 to 55 percent for the first side.
+- `tasks/todo.md` has the plan: 12 slots (L01 to L12) that go up in rules, force size, and board count, a gate of six items for each slot, and the tool `sl-cli library`. The slots use rules 1 to 44.
+- The 12 slots are a proposal. The owner must give approval before the work starts.
+
+## 2026-10-16 - Chunk 7 of the s04 net, with the two sides, and its result
+
+The owner chose to train the two sides after chunk 6. `runs/chain_20261016d_s04both/chain.sh` started at 19:39Z. It trains from the chunk 5 net with `--player both` and seed 20261107, with the other arguments of chunk 5. The learner changes its side at each new game.
+
+- The chunk completed at 21:29Z with exit 0: 10,000,000 decisions in 6,499.7 s, 1,538.5 steps/s. No worker stopped. The artifact is `runs/20261016T193923Z-ppo-s04-armor-probe`. The rate is lower than the rate of the Axis chunks (1,689 to 1,831). The cause is not known.
+- The gate against v7 (200 games): the Axis won 56 of 100 (chunk 6: 49, chunk 5: 46), and the Allied side won 31 of 100 (chunk 6: 20, chunk 5: 42).
+- The full gauntlet (`runs/20261016T213932Z-gauntlet-...`) completed at 21:51Z: 67.5 percent, Elo 1757, rank 2 of 5. v7 has 1783. Chunk 5 had 66.9 percent, and chunk 6 had 60.6 percent.
+
+| Opponent | Axis wins | Axis, other panel agents | Allied wins | Allied, other panel agents |
+|---|---|---|---|---|
+| v3 | 19 of 20 (chunk 5: 13) | 31 of 60 | 12 of 20 (13) | 14 of 60 |
+| v6 | 19 of 20 (17) | 32 of 60 | 4 of 20 (6) | 10 of 60 |
+| v7 | 8 of 20 (11) | 20 of 60 | 6 of 20 (7) | 13 of 60 |
+
+- Against v7, the gate and the gauntlet give the Axis 64 of 120 (chunk 5: 57) and the Allied side 37 of 120 (chunk 5: 49).
+- The training of the two sides stopped the fall of the Allied side, and it did not decrease the Axis attack. But the Allied side did not get back to the level of chunk 5.
+- In total, chunk 7 and chunk 5 are equal in this sample: 67.5 and 66.9 percent, with intervals that overlap. Chunk 7 is the better attacker, and chunk 5 is the better defender. Each side is better than the panel agents against each opponent, but for one result: the Allied side of chunk 7 against v6 won 4 of 20, and the panel agents won 10 of 60.
+- The two nets are `runs/ppo_s04_curriculum/c5/snapshots/snapshot-10000000.pt` and `runs/ppo_s04_curriculum/c7both/snapshots/snapshot-10000000.pt`.
+- The owner said to run chunk 8 with the two sides from the chunk 7 net. `runs/chain_20261016e_s04both8/chain.sh` has the arguments of chunk 7 and seed 20261108.
+
+## 2026-10-16 - Chunk 6 of the s04 attacker, and its result
+
+The owner said to run chunk 6. `runs/chain_20261016c_s04c6/chain.sh` waited for the end of the chunk 5 chain and started at 17:38Z. The arguments are those of chunk 5, from `runs/ppo_s04_curriculum/c5/snapshots/snapshot-10000000.pt`, with seed 20261106.
+
+- The chunk completed at 19:18Z with exit 0: 10,000,000 decisions in 5,921.9 s, 1,688.6 steps/s. No worker stopped. The artifact is `runs/20261016T173821Z-ppo-s04-armor-probe`.
+- The gate against v7 (200 games): the Axis won 49 of 100 (chunk 5: 46, chunk 4: 37), and the Allied side won 20 of 100 (chunk 5: 42, chunk 4: 62).
+- The full gauntlet (`runs/20261016T192641Z-gauntlet-...`) completed at 19:35Z: 60.6 percent, Elo 1698, rank 2 of 5. v7 has 1808. Chunk 5 had 66.9 percent and Elo 1743, 9 points below v7.
+
+| Opponent | Axis wins | Axis, other panel agents | Allied wins | Allied, other panel agents |
+|---|---|---|---|---|
+| v3 | 13 of 20 (13 before) | 31 of 60 | 13 of 20 (13 before) | 14 of 60 |
+| v6 | 19 of 20 (17 before) | 32 of 60 | 3 of 20 (6 before) | 10 of 60 |
+| v7 | 8 of 20 (11 before) | 20 of 60 | 1 of 20 (7 before) | 13 of 60 |
+
+- Against v7, the Axis attack did not become better. The gate and the gauntlet give 57 of 120 together, the same as chunk 5.
+- The Allied defence against v7 became much worse: 20 of 100 in the gate and 1 of 20 in the gauntlet. At this time it is below the panel agents (13 of 60). The cause is very possibly the training of the Axis side only (`--player 0`), because each chunk since chunk 4 decreased the Allied wins against v7.
+- Chunk 5 stays the best s04 net: `runs/ppo_s04_curriculum/c5/snapshots/snapshot-10000000.pt`.
+- More chunks with these arguments will very possibly not make the attack better, and they make the defence worse. The owner chose to train the two sides. `runs/chain_20261016d_s04both/chain.sh` trains chunk 7 from the chunk 5 net with `--player both` and seed 20261107, and then it runs the v7 gate and the gauntlet.
+
 ## 2026-10-16 - The game pictures of the README come from the 3D window, and a video
 
 The owner put a screen recording of the 3D window in `background/` and said to add it to the README. The owner also said to make the game pictures show the current look of the game and its counters.

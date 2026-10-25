@@ -72,6 +72,19 @@ def test_a_run_shorter_than_the_snapshot_interval_keeps_its_last_net(tmp_path: P
     path = Path(art.stats["snapshots"][0]["path"])
     assert path.is_file()
     assert isinstance(load_policy(str(path)), Policy)
+    assert art.stats["stopped_because"] == "the step count is complete"
+
+
+def test_a_run_that_stops_at_its_hours_says_so(tmp_path: Path):
+    """The L08 and L09 chunks stopped at --hours 3 and said the step count was complete
+    (2026-10-24)."""
+    art = run_training(
+        scenario=SCENARIO, steps=192, hours=1e-9, seed=5, learner_player=0, snapshot_every=0,
+        config=ppo.PpoConfig(steps_per_update=64, minibatch=32, epochs=1), net=NetConfig(),
+        out=tmp_path, log_dir=None,
+    )
+    assert art.stats["steps"] < 192
+    assert art.stats["stopped_because"] == "the hours limit"
 
 
 @pytest.mark.gate

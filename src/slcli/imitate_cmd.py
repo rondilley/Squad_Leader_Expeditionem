@@ -20,6 +20,7 @@ from slagents.learned import imitate, ppo
 from slagents.learned.env import make_env
 from slagents.learned.nets import NetConfig, Policy
 from slcli.play import build_engine_with_record, make_agent
+from slcli.gauntlet import split_agent_names
 from slcli.train import build_league, evaluate
 from slruns import artifact
 from slruns.index import connect, upsert
@@ -186,7 +187,7 @@ def run_imitation(
 
 
 def run(args: Any) -> int:
-    teachers = [t.strip() for t in args.teachers.split(",") if t.strip()]
+    teachers = split_agent_names(str(args.teachers))
     config = imitate.FitConfig(
         epochs=args.epochs,
         minibatch=args.minibatch,

@@ -47,7 +47,8 @@ def location_key(board: Board, types: Mapping[str, UnitType], unit: Unit) -> str
     kind = hexagon.terrain
     if unit.kind == KIND_LEADER:
         return None if kind == "open" else "leader_in_cover"
-    if kind == "wheat":
+    if kind in ("wheat", "orchard"):
+        # PR-56: an orchard reads the wheatfield row.
         return "squad_in_wheat"
     if kind == "shellhole":
         return "squad_in_small_building"

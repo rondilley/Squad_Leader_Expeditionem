@@ -17,6 +17,10 @@ language, and the shapes and the colours here are the project's own (SR-07):
 - A hill is a flat contour in brown that takes the place of the ground, with a crest line
   where two levels meet (rule 43.2).
 - A wheatfield is the one terrain that is a hexagon, because it fills its hex (rule 44.2).
+- An orchard (PR-56) is rows of small fruit trees on mown ground. It fills its hex as a
+  wheatfield does, and its crowns stand in rows, so it does not read as a wood.
+- A mill and a windmill (PR-57) are buildings with a mark of their own: a water wheel
+  beside the south wall, or four sails over the roof.
 
 The style is cel shading: flat tones with a hard edge, and no gradient. Each feature has a
 lit face, a body, a shaded face, and a line around it. The light comes from the top of the
@@ -77,6 +81,9 @@ def draw_board(surface: pygame.Surface, board: dict[str, Any], camera: Camera, f
         for hexagon in hexes:
             if hexagon["terrain"] == "woods":
                 _woods(surface, hexagon, camera)
+            elif hexagon["terrain"] == "orchard":
+                _orchard(surface, hexagon, camera)
+        _landmarks(surface, board, camera)
         # The centre dot goes on top of the terrain, because rule 7.1 threads a line of
         # sight from one centre dot to the next.
         for hexagon in hexes:
@@ -107,6 +114,9 @@ def _ground(surface: pygame.Surface, hexagon: dict[str, Any], camera: Camera) ->
     level = int(hexagon.get("elevation", 0))
     if kind == "wheat":
         colour = theme.GRAIN
+    elif kind == "orchard":
+        # PR-56: an orchard fills its hex, as a wheatfield does, so it keeps its tone on a hill.
+        colour = theme.ORCHARD_GROUND
     elif level > 0:
         colour = theme.HILL[min(level, len(theme.HILL)) - 1]
     elif kind == "woods":
@@ -211,6 +221,44 @@ def _woods(surface: pygame.Surface, hexagon: dict[str, Any], camera: Camera) -> 
         )
 
 
+# ----------------------------------------------------------------------- the orchard
+
+# PR-56: the trees of an orchard stand in three rows of two, three, and two, as offsets from
+# the hex centre in units of the camera scale. The rows run east to west.
+ORCHARD_TREES = (
+    (-0.55, -0.62), (0.55, -0.62),
+    (-1.05, 0.0), (0.0, 0.0), (1.05, 0.0),
+    (-0.55, 0.62), (0.55, 0.62),
+)
+ORCHARD_RADIUS = 0.36
+
+
+def _orchard(surface: pygame.Surface, hexagon: dict[str, Any], camera: Camera) -> None:
+    """PR-56: rows of fruit trees on mown ground.
+
+    Each crown has the four tones of a wood crown (the line, the shade, the crown, and the
+    light on top), but it is smaller and lighter, and the crowns stand in rows with ground
+    between them. A mown strip under each row of trees shows the rows when the crowns are
+    small.
+    """
+    cx, cy = camera.to_screen(*hexagon["center"])
+    size = camera.scale
+    tall = size * ROOT_THREE
+    strip = max(1, int(size * 0.16))
+    for dy in (-0.62, 0.0, 0.62):
+        y = cy + dy * size
+        half = size * (2.0 - abs(y - cy) / tall) * 0.82
+        pygame.draw.line(surface, theme.ORCHARD_ROW, (cx - half, y + size * 0.12), (cx + half, y + size * 0.12), strip)
+    radius = max(1.5, size * ORCHARD_RADIUS)
+    for dx, dy in ORCHARD_TREES:
+        x, y = cx + dx * size, cy + dy * size
+        pygame.draw.circle(surface, theme.ORCHARD_TREE_LINE, (x, y), radius)
+        pygame.draw.circle(surface, theme.ORCHARD_TREE_SHADE, (x, y + radius * 0.16), radius * 0.88)
+        pygame.draw.circle(surface, theme.ORCHARD_TREE, (x, y - radius * 0.10), radius * 0.78)
+        if size >= CROWN_LIGHT_SCALE:
+            pygame.draw.circle(surface, theme.ORCHARD_TREE_LIGHT, (x - radius * 0.24, y - radius * 0.34), radius * 0.32)
+
+
 # --------------------------------------------------------------------- the buildings
 
 
@@ -296,6 +344,69 @@ def _buildings(surface: pygame.Surface, board: dict[str, Any], camera: Camera) -
             pygame.draw.rect(surface, tones["line"], rect, 1)
     for hexagon, building, tones in plans:
         _wall_line(surface, block(hexagon, building), hexagon, building, tones["line"], edge, joined)
+
+
+# PR-57: the number of spokes of a water wheel and the angle of the sails of a windmill.
+WHEEL_SPOKES = 8
+SAIL_ANGLE = math.radians(20.0)
+
+
+def _landmarks(surface: pygame.Surface, board: dict[str, Any], camera: Camera) -> None:
+    """PR-57: the mark of each mill and each windmill on top of the plan of its building.
+
+    The mark sits on the middle of the building: the mean of the centres of its hexes. A
+    mill gets a water wheel at the south wall, with a strip of water below it. A windmill
+    gets four sails on a hub, and the sails reach past the walls, as the sails of a windmill
+    do from above.
+    """
+    found: dict[str, tuple[str, list[tuple[float, float]]]] = {}
+    for hexagon in board["hexes"]:
+        building = hexagon.get("building") or {}
+        landmark = building.get("landmark")
+        if landmark is None:
+            continue
+        found.setdefault(str(building["id"]), (str(landmark), []))[1].append(camera.to_screen(*hexagon["center"]))
+    size = camera.scale
+    tones = theme.LANDMARK
+    line = max(1, int(size * 0.10))
+    for _name, (landmark, centres) in sorted(found.items()):
+        cx = sum(x for x, _ in centres) / len(centres)
+        cy = sum(y for _, y in centres) / len(centres)
+        if landmark == "mill":
+            south = max(y for _, y in centres) + size * ROOT_THREE * BUILDING_INSET
+            radius = max(3.0, size * 0.80)
+            wx, wy = cx, south
+            pygame.draw.rect(
+                surface, tones["water"],
+                pygame.Rect(round(wx - radius * 1.8), round(wy - radius * 0.25), round(radius * 3.6), round(radius * 0.5)),
+            )
+            pygame.draw.circle(surface, tones["line"], (wx, wy), radius + line)
+            pygame.draw.circle(surface, tones["wood"], (wx, wy), radius)
+            pygame.draw.circle(surface, tones["light"], (wx, wy - radius * 0.12), radius * 0.62)
+            for i in range(WHEEL_SPOKES):
+                angle = math.tau * i / WHEEL_SPOKES
+                end = (wx + math.cos(angle) * radius, wy + math.sin(angle) * radius)
+                pygame.draw.line(surface, tones["line"], (wx, wy), end, line)
+            pygame.draw.circle(surface, tones["line"], (wx, wy), max(1.5, radius * 0.22))
+        elif landmark == "windmill":
+            length = max(4.0, size * 1.90)
+            width = max(2.0, size * 0.42)
+            for i in range(4):
+                angle = SAIL_ANGLE + math.tau * i / 4
+                ux, uy = math.cos(angle), math.sin(angle)
+                px, py = -uy * width / 2.0, ux * width / 2.0
+                near = (cx + ux * size * 0.20, cy + uy * size * 0.20)
+                far = (cx + ux * length, cy + uy * length)
+                sail = [
+                    (near[0] + px, near[1] + py), (far[0] + px, far[1] + py),
+                    (far[0] - px, far[1] - py), (near[0] - px, near[1] - py),
+                ]
+                pygame.draw.polygon(surface, tones["sail"], sail)
+                pygame.draw.polygon(surface, tones["line"], sail, line)
+                # The lattice of the sail: one bar along the middle of it.
+                pygame.draw.line(surface, tones["line"], near, far, line)
+            pygame.draw.circle(surface, tones["line"], (cx, cy), max(2.0, size * 0.30))
+            pygame.draw.circle(surface, tones["wood"], (cx, cy), max(1.5, size * 0.22))
 
 
 def _wall_line(surface: pygame.Surface, rect, hexagon, building, colour, width: int, joined) -> None:

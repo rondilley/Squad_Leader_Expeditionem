@@ -448,6 +448,86 @@ def values_batch(policy: Policy, observations: Sequence[dict[str, np.ndarray]]) 
         return policy.value(trunk).tolist()
 
 
+WORKER_KINDS = ("local", "remote")
+
+
+@dataclass
+class CollectTiming:
+    """Where the wall time of the trainer goes in `collect_parallel` and `update`, summed.
+
+    The trainer's parts: `choose` is `choose_batch`; `idle` is a wait for a worker with no
+    decision ready; `gather` is the short look for more answers when some are ready;
+    `receive` and `send` are the pipe reads and writes; `tail` is the wait at the end of a
+    rollout for the answer of each worker; `update` is the PPO update.
+
+    For each kind of worker (local, or remote on the farm): the round trip is the time from
+    the trainer's command to the trainer's read of the answer, and `work` is the part the
+    worker measured for its own game (`Decision.work_seconds`). The rest of the round trip
+    is the transit: the pipes, the bridge and the network for a remote worker, and the time
+    an answer waits for the trainer to read it. The queue is the time from that read to the
+    trainer's choice for the decision. The speed of a run fell from about 800 to 300 steps
+    a second over its three chunks, and these parts say which side of the loop waits
+    (2026-10-24).
+    """
+
+    choose: float = 0.0
+    idle: float = 0.0
+    gather: float = 0.0
+    receive: float = 0.0
+    send: float = 0.0
+    tail: float = 0.0
+    update: float = 0.0
+    choose_calls: int = 0
+    decisions: int = 0
+    round_trips: dict[str, int] = field(default_factory=lambda: dict.fromkeys(WORKER_KINDS, 0))
+    round_trip: dict[str, float] = field(default_factory=lambda: dict.fromkeys(WORKER_KINDS, 0.0))
+    work: dict[str, float] = field(default_factory=lambda: dict.fromkeys(WORKER_KINDS, 0.0))
+    queued: dict[str, int] = field(default_factory=lambda: dict.fromkeys(WORKER_KINDS, 0))
+    queue: dict[str, float] = field(default_factory=lambda: dict.fromkeys(WORKER_KINDS, 0.0))
+
+    def copy(self) -> CollectTiming:
+        return CollectTiming(
+            self.choose, self.idle, self.gather, self.receive, self.send, self.tail, self.update,
+            self.choose_calls, self.decisions, dict(self.round_trips), dict(self.round_trip),
+            dict(self.work), dict(self.queued), dict(self.queue),
+        )
+
+    def since(self, earlier: CollectTiming) -> CollectTiming:
+        """The parts of the interval after `earlier`, a copy of this record at that time."""
+        return CollectTiming(
+            self.choose - earlier.choose, self.idle - earlier.idle, self.gather - earlier.gather,
+            self.receive - earlier.receive, self.send - earlier.send, self.tail - earlier.tail,
+            self.update - earlier.update, self.choose_calls - earlier.choose_calls,
+            self.decisions - earlier.decisions,
+            *({k: part[k] - before[k] for k in WORKER_KINDS} for part, before in (
+                (self.round_trips, earlier.round_trips), (self.round_trip, earlier.round_trip),
+                (self.work, earlier.work), (self.queued, earlier.queued), (self.queue, earlier.queue),
+            )),
+        )
+
+    def summary(self) -> dict[str, Any]:
+        """The totals in seconds, the batch, and the mean parts of a round trip in ms."""
+        out: dict[str, Any] = {
+            name: round(getattr(self, name), 1)
+            for name in ("choose", "idle", "gather", "receive", "send", "tail", "update")
+        }
+        out["choose_calls"] = self.choose_calls
+        out["mean_batch"] = round(self.decisions / max(1, self.choose_calls), 2)
+        out["choose_ms_per_call"] = round(1000 * self.choose / max(1, self.choose_calls), 2)
+        for kind in WORKER_KINDS:
+            trips = self.round_trips[kind]
+            if not trips:
+                continue
+            out[kind] = {
+                "round_trips": trips,
+                "round_trip_ms": round(1000 * self.round_trip[kind] / trips, 1),
+                "work_ms": round(1000 * self.work[kind] / trips, 1),
+                "transit_ms": round(1000 * (self.round_trip[kind] - self.work[kind]) / trips, 1),
+                "queue_ms": round(1000 * self.queue[kind] / max(1, self.queued[kind]), 1),
+            }
+        return out
+
+
 def collect_parallel(
     pool: Any,
     policy: Policy,
@@ -458,8 +538,12 @@ def collect_parallel(
     on_game_end: Callable[[str, float], None] | None = None,
     alternate_sides: bool = False,
     jump_start: Any = None,
+    timing: CollectTiming | None = None,
 ) -> Rollout:
     """`collect` over a worker pool: each worker plays one game, and the policy answers all.
+
+    `timing`, a `CollectTiming`, gets the wall time of the parts of this collection added
+    to it.
 
     `jump_start`, a `jumpstart.JumpStart`, gives each new game its guide and horizon, and
     it sees the result of each game that ended with the horizon the game started with.
@@ -492,6 +576,15 @@ def collect_parallel(
     ready: list[Worker] = []
     # The bootstrap of each worker that left the pool in this rollout.
     lost_tails: dict[int, float] = {}
+    clock = time.perf_counter
+    if timing is None:
+        timing = CollectTiming()
+    # The time of each worker's last command, and of the trainer's read of its answer.
+    sent: dict[int, float] = {}
+    arrived: dict[int, float] = {}
+
+    def kind_of(worker: Worker) -> str:
+        return "remote" if worker.process is None else "local"
 
     def lose(worker: Worker, error: WorkerDied) -> None:
         pool.drop(worker, error)
@@ -504,11 +597,14 @@ def collect_parallel(
     def start(worker: Worker) -> None:
         spec, name = next_member()
         guide = jump_start.next() if jump_start is not None else None
+        began = clock()
         try:
             pool.reset(worker, spec, name, worker.learner, next_seed(), guide)
         except WorkerDied as error:
             lose(worker, error)
             return
+        sent[worker.index] = clock()
+        timing.send += sent[worker.index] - began
         awaiting.add(worker)
 
     def settle(worker: Worker, decision: Any) -> None:
@@ -528,19 +624,37 @@ def collect_parallel(
         else:
             ready.append(worker)
 
-    def receive(block: bool) -> None:
+    def receive(block: bool, tail: bool = False) -> None:
         """The answers that are in, or the next one when `block` is set."""
         if not awaiting:
             return
         timeout = None if block else GATHER_SECONDS
-        for connection in wait_any([w.connection for w in awaiting], timeout=timeout):
+        began = clock()
+        found = wait_any([w.connection for w in awaiting], timeout=timeout)
+        waited = clock() - began
+        if tail:
+            timing.tail += waited
+        elif block:
+            timing.idle += waited
+        else:
+            timing.gather += waited
+        for connection in found:
             worker = by_connection[connection]
             awaiting.discard(worker)
+            began = clock()
             try:
                 decision = pool.receive(worker)
             except WorkerDied as error:
                 lose(worker, error)
                 continue
+            now = clock()
+            timing.receive += now - began
+            if worker.index in sent:
+                kind = kind_of(worker)
+                timing.round_trips[kind] += 1
+                timing.round_trip[kind] += now - sent.pop(worker.index)
+                timing.work[kind] += decision.work_seconds
+            arrived[worker.index] = now
             settle(worker, decision)
 
     # The steps a worker recorded belong to the rollout before this one.
@@ -560,7 +674,16 @@ def collect_parallel(
         del ready[: len(batch)]
         observations = [w.pending.observation for w in batch]
         legal = [w.pending.legal for w in batch]
+        began = clock()
+        for w in batch:
+            if w.index in arrived:
+                kind = kind_of(w)
+                timing.queued[kind] += 1
+                timing.queue[kind] += began - arrived.pop(w.index)
         quads, log_probs, values, target_bits, option_bits = choose_batch(policy, observations, legal, pool.spaces, generator)
+        timing.choose += clock() - began
+        timing.choose_calls += 1
+        timing.decisions += len(batch)
         for w, quad, log_prob, value, bits, options in zip(batch, quads, log_probs, values, target_bits, option_bits):
             observation = w.pending.observation
             rollout.board.append(observation["board"])
@@ -580,16 +703,19 @@ def collect_parallel(
             rollout.done.append(0.0)
             rollout.worker.append(w.index)
             w.steps.append(len(rollout) - 1)
+            began = clock()
             try:
                 pool.act(w, quad)
             except WorkerDied as error:
                 lose(w, error)
                 continue
+            sent[w.index] = clock()
+            timing.send += sent[w.index] - began
             awaiting.add(w)
     # Each worker's answer to its last command, so its last step has its reward, and the
     # value of the state it waits at, which is its bootstrap.
     while awaiting:
-        receive(block=True)
+        receive(block=True, tail=True)
     tails = values_batch(policy, [w.pending.observation for w in workers])
     rollout.last_values = {w.index: tail for w, tail in zip(workers, tails)}
     rollout.last_values.update(lost_tails)

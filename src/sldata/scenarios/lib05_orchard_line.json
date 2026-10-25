@@ -1,0 +1,229 @@
+{
+ "id": "lib05_orchard_line",
+ "title": "The Orchard Line",
+ "board": "village",
+ "board_generator": {
+  "seed": 30,
+  "board_type": "village",
+  "cols": 33,
+  "rows": 10,
+  "zones": [
+   {
+    "count": 1,
+    "min_hexes": 2,
+    "max_hexes": 6,
+    "min_col": 20,
+    "max_col": 30
+   }
+  ],
+  "style": {
+   "orchards": 2
+  }
+ },
+ "board_retries": 48,
+ "turns": 7,
+ "first_mover": "allied",
+ "setup_order": [
+  "axis",
+  "allied"
+ ],
+ "rules_used": [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "11",
+  "12",
+  "13",
+  "14",
+  "15",
+  "16",
+  "17",
+  "18",
+  "19",
+  "20",
+  "21",
+  "22",
+  "23",
+  "24",
+  "25",
+  "26",
+  "27",
+  "28",
+  "29",
+  "30",
+  "31",
+  "32",
+  "33",
+  "34",
+  "35",
+  "36",
+  "37",
+  "38",
+  "39",
+  "40",
+  "41",
+  "42"
+ ],
+ "switches": {
+  "predesignation": "basic",
+  "semi_simultaneous": "off"
+ },
+ "smoke_counters": {
+  "allied": 2
+ },
+ "concealment_counters": {
+  "allied": 3
+ },
+ "hidden_placement": {
+  "side": "axis",
+  "note": "Rule 42: the defender sets up hidden."
+ },
+ "sides": [
+  {
+   "side": "allied",
+   "nationality": "american",
+   "groups": [
+    {
+     "id": "a_line1",
+     "area": {
+      "zone": "columns",
+      "min_col": 2,
+      "max_col": 8
+     },
+     "units": [
+      {
+       "type": "6-6-6",
+       "count": 3
+      },
+      {
+       "type": "8-0"
+      },
+      {
+       "type": "8-4-7",
+       "count": 3
+      },
+      {
+       "type": "9-1"
+      },
+      {
+       "type": "DC"
+      },
+      {
+       "type": "MMG"
+      }
+     ],
+     "objective": true
+    },
+    {
+     "id": "a_armor",
+     "area": {
+      "zone": "columns",
+      "min_col": 0,
+      "max_col": 1,
+      "not_terrain": [
+       "stone_building",
+       "wooden_building",
+       "woods"
+      ]
+     },
+     "units": [
+      {
+       "type": "M10"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "side": "axis",
+   "nationality": "german",
+   "groups": [
+    {
+     "id": "d_hold1",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 20,
+      "max_col": 30,
+      "rank": 0,
+      "min_hexes": 2
+     },
+     "units": [
+      {
+       "type": "4-6-7",
+       "count": 3
+      },
+      {
+       "type": "9-1"
+      },
+      {
+       "type": "FT"
+      },
+      {
+       "type": "MMG"
+      }
+     ]
+    },
+    {
+     "id": "d_line1",
+     "area": {
+      "zone": "columns",
+      "min_col": 20,
+      "max_col": 30,
+      "not_terrain": [
+       "stone_building",
+       "wooden_building"
+      ]
+     },
+     "units": [
+      {
+       "type": "8-3-8"
+      },
+      {
+       "type": "PF",
+       "count": 2
+      }
+     ]
+    },
+    {
+     "id": "d_armor",
+     "area": {
+      "zone": "columns",
+      "min_col": 31,
+      "max_col": 32,
+      "not_terrain": [
+       "stone_building",
+       "wooden_building",
+       "woods"
+      ]
+     },
+     "units": [
+      {
+       "type": "MkIVF1"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "victory": [
+  {
+   "kind": "hex_control",
+   "side": "allied",
+   "groups": [
+    "d_hold1"
+   ],
+   "count": 1,
+   "note": "The Americans win if they end the game in control of 1 hex of the largest stone building in columns U to EE. Otherwise the Germans win."
+  }
+ ],
+ "situation": "A village with two orchards. Part of the defending force sets up hidden. The Americans attack with 6 squads under 2 leaders, 2 support weapons, and 1 armored vehicle. The Germans hold with 4 squads under 1 leader, 4 support weapons, and 1 armored vehicle. The Americans win if they end the game in control of 1 hex of the largest stone building in columns U to EE. Otherwise the Germans win. Each German unit that sets up in a woods hex or a building hex is hidden, and the other units set up in full view. A vehicle hides only in woods or in a wooden building. A hidden unit comes on the board when it moves, fires, or makes smoke, when an attack on its hex has an effect, when an enemy enters its hex, or when an enemy is next to it at the end of a Defensive Fire Phase or an Advance Phase. The Americans move first. 7 turns.",
+ "notes": "A project scenario of the library, slot L05 (owner directive, 2026-10-16), not a printed scenario. `sl-cli library` made it from draw seed 7 and board seed 3. The rule level is 42. The defending force is 412 points and the attacking force is 628 points on the scale of slcampaign.points, a share of 3 to 2. No part of it is card text (SR-07). Balance (gate item 4, 2026-10-17): v7 against v7 gave the American attacker 792 of 1,600 games (49.5 percent), artifact runs/20261017T162138Z-library-l05-s1-10. Gate item 3: v3, v6, and v7 played it to the end on the two sides. The owner accepted the card on 2026-10-17."
+}

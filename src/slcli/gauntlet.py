@@ -53,6 +53,7 @@ from __future__ import annotations
 import json
 import sys
 import time
+from collections import OrderedDict
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
 from multiprocessing import Value
@@ -82,7 +83,37 @@ def _apply(record: Record, outcome: float) -> None:
 
 
 # One engine for each scenario in each worker process, because a board takes time to build.
-_ENGINES: dict[str, Any] = {}
+# The cache keeps the last ENGINE_LIMIT scenarios only (2026-10-17). A library search plays
+# 100 candidates, and the line of sight table of an engine grows with each game: about
+# 200 MB after one game on two boards, and about 900 MB after six games on three boards. A
+# cache with no limit grew to many GB in each of the 30 workers of a farm host, and the
+# workers died. A farm host takes the jobs of a search in turn, so the next game of a worker
+# is often of another candidate, and one engine is enough.
+ENGINE_LIMIT = 1
+# After a game, a worker clears the line of sight table of its engine when the table holds
+# more than this count of results. The table of one board stays below it.
+LOS_ENTRY_LIMIT = 250_000
+_ENGINES: "OrderedDict[str, Any]" = OrderedDict()
+
+
+def _engine_for(scenario: Any, key: str) -> Any:
+    """The engine of a scenario, from the cache of this worker when it is there."""
+    engine = _ENGINES.get(key)
+    if engine is not None:
+        _ENGINES.move_to_end(key)
+        return engine
+    engine = build_engine(scenario, None)
+    _ENGINES[key] = engine
+    while len(_ENGINES) > ENGINE_LIMIT:
+        _ENGINES.popitem(last=False)
+    return engine
+
+
+def _trim(engine: Any) -> None:
+    """Clear the line of sight table of the engine when it holds too much (LOS_ENTRY_LIMIT)."""
+    table = getattr(engine, "los", None)
+    if table is not None and table.entries() > LOS_ENTRY_LIMIT:
+        table.clear()
 
 
 def _play_job(job: tuple[str, int, str, str]) -> dict[str, Any]:
@@ -90,18 +121,17 @@ def _play_job(job: tuple[str, int, str, str]) -> dict[str, Any]:
     scenario, game_seed, first, second = job
     # A farm host gets a variant as its document (a dict), and the document is the key.
     key = scenario if isinstance(scenario, str) else json.dumps(scenario, sort_keys=True)
-    engine = _ENGINES.get(key)
-    if engine is None:
-        engine = build_engine(scenario, None)
-        _ENGINES[key] = engine
+    engine = _engine_for(scenario, key)
     agents = (make_agent(first, engine, game_seed, 0), make_agent(second, engine, game_seed, 1))
     try:
         record = play_game(engine, game_seed, agents)
     except Exception as exc:
+        _trim(engine)
         # A game that does not reach a victory condition (an agent that cycles a phase
         # without advancing the turn) must not abort the whole gauntlet. Record it and go
         # on, the way the gate command does (TC-04).
         return {"winner": None, "error": type(exc).__name__, "message": str(exc)[:300]}
+    _trim(engine)
     # The four rates of TC-16 and the decision time of FR-59 of each model agent (OR-02).
     harness = []
     for player, agent in enumerate(agents):
@@ -160,7 +190,10 @@ def _play_all(
         def report(done: int, total: int, job: tuple[str, int, str, str], outcome: dict[str, Any]) -> None:
             _progress(done, total, job, outcome, started)
 
-        return farm_client.play_all(jobs, farm.addresses, farm.key, local_workers=workers, play=play, progress=report if progress else None)
+        return farm_client.play_all(
+            jobs, farm.addresses, farm.key, local_workers=workers, play=play,
+            progress=report if progress else None, slots_per_host=farm.slots_per_host,
+        )
     if workers <= 1 or len(jobs) < 2:
         for job in jobs:
             outcomes.append(play(job))
@@ -573,7 +606,8 @@ def farm_of(args: Any) -> Any:
         key = farm_protocol.read_key(args.remote_key)
     except farm_protocol.FarmKeyError as exc:
         raise RuntimeError(str(exc)) from exc
-    return Farm(tuple(parse_addresses(text)), key)
+    slots = getattr(args, "remote_slots", 0) or None
+    return Farm(tuple(parse_addresses(text)), key, slots)
 
 
 def add_farm_arguments(p: Any) -> None:
@@ -583,6 +617,12 @@ def add_farm_arguments(p: Any) -> None:
         help="farm hosts that play games too, as tars,case:5160 (sl-cli farm serve on each); the scripted agents only",
     )
     p.add_argument("--remote-key", default="farm.key.txt", help="the file with the farm key (sl-cli farm key)")
+    p.add_argument(
+        "--remote-slots",
+        type=int,
+        default=0,
+        help="the most games at a time on each farm host; 0 is each slot of the host (a scenario of four boards needs fewer)",
+    )
 
 
 def split_agent_names(text: str) -> list[str]:

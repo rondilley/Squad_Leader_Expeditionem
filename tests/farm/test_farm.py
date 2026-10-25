@@ -197,3 +197,38 @@ def test_the_server_refuses_a_scenario_document_that_is_not_valid(server):
             assert answer["type"] == "refused" and answer["id"] == job_id, answer
     finally:
         connection.close()
+
+
+def test_a_cap_of_slots_for_each_host_keeps_the_results(server):
+    """`--remote-slots` (2026-10-18): fewer games at a time on a host give the same results."""
+    jobs = [(SCENARIO, seed, "v1", "v0") for seed in range(30, 34)]
+    local = [_play_job(job) for job in jobs]
+    assert play_all(jobs, [server], KEY, slots_per_host=1) == local
+
+
+def test_the_slots_of_a_host_are_its_own_or_the_cap_when_lower():
+    from slfarm.client import host_slots
+
+    assert host_slots(30, None) == 30
+    assert host_slots(30, 16) == 16
+    assert host_slots(2, 16) == 2
+    with pytest.raises(ValueError):
+        host_slots(30, 0)
+
+
+def test_the_farm_options_carry_the_cap():
+    import argparse
+
+    from slcli.gauntlet import add_farm_arguments, farm_of
+
+    parser = argparse.ArgumentParser()
+    add_farm_arguments(parser)
+    key_file = Path(__file__).parent / "_cap_key.txt"
+    key_file.write_text("k" * 40 + "\n", encoding="utf-8")
+    try:
+        farm = farm_of(parser.parse_args(["--remote", "tars", "--remote-key", str(key_file), "--remote-slots", "12"]))
+        assert farm.slots_per_host == 12
+        farm = farm_of(parser.parse_args(["--remote", "tars", "--remote-key", str(key_file)]))
+        assert farm.slots_per_host is None
+    finally:
+        key_file.unlink()

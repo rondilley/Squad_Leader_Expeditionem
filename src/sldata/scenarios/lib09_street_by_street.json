@@ -1,0 +1,294 @@
+{
+ "id": "lib09_street_by_street",
+ "title": "Street by Street",
+ "board": "city",
+ "board_composition": {
+  "side": "south",
+  "boards": [
+   {
+    "seed": 50,
+    "board_type": "city",
+    "cols": 33,
+    "rows": 10,
+    "zones": [
+     {
+      "count": 1,
+      "min_hexes": 2,
+      "max_hexes": 6,
+      "min_col": 20,
+      "max_col": 30
+     }
+    ]
+   },
+   {
+    "seed": 51,
+    "board_type": "village",
+    "cols": 33,
+    "rows": 10,
+    "zones": [
+     {
+      "count": 1,
+      "min_hexes": 2,
+      "max_hexes": 6,
+      "min_col": 20,
+      "max_col": 30
+     }
+    ]
+   }
+  ]
+ },
+ "board_retries": 48,
+ "turns": 8,
+ "first_mover": "allied",
+ "setup_order": [
+  "axis",
+  "allied"
+ ],
+ "rules_used": [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "11",
+  "12",
+  "13",
+  "14",
+  "15",
+  "16",
+  "17",
+  "18",
+  "19",
+  "20",
+  "21",
+  "22",
+  "23",
+  "24",
+  "25",
+  "26",
+  "27",
+  "28",
+  "29",
+  "30",
+  "31",
+  "32",
+  "33",
+  "34",
+  "35",
+  "36",
+  "37",
+  "38",
+  "39",
+  "40",
+  "41",
+  "42",
+  "43",
+  "44"
+ ],
+ "switches": {
+  "predesignation": "basic",
+  "semi_simultaneous": "off"
+ },
+ "smoke_counters": {
+  "allied": 3
+ },
+ "concealment_counters": {
+  "allied": 5,
+  "axis": 6
+ },
+ "sides": [
+  {
+   "side": "allied",
+   "nationality": "russian",
+   "groups": [
+    {
+     "id": "a_line1",
+     "area": {
+      "zone": "columns",
+      "min_col": 2,
+      "max_col": 8,
+      "min_row": 0,
+      "max_row": 10
+     },
+     "units": [
+      {
+       "type": "10-3"
+      },
+      {
+       "type": "4-4-7",
+       "count": 3
+      },
+      {
+       "type": "6-2-8",
+       "count": 3
+      },
+      {
+       "type": "8-1"
+      },
+      {
+       "type": "HMG"
+      },
+      {
+       "type": "MMG"
+      }
+     ],
+     "objective": true
+    },
+    {
+     "id": "a_line2",
+     "area": {
+      "zone": "columns",
+      "min_col": 2,
+      "max_col": 8,
+      "min_row": 11,
+      "max_row": 20
+     },
+     "units": [
+      {
+       "type": "4-4-7",
+       "count": 2
+      },
+      {
+       "type": "6-2-8",
+       "count": 4
+      },
+      {
+       "type": "8-1"
+      },
+      {
+       "type": "LMG"
+      }
+     ],
+     "objective": false
+    },
+    {
+     "id": "a_armor",
+     "area": {
+      "zone": "columns",
+      "min_col": 0,
+      "max_col": 1,
+      "min_row": 0,
+      "max_row": 20,
+      "not_terrain": [
+       "stone_building",
+       "wooden_building",
+       "woods"
+      ]
+     },
+     "units": [
+      {
+       "type": "T34"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "side": "axis",
+   "nationality": "german",
+   "groups": [
+    {
+     "id": "d_hold1",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 20,
+      "max_col": 30,
+      "min_row": 0,
+      "max_row": 10,
+      "rank": 0,
+      "min_hexes": 2
+     },
+     "units": [
+      {
+       "type": "4-6-7",
+       "count": 2
+      },
+      {
+       "type": "6+1"
+      },
+      {
+       "type": "8-3-8"
+      },
+      {
+       "type": "FT"
+      },
+      {
+       "type": "PF",
+       "count": 2
+      }
+     ]
+    },
+    {
+     "id": "d_hold2",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 20,
+      "max_col": 30,
+      "min_row": 11,
+      "max_row": 20,
+      "rank": 0,
+      "min_hexes": 2
+     },
+     "units": [
+      {
+       "type": "4-6-7"
+      },
+      {
+       "type": "6+1"
+      },
+      {
+       "type": "8-3-8"
+      },
+      {
+       "type": "LMG"
+      },
+      {
+       "type": "PF"
+      }
+     ]
+    },
+    {
+     "id": "d_armor",
+     "area": {
+      "zone": "columns",
+      "min_col": 31,
+      "max_col": 32,
+      "min_row": 0,
+      "max_row": 20,
+      "not_terrain": [
+       "stone_building",
+       "wooden_building",
+       "woods"
+      ]
+     },
+     "units": [
+      {
+       "type": "MkIVF1"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "victory": [
+  {
+   "kind": "hex_control",
+   "side": "allied",
+   "groups": [
+    "d_hold1",
+    "d_hold2"
+   ],
+   "count": 1,
+   "note": "The Russians win if they end the game in control of 1 hex of the 2 largest stone buildings in columns U to EE, one on each board. Otherwise the Germans win."
+  }
+ ],
+ "situation": "A town to the north and a village to the south, on one front. The defenders hold a stone building at the east end of each. The Russians attack with 12 squads under 3 leaders, 3 support weapons, and 1 armored vehicle. The Germans hold with 5 squads under 2 leaders, 5 support weapons, and 1 armored vehicle. The Russians win if they end the game in control of 1 hex of the 2 largest stone buildings in columns U to EE, one on each board. Otherwise the Germans win. The Russians move first. 8 turns.",
+ "notes": "A project scenario of the library, slot L09 (owner directive, 2026-10-16), not a printed scenario. `sl-cli library` made it from draw seed 6 and board seed 5. The rule level is 44. The defending force is 509 points and the attacking force is 1019 points on the scale of slcampaign.points, a share of 2 to 1. No part of it is card text (SR-07). Balance (gate item 4, 2026-10-17): v7 against v7 gave the Russian attacker 789 of 1,600 games (49.3 percent), artifact runs/20261017T214338Z-library-l09-s1-10. Gate item 3: v3, v6, and v7 played it to the end on the two sides. The card agrees with the scenario, so it went into the library with no review step (owner, 2026-10-17)."
+}

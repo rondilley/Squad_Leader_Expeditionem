@@ -1,0 +1,212 @@
+{
+ "id": "lib07_hedgerows",
+ "title": "The Hedgerows",
+ "board": "rural",
+ "board_generator": {
+  "seed": 10,
+  "board_type": "rural",
+  "cols": 33,
+  "rows": 10,
+  "zones": [
+   {
+    "count": 1,
+    "min_hexes": 2,
+    "max_hexes": 6,
+    "min_col": 20,
+    "max_col": 30
+   }
+  ]
+ },
+ "board_retries": 48,
+ "turns": 7,
+ "first_mover": "axis",
+ "setup_order": [
+  "allied",
+  "axis"
+ ],
+ "rules_used": [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "11",
+  "12",
+  "13",
+  "14",
+  "15",
+  "16",
+  "17",
+  "18",
+  "19",
+  "20",
+  "21",
+  "22",
+  "23",
+  "24",
+  "25",
+  "26",
+  "27",
+  "28",
+  "29",
+  "30",
+  "31",
+  "32",
+  "33",
+  "34",
+  "35",
+  "36",
+  "37",
+  "38",
+  "39",
+  "40",
+  "41",
+  "42",
+  "43",
+  "44"
+ ],
+ "switches": {
+  "predesignation": "basic",
+  "semi_simultaneous": "off"
+ },
+ "smoke_counters": {
+  "axis": 3
+ },
+ "concealment_counters": {
+  "axis": 3,
+  "allied": 4
+ },
+ "sides": [
+  {
+   "side": "axis",
+   "nationality": "german",
+   "groups": [
+    {
+     "id": "a_line1",
+     "area": {
+      "zone": "columns",
+      "min_col": 2,
+      "max_col": 8
+     },
+     "units": [
+      {
+       "type": "6+1"
+      },
+      {
+       "type": "8-3-8",
+       "count": 4
+      },
+      {
+       "type": "DC"
+      },
+      {
+       "type": "HMG"
+      },
+      {
+       "type": "MMG"
+      },
+      {
+       "type": "PF"
+      }
+     ],
+     "objective": true
+    },
+    {
+     "id": "a_armor",
+     "area": {
+      "zone": "columns",
+      "min_col": 0,
+      "max_col": 1,
+      "not_terrain": [
+       "stone_building",
+       "wooden_building",
+       "woods"
+      ]
+     },
+     "units": [
+      {
+       "type": "MkIVF1"
+      },
+      {
+       "type": "STGIII105"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "side": "allied",
+   "nationality": "american",
+   "groups": [
+    {
+     "id": "d_hold1",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 20,
+      "max_col": 30,
+      "rank": 0,
+      "min_hexes": 2
+     },
+     "units": [
+      {
+       "type": "6-6-6",
+       "count": 2
+      },
+      {
+       "type": "8-0"
+      },
+      {
+       "type": "8-4-7"
+      },
+      {
+       "type": "BAZ"
+      },
+      {
+       "type": "DC"
+      },
+      {
+       "type": "MMG"
+      }
+     ]
+    },
+    {
+     "id": "d_armor",
+     "area": {
+      "zone": "columns",
+      "min_col": 31,
+      "max_col": 32,
+      "not_terrain": [
+       "stone_building",
+       "wooden_building",
+       "woods"
+      ]
+     },
+     "units": [
+      {
+       "type": "Priest"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "victory": [
+  {
+   "kind": "hex_control",
+   "side": "axis",
+   "groups": [
+    "d_hold1"
+   ],
+   "count": 1,
+   "note": "The Germans win if they end the game in control of 1 hex of the largest stone building in columns U to EE. Otherwise the Americans win."
+  }
+ ],
+ "situation": "Fields cut by hedges. The defenders hold a stone building at the east end. The Germans attack with 4 squads under 1 leader, 4 support weapons, and 2 armored vehicles. The Americans hold with 3 squads under 1 leader, 3 support weapons, and 1 armored vehicle. The Germans win if they end the game in control of 1 hex of the largest stone building in columns U to EE. Otherwise the Americans win. The Germans move first. 7 turns.",
+ "notes": "A project scenario of the library, slot L07 (owner directive, 2026-10-16), not a printed scenario. `sl-cli library` made it from draw seed 9 and board seed 1. The rule level is 44. The defending force is 376 points and the attacking force is 632 points on the scale of slcampaign.points, a share of 7 to 4. No part of it is card text (SR-07). Balance (gate item 4, 2026-10-17): v7 against v7 gave the German attacker 821 of 1,600 games (51.3 percent), artifact runs/20261017T180716Z-library-l07-s1-10. Gate item 3: v3, v6, and v7 played it to the end on the two sides. The card agrees with the scenario, so it went into the library with no review step (owner, 2026-10-17)."
+}

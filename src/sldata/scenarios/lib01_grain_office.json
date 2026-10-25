@@ -1,0 +1,150 @@
+{
+ "id": "lib01_grain_office",
+ "title": "The Grain Office",
+ "board": "city",
+ "board_generator": {
+  "seed": 100,
+  "board_type": "city",
+  "cols": 33,
+  "rows": 10,
+  "zones": [
+   {
+    "count": 1,
+    "min_hexes": 2,
+    "max_hexes": 6,
+    "min_col": 20,
+    "max_col": 30
+   }
+  ]
+ },
+ "board_retries": 48,
+ "turns": 5,
+ "first_mover": "allied",
+ "setup_order": [
+  "axis",
+  "allied"
+ ],
+ "rules_used": [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "11",
+  "12",
+  "13",
+  "14",
+  "15",
+  "16",
+  "17",
+  "18",
+  "19",
+  "20",
+  "21"
+ ],
+ "switches": {
+  "predesignation": "basic",
+  "semi_simultaneous": "off"
+ },
+ "sides": [
+  {
+   "side": "allied",
+   "nationality": "russian",
+   "groups": [
+    {
+     "id": "a_line1",
+     "area": {
+      "zone": "columns",
+      "min_col": 2,
+      "max_col": 8
+     },
+     "units": [
+      {
+       "type": "10-3"
+      },
+      {
+       "type": "4-4-7",
+       "count": 2
+      },
+      {
+       "type": "6-2-8",
+       "count": 3
+      },
+      {
+       "type": "9-1"
+      },
+      {
+       "type": "LMG"
+      },
+      {
+       "type": "MMG",
+       "count": 2
+      }
+     ],
+     "objective": true
+    }
+   ]
+  },
+  {
+   "side": "axis",
+   "nationality": "german",
+   "groups": [
+    {
+     "id": "d_hold1",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 20,
+      "max_col": 30,
+      "rank": 0,
+      "min_hexes": 2
+     },
+     "units": [
+      {
+       "type": "4-6-7",
+       "count": 3
+      },
+      {
+       "type": "9-2"
+      }
+     ]
+    },
+    {
+     "id": "d_line1",
+     "area": {
+      "zone": "columns",
+      "min_col": 20,
+      "max_col": 30,
+      "not_terrain": [
+       "stone_building",
+       "wooden_building"
+      ]
+     },
+     "units": [
+      {
+       "type": "4-6-7"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "victory": [
+  {
+   "kind": "hex_control",
+   "side": "allied",
+   "groups": [
+    "d_hold1"
+   ],
+   "count": 1,
+   "note": "The Russians win if they end the game in control of 1 hex of the largest stone building in columns U to EE. Otherwise the Germans win."
+  }
+ ],
+ "situation": "A grain office and its yards at the edge of a burned town. The defenders hold the office block, and the attackers must take it before dark. The Russians attack with 5 squads under 2 leaders and 3 support weapons. The Germans hold with 4 squads under 1 leader. The Russians win if they end the game in control of 1 hex of the largest stone building in columns U to EE. Otherwise the Germans win. The Russians move first. 5 turns.",
+ "notes": "A project scenario of the library, slot L01 (owner directive, 2026-10-16), not a printed scenario. `sl-cli library` made it from draw seed 9 and board seed 10. The rule level is 21. The defending force is 247 points and the attacking force is 432 points on the scale of slcampaign.points, a share of 7 to 4. No part of it is card text (SR-07). Balance (gate item 4, 2026-10-17): v7 against v7 gave the Russian attacker 746 of 1,600 games (46.6 percent), artifact runs/20261017T011201Z-library-l01-s9, after the searches of draw seeds 1 to 10 and board seeds 1 to 20. Gate item 3: v3, v6, and v7 played it to the end on the two sides. The owner accepted the card on 2026-10-17. The card names the victory building by its rank and its band of columns since 2026-10-17, because nothing on the board marks a building; that change is to the text only."
+}

@@ -113,6 +113,8 @@ AREA_KEYS = Keys(
 
 # `slboards.generator.ZoneConstraint.from_dict` and `GeneratorParameters.from_dict`.
 ZONE_KEYS = Keys({"count": None, "min_hexes": None, "max_hexes": None, **_BAND, "near": NEAR_KEYS})
+# `slboards.generator.Landmark.from_dict`: a mill or a windmill on a building of a band (PR-57).
+LANDMARK_KEYS = Keys({"kind": None, "rank": None, **_BAND})
 _GENERATOR = {
     "seed": None,
     "board_type": None,
@@ -122,6 +124,7 @@ _GENERATOR = {
     "building_density": None,
     "style": None,
     "zones": Each(ZONE_KEYS),
+    "landmarks": Each(LANDMARK_KEYS),
 }
 GENERATOR_KEYS = Keys(_GENERATOR)
 
@@ -246,7 +249,7 @@ BOARD_KEYS = Keys(
                     "elevation": None,
                     "road": None,
                     "road_sides": None,
-                    "building": Keys({"id": None, "kind": None, "size": None}),
+                    "building": Keys({"id": None, "kind": None, "size": None, "landmark": None}),
                     "hexsides": None,
                     "sewer": None,
                     "stairs": None,
@@ -382,6 +385,35 @@ TABLE_KEYS: dict[str, Keys] = {
     "campaign": CAMPAIGN_KEYS,
 }
 
+# `slcampaign.library`: the slots of the scenario library (2026-10-16).
+LIBRARY_SLOT_KEYS = Keys(
+    {
+        "id": None,
+        "name": None,
+        "title": None,
+        "theme": None,
+        "boards": None,
+        "attacker": None,
+        "defender": None,
+        "defender_second": None,
+        "rules": None,
+        "points": None,
+        "turns": None,
+        "weapons": None,
+        "engineers": None,
+        "required": Keys({"attacker": None, "defender": None}),
+        "vehicles_percent": Keys({"attacker": None, "defender": None}),
+        "smoke": None,
+        "concealment": Keys({"attacker": None, "defender": None}),
+        "hidden": None,
+        "two_sided": None,
+        "victory": None,
+        "orchards": None,
+        "landmark": Keys({"defender": None}),
+    }
+)
+LIBRARY_KEYS = Keys({**_DOCUMENT, "vehicles": None, "slots": Each(LIBRARY_SLOT_KEYS)})
+
 
 def keys_for(relative: str) -> Any:
     """The closed key set of a data file of the package, by its path inside `sldata`.
@@ -406,6 +438,8 @@ def keys_for(relative: str) -> Any:
         return PROJECT_RULINGS_KEYS
     if path == "providers.json":
         return PROVIDERS_KEYS
+    if path == "library/slots.json":
+        return LIBRARY_KEYS
     return None
 
 
@@ -539,6 +573,16 @@ def scenario_from_document(data: Any, label: str = "scenario document", name: st
         return scenario_from_dict(data)
     except (KeyError, ValueError, TypeError) as exc:
         raise DataError(f"{label} is not valid: {exc}") from exc
+
+
+def load_library_slots() -> dict[str, Any]:
+    """The slot file of the scenario library, with its keys checked (2026-10-16)."""
+    data = _read_json("library/slots.json")
+    try:
+        check_keys(data, LIBRARY_KEYS, "library/slots.json")
+    except (KeyError, ValueError, TypeError) as exc:
+        raise DataError(f"the library slots are not valid: {exc}") from exc
+    return data
 
 
 def load_board(name: str, terrain: dict[str, TerrainType] | None = None) -> Board:

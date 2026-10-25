@@ -1,0 +1,285 @@
+{
+ "id": "lib10_hills_and_fields",
+ "title": "Hills and Fields",
+ "board": "hills",
+ "board_composition": {
+  "side": "south",
+  "boards": [
+   {
+    "seed": 90,
+    "board_type": "hills",
+    "cols": 33,
+    "rows": 10,
+    "zones": [
+     {
+      "count": 1,
+      "min_hexes": 2,
+      "max_hexes": 6,
+      "min_col": 20,
+      "max_col": 30
+     }
+    ]
+   },
+   {
+    "seed": 91,
+    "board_type": "rural",
+    "cols": 33,
+    "rows": 10,
+    "zones": [
+     {
+      "count": 1,
+      "min_hexes": 2,
+      "max_hexes": 6,
+      "min_col": 20,
+      "max_col": 30
+     }
+    ]
+   }
+  ]
+ },
+ "board_retries": 48,
+ "turns": 9,
+ "first_mover": "axis",
+ "setup_order": [
+  "allied",
+  "axis"
+ ],
+ "rules_used": [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "11",
+  "12",
+  "13",
+  "14",
+  "15",
+  "16",
+  "17",
+  "18",
+  "19",
+  "20",
+  "21",
+  "22",
+  "23",
+  "24",
+  "25",
+  "26",
+  "27",
+  "28",
+  "29",
+  "30",
+  "31",
+  "32",
+  "33",
+  "34",
+  "35",
+  "36",
+  "37",
+  "38",
+  "39",
+  "40",
+  "41",
+  "42",
+  "43",
+  "44"
+ ],
+ "switches": {
+  "predesignation": "basic",
+  "semi_simultaneous": "off"
+ },
+ "smoke_counters": {
+  "axis": 3
+ },
+ "concealment_counters": {
+  "axis": 3,
+  "allied": 5
+ },
+ "sides": [
+  {
+   "side": "axis",
+   "nationality": "german",
+   "groups": [
+    {
+     "id": "a_line1",
+     "area": {
+      "zone": "columns",
+      "min_col": 2,
+      "max_col": 8,
+      "min_row": 0,
+      "max_row": 10
+     },
+     "units": [
+      {
+       "type": "4-6-7",
+       "count": 2
+      },
+      {
+       "type": "6+1"
+      },
+      {
+       "type": "8-3-8"
+      },
+      {
+       "type": "DC"
+      },
+      {
+       "type": "MMG"
+      }
+     ],
+     "objective": true
+    },
+    {
+     "id": "a_line2",
+     "area": {
+      "zone": "columns",
+      "min_col": 2,
+      "max_col": 8,
+      "min_row": 11,
+      "max_row": 20
+     },
+     "units": [
+      {
+       "type": "4-6-7"
+      },
+      {
+       "type": "8-0"
+      },
+      {
+       "type": "8-3-8"
+      },
+      {
+       "type": "HMG"
+      }
+     ],
+     "objective": false
+    },
+    {
+     "id": "a_armor",
+     "area": {
+      "zone": "columns",
+      "min_col": 0,
+      "max_col": 1,
+      "min_row": 0,
+      "max_row": 20,
+      "not_terrain": [
+       "stone_building",
+       "wooden_building",
+       "woods"
+      ]
+     },
+     "units": [
+      {
+       "type": "MkIVF2",
+       "count": 2
+      },
+      {
+       "type": "STGIII105"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "side": "allied",
+   "nationality": "russian",
+   "groups": [
+    {
+     "id": "d_hold1",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 20,
+      "max_col": 30,
+      "min_row": 0,
+      "max_row": 10,
+      "rank": 0,
+      "min_hexes": 2
+     },
+     "units": [
+      {
+       "type": "10-2"
+      },
+      {
+       "type": "4-4-7",
+       "count": 2
+      },
+      {
+       "type": "6-2-8"
+      },
+      {
+       "type": "LMG"
+      }
+     ]
+    },
+    {
+     "id": "d_hold2",
+     "objective": true,
+     "area": {
+      "zone": "stone_building",
+      "min_col": 20,
+      "max_col": 30,
+      "min_row": 11,
+      "max_row": 20,
+      "rank": 0,
+      "min_hexes": 2
+     },
+     "units": [
+      {
+       "type": "4-4-7"
+      },
+      {
+       "type": "6-2-8"
+      },
+      {
+       "type": "8-0"
+      },
+      {
+       "type": "MMG"
+      }
+     ]
+    },
+    {
+     "id": "d_armor",
+     "area": {
+      "zone": "columns",
+      "min_col": 31,
+      "max_col": 32,
+      "min_row": 0,
+      "max_row": 20,
+      "not_terrain": [
+       "stone_building",
+       "wooden_building",
+       "woods"
+      ]
+     },
+     "units": [
+      {
+       "type": "SU152"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "victory": [
+  {
+   "kind": "hex_control",
+   "side": "axis",
+   "groups": [
+    "d_hold1",
+    "d_hold2"
+   ],
+   "count": 1,
+   "note": "The Germans win if they end the game in control of 1 hex of the 2 largest stone buildings in columns U to EE, one on each board. Otherwise the Russians win."
+  }
+ ],
+ "situation": "Hill country to the north and open fields to the south, on one front. Each side has armored vehicles. The Germans attack with 5 squads under 2 leaders, 3 support weapons, and 3 armored vehicles. The Russians hold with 5 squads under 2 leaders, 2 support weapons, and 1 armored vehicle. The Germans win if they end the game in control of 1 hex of the 2 largest stone buildings in columns U to EE, one on each board. Otherwise the Russians win. The Germans move first. 9 turns.",
+ "notes": "A project scenario of the library, slot L10 (owner directive, 2026-10-16), not a printed scenario. `sl-cli library` made it from draw seed 1 and board seed 9. The rule level is 44. The defending force is 498 points and the attacking force is 827 points on the scale of slcampaign.points, a share of 5 to 3. No part of it is card text (SR-07). Balance (gate item 4, 2026-10-17): v7 against v7 gave the German attacker 808 of 1,600 games (50.5 percent), artifact runs/20261017T222547Z-library-l10-s1-10. Gate item 3: v3, v6, and v7 played it to the end on the two sides. The card agrees with the scenario, so it went into the library with no review step (owner, 2026-10-17)."
+}

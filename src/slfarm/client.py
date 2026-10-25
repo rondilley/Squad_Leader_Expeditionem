@@ -49,10 +49,16 @@ class Address:
 
 @dataclass(frozen=True)
 class Farm:
-    """The hosts of a run and the key that each connection proves."""
+    """The hosts of a run and the key that each connection proves.
+
+    `slots_per_host` caps the games that the run sends to one host at a time, or None for
+    each slot of the host. A game on four stacked boards holds about 2 GB in its worker, so
+    30 of them at a time do not fit in a host that also runs a language model (2026-10-18).
+    """
 
     addresses: tuple[Address, ...]
     key: bytes
+    slots_per_host: int | None = None
 
     def __repr__(self) -> str:
         return f"Farm({', '.join(str(a) for a in self.addresses)})"
@@ -275,6 +281,15 @@ def _local_thread(run: _Run, workers: int, play: Play) -> None:
         run.put_back(sorted(flight.values()))
 
 
+def host_slots(slots: int, cap: int | None) -> int:
+    """The games that a run sends to one host at a time: its slots, or the cap when lower."""
+    if cap is None:
+        return slots
+    if cap < 1:
+        raise ValueError(f"the slots for each host must be 1 or more, not {cap}")
+    return min(slots, cap)
+
+
 def play_all(
     jobs: Sequence[Job],
     addresses: Sequence[Address],
@@ -283,11 +298,14 @@ def play_all(
     play: Play | None = None,
     progress: Progress | None = None,
     result_timeout: float = RESULT_TIMEOUT_SECONDS,
+    slots_per_host: int | None = None,
 ) -> list[dict[str, Any]]:
     """The outcome of each job, in the order of the jobs."""
     p.check_agents_for_farm(sorted({name for job in jobs for name in job[2:]}))
     code = p.code_hash()
     connections = [Connection(address, key, code, result_timeout) for address in addresses]
+    for connection in connections:
+        connection.slots = host_slots(connection.slots, slots_per_host)
     run = _Run(jobs, progress)
     threads = [threading.Thread(target=_host_thread, args=(run, c), daemon=True) for c in connections]
     if local_workers > 0:

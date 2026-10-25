@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import multiprocessing as mp
 import sys
+import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, field
@@ -73,6 +74,10 @@ class Decision:
     reward_delta: float
     ended: bool
     result: float
+    # The seconds from the worker's receipt of the command to this decision: the learner's
+    # step, the opponent's play, and the observation. The trainer's timers subtract it from
+    # the round trip to get the time in the pipes, the bridge, and the network (2026-10-24).
+    work_seconds: float = 0.0
 
 
 def worker_main(connection: Connection, scenario: str, index: int, seed: int, max_commands: int) -> None:
@@ -148,6 +153,7 @@ def worker_main(connection: Connection, scenario: str, index: int, seed: int, ma
 
     while True:
         message = connection.recv()
+        received = time.perf_counter()
         kind = message[0]
         if kind == "stop":
             connection.close()
@@ -168,10 +174,13 @@ def worker_main(connection: Connection, scenario: str, index: int, seed: int, ma
             decision = advance()
             paid = float(env._cumulative_rewards[env.agent_of(learner)])
             decision.reward_delta = 0.0
+            decision.work_seconds = time.perf_counter() - received
             connection.send(decision)
         elif kind == "act":
             env.step(tuple(int(x) for x in message[1]))
-            connection.send(advance())
+            decision = advance()
+            decision.work_seconds = time.perf_counter() - received
+            connection.send(decision)
         else:
             raise ValueError(f"unknown message {kind!r}")
 

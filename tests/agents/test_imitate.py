@@ -182,14 +182,22 @@ def test_the_labels_parse_as_one_teacher_for_each_side():
         imitate.parse_labels("2=v5,1=v6")
 
 
+def test_a_label_can_be_an_evolved_record_with_commas():
+    """An evolution gives a record as v7[a=1,b=2]; its commas do not divide the labels."""
+    record = "v7[loss_scale=8,fire_floor=4,smoke_floor=0]"
+    assert imitate.parse_labels(f"0={record},1={record}") == {0: record, 1: record}
+    assert imitate.parse_labels(f"0={record},1=v6") == {0: record, 1: "v6"}
+
+
 def test_the_label_teacher_of_a_side_names_the_command_and_the_actor_plays(engine):
     """With labels the pool plays the game, and the label teacher of each side gives the record.
 
     The label of a decision is legal in the state, the label teacher of side 0 is built for
     each game, and on some decisions it disagrees with the actor, which is what the labels
-    are for.
+    are for. With the routes a step after the first of a run gives no row, so this test,
+    which counts a row for each decision of the actor, has no routes (test_routes.py has them).
     """
-    env = make_env(engine, seed=31)
+    env = make_env(engine, seed=31, use_routes=False)
     built: list[tuple[str, int]] = []
     actors_chose: list[tuple[int, int, int]] = []
 
@@ -218,7 +226,9 @@ def test_the_label_teacher_of_a_side_names_the_command_and_the_actor_plays(engin
         assert data.target_mask[i][data.target[i]] == 1
         assert data.option_mask[i][data.option[i]] == 1
     side_0 = [(data.unit[i], data.action[i], data.target[i]) for i in range(len(data)) if data.player[i] == 0]
-    assert len(side_0) == len(actors_chose)
+    # A label outside the masks gives no row: a second pickup of a weapon in one phase, or a
+    # move back into a hex that its unit held in the phase (2026-10-20).
+    assert 0 <= len(actors_chose) - len(side_0) <= len(actors_chose) // 20
     assert any(label != chosen for label, chosen in zip(side_0, actors_chose)), "v5 and v1 differ in some state"
 
 

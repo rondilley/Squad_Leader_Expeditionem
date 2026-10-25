@@ -55,10 +55,17 @@ SHELLHOLE = (150, 168, 104)
 SHELLHOLE_PIT = (146, 116, 72)
 SHELLHOLE_LIGHT = (186, 158, 106)
 
+# PR-56: an orchard is rows of fruit trees on mown ground. The ground is a little lighter
+# than open ground, and the crowns are smaller and lighter than the crowns of a wood, so
+# the eye does not read an orchard as a wood.
+ORCHARD_GROUND = (172, 186, 112)
+ORCHARD_ROW = (154, 170, 98)
+
 TERRAIN = {
     "open": GROUND,
     "wheat": GRAIN,
     "shellhole": SHELLHOLE,
+    "orchard": ORCHARD_GROUND,
     "woods": (92, 128, 68),
     "wooden_building": (128, 66, 48),
     "stone_building": (176, 130, 92),
@@ -72,6 +79,12 @@ WOODS = TERRAIN["woods"]
 WOODS_LIGHT = (126, 162, 88)
 WOODS_SHADE = (58, 92, 50)
 WOODS_LINE = (38, 62, 36)
+
+# PR-56: the crown of a fruit tree, in the four tones of a wood crown.
+ORCHARD_TREE = (104, 146, 66)
+ORCHARD_TREE_LIGHT = (156, 190, 104)
+ORCHARD_TREE_SHADE = (66, 100, 48)
+ORCHARD_TREE_LINE = (46, 70, 38)
 
 # --------------------------------------------------------------------- the buildings
 
@@ -92,6 +105,17 @@ BUILDING = {
         "shade": (98, 48, 34),
         "line": (58, 28, 18),
     },
+}
+
+# PR-57: the landmarks. A mill has a water wheel beside its south wall, and a windmill
+# has four sails on a hub over its roof. Each is in the dark wood of a wooden building, with
+# a light face on top, so it reads as a part of the building and not as a counter.
+LANDMARK = {
+    "wood": (112, 74, 50),
+    "light": (168, 128, 92),
+    "line": (58, 36, 24),
+    "sail": (226, 214, 184),
+    "water": (104, 136, 150),
 }
 
 # ------------------------------------------------------------------------- the hills

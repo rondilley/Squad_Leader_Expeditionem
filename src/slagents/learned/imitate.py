@@ -35,6 +35,7 @@ a command in any state, which is what makes the round possible.
 from __future__ import annotations
 
 import math
+import re
 
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -45,11 +46,14 @@ import torch
 from torch import nn
 
 from slagents.base import decide
+from slagents.learned import routes
 from slagents.learned.encoding import Spaces, command_index
 from slagents.learned.env import SquadLeaderEnv
 from slagents.learned.league import write_snapshot
 from slagents.learned.nets import NetConfig, Policy
 from slagents.learned.ppo import PpoConfig, choose, policy_device
+from slcore.frame import LegalCommand
+from slcore.geometry import HexRef
 
 
 FIELDS = (
@@ -156,9 +160,10 @@ class Demonstrations:
 
 
 def parse_labels(text: str) -> dict[int, str]:
-    """`0=v5,1=v6` as the label teacher of each side."""
+    """`0=v5,1=v6` as the label teacher of each side. A label can be an evolved record,
+    as `0=v7[loss_scale=8,fire_floor=4]`, so a comma divides two labels only before a side."""
     out: dict[int, str] = {}
-    for part in text.split(","):
+    for part in re.split(r",(?=\s*[0-9]\s*=)", text):
         part = part.strip()
         if not part:
             continue
@@ -206,15 +211,79 @@ def _record(data: GameBuffer, env: SquadLeaderEnv, observation: dict[str, np.nda
     data.player.append(player)
 
 
-def _teacher_key(teacher: Any, env: SquadLeaderEnv) -> tuple[int, int, int, int]:
-    """The four parts of the command the teacher names. The option is that command, not the lowest id."""
+def _teacher_legal(teacher: Any, env: SquadLeaderEnv) -> LegalCommand:
+    """The legal command the teacher names in the current state."""
     legal = env.frame.by_id(decide(teacher, env.state_, env.frame))
     if legal is None:
         raise RuntimeError("the teacher gave an ID that is not in the frame")
+    return legal
+
+
+def _key_of(legal: LegalCommand, env: SquadLeaderEnv) -> tuple[int, int, int, int]:
+    """The four parts of one legal command. The option is that command, not the lowest id."""
     try:
         return command_index(legal, env.groups)
     except KeyError as exc:
         raise RuntimeError(f"the teacher's command {legal.command} has no key in the action space") from exc
+
+
+def _teacher_key(teacher: Any, env: SquadLeaderEnv) -> tuple[int, int, int, int]:
+    """The four parts of the command the teacher names."""
+    return _key_of(_teacher_legal(teacher, env), env)
+
+
+def _run_of(teacher: Any, env: SquadLeaderEnv, player: int, legal: LegalCommand, limit: int = 40) -> list[HexRef]:
+    """The hexes of the teacher's run of moves of one unit or stack, from its first move.
+
+    The run is played on copies of the state: the teacher names each next command, and the
+    run ends at a command that is not the next move of the same units, at the end of the
+    phase, and at the end of the game. The environment does not change.
+    """
+    engine = env.engine
+    state, frame = env._state(), env.frame
+    phase = (state.turn, state.phase)
+    command = legal
+    path: list[HexRef] = []
+    for _ in range(limit):
+        state, _ = engine.apply(state, command.command, frame)
+        path.append(command.command.hex)
+        if state.game_over:
+            break
+        frame = engine.legal_commands(state)
+        if frame.player != player or (state.turn, state.phase) != phase:
+            break
+        following = frame.by_id(decide(teacher, state, frame))
+        if following is None or following.command.action != command.command.action or tuple(following.command.units) != tuple(command.command.units):
+            break
+        command = following
+    return path
+
+
+def _label_of(teacher: Any, env: SquadLeaderEnv, player: int, legal: LegalCommand) -> tuple[int, int, int, int]:
+    """The label of a teacher's command: its key, or the route to the end of its run.
+
+    With the route actions, a move of a unit is the first step of a run, and the label is
+    the route to the last hex of the run. A run whose end is not a route of the table, for
+    example a hex that the unit held in the phase, gives the route to the last hex of the
+    run that is one.
+    """
+    if not env.routes or legal.command.action not in routes.MOVE_ACTIONS:
+        return _key_of(legal, env)
+    found = routes.route_key(env.routes, legal.command, _run_of(teacher, env, player, legal))
+    return found if found is not None else _key_of(legal, env)
+
+
+def _run_mark(env: SquadLeaderEnv, legal: LegalCommand) -> tuple[Any, ...] | None:
+    """What a next move must match to continue this command's run, or None for no run."""
+    if legal.command.action not in routes.MOVE_ACTIONS:
+        return None
+    state = env._state()
+    return (state.turn, state.phase, legal.command.action, tuple(legal.command.units))
+
+
+def _continues(mark: tuple[Any, ...] | None, env: SquadLeaderEnv, legal: LegalCommand) -> bool:
+    """Whether this command is the next step of a run that a route label already holds."""
+    return bool(env.routes) and mark is not None and mark == _run_mark(env, legal)
 
 
 def _close_game(data: Demonstrations, buffer: GameBuffer, env: SquadLeaderEnv, paid: list[float], players: list[int]) -> float:
@@ -297,14 +366,26 @@ def play_demonstration(
     env.reset(seed=game_seed)
     paid: list[float] = []
     players: list[int] = []
+    # The run of moves of each side's acting teacher. With the routes, a step after the
+    # first of a run is not a decision: the route label of the first step holds the run.
+    runs: dict[int, tuple[Any, ...] | None] = {}
     while True:
         agent = env.agent_selection
         if env.terminations[agent] or env.truncations[agent]:
             break
         player = env.player_of(agent)
         observation = env.observe(agent)
-        key = _teacher_key(actors[player], env)
-        label = key if labelers[player] is actors[player] else _teacher_key(labelers[player], env)
+        acted = _teacher_legal(actors[player], env)
+        key = _key_of(acted, env)
+        step_of_run = _continues(runs.get(player), env, acted)
+        runs[player] = _run_mark(env, acted)
+        if step_of_run:
+            env.step(key)
+            continue
+        if labelers[player] is actors[player]:
+            label = _label_of(actors[player], env, player, acted)
+        else:
+            label = _label_of(labelers[player], env, player, _teacher_legal(labelers[player], env))
         if label in env.choices:
             # A label outside the masks (a second pickup or drop of a weapon in one
             # phase, `SquadLeaderEnv.choices`) is a command the policy cannot give, so it
@@ -378,13 +459,23 @@ def play_correction(
     env.reset(seed=game_seed)
     paid: list[float] = []
     players: list[int] = []
+    runs: dict[int, tuple[Any, ...] | None] = {}
     while True:
         agent = env.agent_selection
         if env.terminations[agent] or env.truncations[agent]:
             break
         player = env.player_of(agent)
         observation = env.observe(agent)
-        label = _teacher_key(labelers[player], env)
+        if player != side and labels[player] != kind:
+            # The opponent plays single steps; a step after the first of its run is not a
+            # decision, as in `play_demonstration`.
+            acted = _teacher_legal(opponent, env)
+            step_of_run = _continues(runs.get(player), env, acted)
+            runs[player] = _run_mark(env, acted)
+            if step_of_run:
+                env.step(_key_of(acted, env))
+                continue
+        label = _label_of(labelers[player], env, player, _teacher_legal(labelers[player], env))
         if player == side:
             if mix > 0.0 and float(torch.rand((), generator=generator).item()) < mix:
                 key = label
@@ -394,7 +485,7 @@ def play_correction(
             # The opponent is the label teacher of its side, so the label is its command.
             key = label
         else:
-            key = _teacher_key(opponent, env)
+            key = _key_of(acted, env)
         if label in env.choices:
             # A label outside the masks (a second pickup or drop of a weapon in one
             # phase, `SquadLeaderEnv.choices`) is a command the policy cannot give, so it

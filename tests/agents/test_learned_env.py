@@ -86,7 +86,7 @@ def test_the_mask_allows_each_legal_command_and_no_other(engine):
                     for option in np.flatnonzero(env.option_mask(int(unit), int(action), int(target))):
                         allowed.add((int(unit), int(action), int(target), int(option)))
         assert allowed == set(env.choices), "the mask and the offered commands are the same set"
-        assert set(env.choices) <= set(env.groups), "the mask offers only legal commands"
+        assert set(env.choices) <= set(env.groups) | set(env.routes), "the mask offers only legal commands and routes"
         triple = sorted(env.groups)[0]
         env.step(triple)
         if env.terminations[env.agent_selection]:
@@ -319,7 +319,9 @@ def test_the_mask_offers_no_second_pickup_or_drop_of_a_weapon_in_one_phase():
     next phase offers it again.
     """
     engine = build_engine("s02_tractor_works")
-    env = make_env(engine, seed=2)
+    # The routes replace the single steps in the Movement Phase; this test reads the masks
+    # of the weapons alone (test_routes.py has the routes).
+    env = make_env(engine, seed=2, use_routes=False)
     weapons = _weapon_frame(env, engine, 2)
     first = env.groups[weapons[0]].command
     phase = (env.state_.turn, env.state_.phase, env.state_.active)
@@ -349,7 +351,7 @@ def test_the_mask_offers_no_second_board_or_debark_of_a_unit_in_one_phase():
     from slcli.play import make_agent
 
     engine = build_engine("s04_armor_probe")
-    env = make_env(engine, seed=2)
+    env = make_env(engine, seed=2, use_routes=False)
     env.reset(seed=2)
     agents = (make_agent("random", engine, 2, 0), make_agent("random", engine, 2, 1))
     for _ in range(20000):
@@ -367,3 +369,21 @@ def test_the_mask_offers_no_second_board_or_debark_of_a_unit_in_one_phase():
     again = {k for k, c in env.groups.items() if c.command.action in ("board", "debark") and unit in c.command.units}
     assert not again, "PR-55: the legal list has no second board or debark of the unit"
     assert set(env.choices) == set(env.groups)
+
+
+def test_a_reset_clears_a_line_of_sight_table_above_the_limit(monkeypatch):
+    """A PPO worker plays thousands of games on one engine, so a reset bounds the table,
+    and a clear changes no game (2026-10-19)."""
+    from slagents.learned import env as env_module
+
+    engine = build_engine("s01_guards_counterattack", None)
+    env = make_env(engine, seed=5)
+    first = _play_scripted(env, engine, ("v3", "v3"), 5)
+    held = engine.los.entries()
+    assert held > 0
+    env.reset(seed=5)
+    assert engine.los.entries() == held
+    monkeypatch.setattr(env_module, "LOS_ENTRY_LIMIT", held - 1)
+    assert _play_scripted(env, engine, ("v3", "v3"), 5) == first
+    env.reset(seed=6)
+    assert engine.los.entries() == 0

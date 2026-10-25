@@ -46,6 +46,19 @@ debarked from boarding again. So a second board or debark of one unit in a phase
 goes after each other command. This is an order of preference, not a rule: the legal
 list is the core's.
 
+A move back is a cycle that the repeat guard does not find, because each step uses a
+movement factor and so gives a new position: the L02 clone moved one squad eight times
+between two hexes in one phase (2026-10-20). So a move of a unit into a hex that it held in
+the phase also goes after each other command (`routes.PhaseMemory`).
+
+A net with the route actions (`routes.uses_routes`) selects a destination for a unit or a
+stack in the Movement Phase, in place of its single steps. The agent gives the first step,
+and at each next decision of the phase it gives the next step of the route with no call of
+the net, while the frame offers that step. Then the net selects again
+(`docs/reports/2026-10-20_attack_movement_design.md`). Each route key has its own copy of
+the legal command of its first step, so the order methods read legal commands as before,
+and the agent knows which route a chosen copy starts.
+
 Why this and not `ppo.choose`: `ppo.choose` needs a `SquadLeaderEnv` for its target mask, and
 a real game outside the trainer has an engine, a state, and a frame, not an environment. The
 board tensor and the unit tensor come from the same encoding functions the environment calls,
@@ -58,11 +71,12 @@ at the boundary in `slagents.registry`, and not here.
 
 from __future__ import annotations
 
+import copy
 import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping
 
-from slagents.learned import encoding
+from slagents.learned import encoding, routes
 from slagents.learned.encoding import position_key
 from slcore.engine import IllegalCommand
 from slcore.frame import DecisionFrame, LegalCommand
@@ -157,6 +171,12 @@ class LearnedAgent:
         self._handled: set[int] = set()
         self._rode: set[int] = set()
         self._handled_phase: tuple[int, str, int] | None = None
+        self.uses_routes = routes.uses_routes(self.spaces)
+        self._memory = routes.PhaseMemory()
+        # The route in progress: the route, the steps it played, and its phase.
+        self._plan: tuple[routes.Route, int, tuple[int, str, int]] | None = None
+        # The route of each copy of a first step, by the identity of the copy.
+        self._route_of: dict[int, routes.Route] = {}
         if (self.spaces.cols, self.spaces.rows) != (self.board.cols, self.board.rows):
             raise SnapshotShapeError(
                 f"the snapshot board is {self.spaces.cols}x{self.spaces.rows} and the engine board is "
@@ -195,7 +215,19 @@ class LearnedAgent:
 
         player = frame.player
         self._remember(state, player)
+        self._memory.update(state, player)
+        step = self._next_route_step(state, frame, player)
+        if step is not None:
+            return step.id
         groups = encoding.group_commands(frame, self.hexes)
+        self._route_of = {}
+        if self.uses_routes:
+            table = routes.route_table(self.engine, state, frame, self.hexes, self._memory)
+            if table:
+                groups = routes.with_routes(groups, table)
+                for key, (route, first) in table.items():
+                    groups[key] = copy.copy(first)
+                    self._route_of[id(groups[key])] = route
         device = next(self.policy.parameters()).device
         board = torch.from_numpy(
             encoding.board_tensor(self.board, state, self.types, player, self.spaces, self.objectives)
@@ -213,11 +245,15 @@ class LearnedAgent:
             ordered = [first] + [c for c in ordered if c is not first]
         ordered = self._weapons_handled_last(state, ordered, player)
         ordered = self._rides_handled_last(ordered)
+        ordered = self._returns_last(ordered)
         choice = self._first_that_does_not_repeat(state, frame, ordered, player)
         if choice.command.action in WEAPON_ACTIONS and choice.command.weapon is not None:
             self._handled.add(choice.command.weapon)
         if choice.command.action in RIDE_ACTIONS:
             self._rode.update(choice.command.units)
+        route = self._route_of.get(id(choice))
+        if route is not None:
+            self._plan = (route, 1, (state.turn, state.phase, player))
         return choice.id
 
     # ---------------------------------------------------------------- inside
@@ -239,8 +275,33 @@ class LearnedAgent:
             self._handled.clear()
             self._rode.clear()
             self._handled_phase = None
+            self._memory.clear()
+            self._plan = None
         self._last_seq = state.seq
         self._seen.add(self._view_key(state, player))
+
+    def _next_route_step(self, state: State, frame: DecisionFrame, player: int) -> LegalCommand | None:
+        """The next step of the route in progress, or None when the route ended."""
+        if self._plan is None:
+            return None
+        route, done, phase = self._plan
+        step = None
+        if phase == (state.turn, state.phase, player):
+            step = routes.next_step(route, done, state, frame)
+        self._plan = (route, done + 1, phase) if step is not None else None
+        return step
+
+    def _returns_last(self, ordered: list[LegalCommand]) -> list[LegalCommand]:
+        """The order with each move into a hex that its unit held in the phase at the end.
+
+        A route is not a return when its first step crosses a held hex: the route table
+        already leaves out each route to a held destination.
+        """
+        back = [c for c in ordered if id(c) not in self._route_of and self._memory.returns(c.command)]
+        if not back:
+            return ordered
+        last = {id(c) for c in back}
+        return [c for c in ordered if id(c) not in last] + back
 
     def _weapons_handled_last(self, state: State, ordered: list[LegalCommand], player: int) -> list[LegalCommand]:
         """The order with each pickup and drop of a weapon handled in this phase at the end."""
@@ -276,7 +337,11 @@ class LearnedAgent:
         the first choice stands and the environment gives its verdict.
         """
         own = self.engine.legal_commands(state)
+        repeats: set[str] = set()
         for choice in ordered:
+            if choice.id in repeats:
+                # Two routes with the same first step give the same position after it.
+                continue
             try:
                 after, _ = self.engine.apply(state, choice.command, own)
             except IllegalCommand:
@@ -286,6 +351,7 @@ class LearnedAgent:
                 return choice
             if self._view_key(after, player) not in self._seen:
                 return choice
+            repeats.add(choice.id)
         return ordered[0]
 
     @staticmethod

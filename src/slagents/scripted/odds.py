@@ -569,8 +569,6 @@ def enemy_groups(engine: Any, state: State, dst: HexRef, enemies: Iterable[Unit]
     for enemy in enemies:
         if enemy.hex is None or enemy.broken or enemy.is_vehicle or enemy.hex == dst or enemy.eliminated:
             continue
-        if not evaluate_los(engine.board, engine.los, enemy.hex, dst).clear:
-            continue
         # Rule 15.2: a leader directs the group only when that leader has not fired.
         if enemy.kind == KIND_LEADER and not enemy.fired and not enemy.directed and not state.in_melee(enemy.hex):
             held = leaders.get(enemy.hex)
@@ -588,6 +586,10 @@ def enemy_groups(engine: Any, state: State, dst: HexRef, enemies: Iterable[Unit]
                 continue
             if r08_fire.member_firepower(state, types, enemy, weapon, dst, False) is not None:
                 by_hex.setdefault(enemy.hex, []).append((enemy.id, weapon.id))
+    # The line of sight goes last, one time for each hex, because the range tests above
+    # are cheap and a pair of hexes that the table does not hold costs milliseconds. A
+    # leader counts only in a hex of the group, so a hex out of sight drops its leader too.
+    by_hex = {h: m for h, m in by_hex.items() if evaluate_los(engine.board, engine.los, h, dst).clear}
     groups: list[EnemyGroup] = []
     left = set(by_hex)
     while left:

@@ -12,6 +12,7 @@
   "terrain": {
     "open": {"afv": 2, "truck": 12},
     "wheat": {"afv": 2, "truck": 12},
+    "orchard": {"afv": 2, "truck": 12, "note": "PR-56: the cost of a wheatfield."},
     "shellhole": {"afv": 2, "truck": 20, "note": "Rule 30: no additional cost for a vehicle, and 4 MP plus the cost of the terrain for a truck."},
     "woods": {"afv": 12, "truck": null, "breakdown": true, "no_halftrack": true},
     "wooden_building": {"afv": 8, "truck": null, "breakdown": true, "no_halftrack": true},

@@ -104,6 +104,19 @@ class LosTable:
     def __len__(self) -> int:
         return len(self._cache)
 
+    def entries(self) -> int:
+        """How many results the table holds, in its four caches."""
+        return len(self._cache) + len(self._rays) + len(self.static_results) + len(self.static_traces)
+
+    def clear(self) -> None:
+        """Forget each result. Each one reads the board only, so the table makes it again
+        when it is necessary, and no answer changes. A worker that plays many games on a
+        board of three or four stacked boards clears the table to keep its memory down."""
+        self._cache.clear()
+        self._rays.clear()
+        self.static_results.clear()
+        self.static_traces.clear()
+
 
 @dataclass(frozen=True)
 class StaticSnapshot:

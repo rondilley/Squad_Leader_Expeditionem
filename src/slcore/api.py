@@ -187,7 +187,7 @@ SURFACE: dict[str, tuple[str, ...]] = {
     "slcore.view": ("SPECTATOR", "board_document", "build", "event_visible", "nationalities_of", "visible_to"),
     # The rule helpers that the scripted agents, the odds, and the reward read with no die.
     # `allowance_halves`: the movement a unit has, for the hop of v7 (`covered_approach`, 2026-10-14).
-    "slcore.rules.r05_movement": ("allowance_halves", "entry_cost_halves"),
+    "slcore.rules.r05_movement": ("allowance_halves", "entry_cost_halves", "enemy_in_hex"),
     "slcore.rules.r06_stacking": ("LIMIT_SQUADS", "overstacked_hexes", "rule_6_1_overstacked"),
     "slcore.rules.r08_fire": ("can_fire_inherent", "can_fire_weapon", "group_firepower", "member_firepower"),
     "slcore.rules.r10_resolution": ("common_modifier", "enemy_occupied_hexes", "rural_halves"),

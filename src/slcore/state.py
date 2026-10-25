@@ -51,11 +51,16 @@ class Polygon:
 
 @dataclass(frozen=True)
 class Building:
-    """A building that covers one or more hexes. size counts the hexes (rule 7.4)."""
+    """A building that covers one or more hexes. size counts the hexes (rule 7.4).
+
+    landmark: "mill" or "windmill" for a building with a picture and a name of its own, or
+    None. It changes no rule (PR-57).
+    """
 
     id: str
     kind: str
     size: int
+    landmark: str | None = None
 
     @property
     def multi_story(self) -> bool:
@@ -230,7 +235,7 @@ class Board:
         for h in kept:
             building = h.building
             if building is not None and sizes[building.id] != building.size:
-                building = Building(building.id, building.kind, sizes[building.id])
+                building = Building(building.id, building.kind, sizes[building.id], building.landmark)
             hexes.append(
                 Hex(
                     col=h.col - lo,
@@ -260,6 +265,8 @@ class Board:
                 item["road_sides"] = list(h.road_sides)
             if h.building is not None:
                 item["building"] = {"id": h.building.id, "kind": h.building.kind, "size": h.building.size}
+                if h.building.landmark is not None:
+                    item["building"]["landmark"] = h.building.landmark
             sides = {str(d): f for d, f in enumerate(h.hexsides) if f is not None}
             if sides:
                 item["hexsides"] = sides
@@ -279,7 +286,8 @@ class Board:
             building = None
             if item.get("building") is not None:
                 b = item["building"]
-                building = Building(str(b["id"]), str(b["kind"]), int(b["size"]))
+                landmark = b.get("landmark")
+                building = Building(str(b["id"]), str(b["kind"]), int(b["size"]), None if landmark is None else str(landmark))
             sides: list[str | None] = [None] * 6
             for key, value in item.get("hexsides", {}).items():
                 sides[int(key)] = str(value)

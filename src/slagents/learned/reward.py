@@ -38,6 +38,21 @@ Two corrections of the review of 2026-09-23 (L1, L2) change how two groups of te
   0.25 for each unit of the target that passed its check, so each suppressive shot was a
   net loss and the reward taught the learner not to fire at a stack it could not break.
   A rally is a decision of the side that pays; a passed check is a die of the defender.
+
+The gate of 2026-10-19 and 2026-10-20 trained defenders and no attackers. No term paid a
+side for getting nearer to the objective, and cover and sneak paid each unit that ended its
+Movement Phase in cover out of sight, so a squad that stayed far back earned 0.4 each turn
+with no risk, and an attacker met the exposed and loss costs for three turns or more before
+its first objective payment. Two changes (the owner, 2026-10-20):
+
+- The approach term is a potential (Ng, Harada, and Russell, 1999). For a side with a
+  positional victory condition, the potential is minus the sum of the distances of its
+  squads to the nearest hex of its objective. At the end of each player turn the side gets
+  the change of the potential. A squad that goes back gives back what it got, so a move
+  back and forth pays nothing, and a potential term does not change which policy is best.
+  An eliminated squad keeps its last distance, so a kill does not move the potential.
+- For a side with a positional condition, cover and sneak pay only within `cover_radius`
+  hexes of its objective. Exposed still costs everywhere.
 """
 
 from __future__ import annotations
@@ -50,10 +65,11 @@ from slcore import geometry
 from slcore.engine import Engine
 from slcore.events import Event
 from slcore.game import PHASE_MOVEMENT, State
+from slcore.geometry import HexRef
 from slcore.los_eval import evaluate as evaluate_los
 from slcore.rules import victory
 from slcore.rules.r13_rout import is_cover
-from slcore.units import KIND_LEADER, KIND_SW
+from slcore.units import KIND_LEADER, KIND_SQUAD, KIND_SW
 
 WIN = 100.0
 LOSS = -100.0
@@ -95,6 +111,8 @@ class RewardWeights:
     hide: float = 0.5  # P10, P16: an own stack gains a concealment counter (rule 25.3)
     survive: float = 0.25  # an own broken unit rallies (rule 14.2); a passed morale check pays nothing
     objective: float = 5.0  # P17: one unit of progress on a positional victory condition, each player turn
+    approach: float = 0.2  # P17: one hex nearer the objective for one own squad, as a potential, each player turn
+    cover_radius: int = 4  # cover and sneak pay a side with a positional condition only this near its objective; 0 is everywhere
     step_cost: float = 0.01  # each command, charged to the side that gave it
     casualty_tolerance: float = 1.0  # table B: divides the cost of an own loss; above one is tolerant
     win: float = WIN
@@ -130,6 +148,8 @@ class RewardWeights:
             "hide": self.hide,
             "survive": self.survive,
             "objective": self.objective,
+            "approach": self.approach,
+            "cover_radius": self.cover_radius,
             "step_cost": self.step_cost,
             "casualty_tolerance": self.casualty_tolerance,
             "win": self.win,
@@ -202,6 +222,82 @@ def objective_progress(engine: Engine, state: State) -> tuple[int, int]:
     return progress[0], progress[1]
 
 
+def objective_hexes(engine: Engine, player: int) -> frozenset[HexRef]:
+    """The hexes that the positional victory conditions of a side tell it to take.
+
+    A building swing names the buildings to take in `enemy_groups`; the other kinds name
+    them in `groups`. A side with no positional condition has no hex.
+    """
+    side = engine.scenario.players()[player]
+    on_board = victory.buildings_on(engine.board)
+    out: set[HexRef] = set()
+    for condition in engine.scenario.victory:
+        params = dict(condition.params)
+        if params.get("side") != side or condition.kind not in POSITIONAL_KINDS:
+            continue
+        if condition.kind == victory.KIND_BUILDING_SWING:
+            for building in victory.group_buildings(engine.scenario, engine.board, params.get("enemy_groups", [])):
+                out.update(on_board.get(building, ()))
+        elif condition.kind == victory.KIND_BUILDING_COUNT:
+            for building in victory.group_buildings(engine.scenario, engine.board, params.get("groups", [])):
+                out.update(on_board.get(building, ()))
+        else:
+            out.update(victory.group_hexes(engine.scenario, engine.board, params.get("groups", [])))
+    return frozenset(out)
+
+
+class Approach:
+    """The approach potential of the two sides in one game, and the near limit of cover.
+
+    The environment keeps one for each game: `start` at the end of the set up, `swing` at
+    the end of each player turn. It holds the last distance of each squad, so an eliminated
+    squad keeps the distance it had.
+    """
+
+    def __init__(self, engine: Engine, weights: tuple[RewardWeights, RewardWeights]) -> None:
+        self.targets = (objective_hexes(engine, 0), objective_hexes(engine, 1))
+        self.radius = (int(weights[0].cover_radius), int(weights[1].cover_radius))
+        self.distance: dict[int, int] = {}
+        self.potential = [0, 0]
+
+    def nearest(self, player: int, hex_ref: HexRef) -> int | None:
+        targets = self.targets[player]
+        if not targets:
+            return None
+        return min(geometry.distance(hex_ref, h) for h in targets)
+
+    def near(self, player: int, hex_ref: HexRef) -> bool:
+        """Whether cover and sneak pay this side at this hex."""
+        radius = self.radius[player]
+        found = self.nearest(player, hex_ref)
+        return found is None or radius <= 0 or found <= radius
+
+    def _measure(self, state: State) -> list[int]:
+        total = [0, 0]
+        for u in state.units:
+            if u.kind != KIND_SQUAD or not self.targets[u.player]:
+                continue
+            where = u.hex
+            if where is None and u.carrier is not None:
+                where = state.units[u.carrier].hex
+            if not u.eliminated and where is not None:
+                self.distance[u.id] = self.nearest(u.player, where)
+            if u.id in self.distance:
+                total[u.player] -= self.distance[u.id]
+        return total
+
+    def start(self, state: State) -> None:
+        self.distance = {}
+        self.potential = self._measure(state)
+
+    def swing(self, state: State) -> tuple[int, int]:
+        """The change of the potential of each side since the last player turn end."""
+        now = self._measure(state)
+        change = (now[0] - self.potential[0], now[1] - self.potential[1])
+        self.potential = now
+        return change
+
+
 def objective_swing(delta_0: int, delta_1: int) -> int:
     """The objective payment for player 0. Player 1 receives the opposite.
 
@@ -244,12 +340,13 @@ def _seen_by_enemy(engine: Engine, state: State, player: int, hex_ref) -> bool:
     return False
 
 
-def term_counts(engine: Engine, before: State, after: State, events: list[Event]) -> tuple[Counter, Counter]:
+def term_counts(engine: Engine, before: State, after: State, events: list[Event], approach: Approach | None = None) -> tuple[Counter, Counter]:
     """The signed count of each term for the two players, from the events of one command.
 
     A count is zero-sum: the side that gained has plus one and the other side minus one.
     A `move` or a `stack_move` event pays no position term. The command that ends the
-    Movement Phase pays them, one time for each unit that moved (L1).
+    Movement Phase pays them, one time for each unit that moved (L1). With `approach`, cover
+    and sneak pay a side with an objective only near it.
     """
     counts: tuple[Counter, Counter] = (Counter(), Counter())
 
@@ -318,7 +415,7 @@ def term_counts(engine: Engine, before: State, after: State, events: list[Event]
             unit = _unit_of(before, data)
             if unit is None or "to" not in data:
                 continue
-            _credit_position(engine, after, unit.player, geometry.parse_hex_id(str(data["to"])), 1, credit)
+            _credit_position(engine, after, unit.player, geometry.parse_hex_id(str(data["to"])), 1, credit, approach)
     if before.phase == PHASE_MOVEMENT and any(e.kind == "phase" for e in events):
         # L1: the Movement Phase ended with this command. Each unit of the phasing side
         # that moved in it (its track is not empty) pays one time, from the hex it ended on.
@@ -328,18 +425,20 @@ def term_counts(engine: Engine, before: State, after: State, events: list[Event]
             final = after.units[unit.id]
             if final.eliminated or final.hex is None or final.carrier is not None:
                 continue
-            _credit_position(engine, after, unit.player, final.hex, 1, credit)
+            _credit_position(engine, after, unit.player, final.hex, 1, credit, approach)
     return counts
 
 
-def _credit_position(engine: Engine, after: State, player: int, hex_ref, count: float, credit) -> None:
+def _credit_position(engine: Engine, after: State, player: int, hex_ref, count: float, credit, approach: Approach | None = None) -> None:
     """The cover, exposed, and sneak terms of one unit at the hex where it ended its move."""
     seen = _seen_by_enemy(engine, after, player, hex_ref)
+    near = approach is None or approach.near(player, hex_ref)
     if is_cover(engine.board, hex_ref):
-        credit(player, "cover", count)
+        if near:
+            credit(player, "cover", count)
     elif seen:
         credit(player, "exposed", -count)
-    if not seen:
+    if not seen and near:
         credit(player, "sneak", count)
 
 
@@ -358,26 +457,34 @@ def step_rewards(
     acted: int,
     weights: RewardWeights | tuple[RewardWeights, RewardWeights],
     progress_before: tuple[int, int],
+    approach: Approach | None = None,
 ) -> tuple[tuple[float, float], tuple[int, int]]:
     """The shaped reward of one command for the two players, and the objective progress after it.
 
     The objective term is paid at the end of each player turn, when the core records the
     building control (PR-07), so a unit that walks through a building and out again earns
-    nothing. The step cost goes to the side that gave the command.
+    nothing. The step cost goes to the side that gave the command. With `approach`, the
+    approach term is paid at the same moment, to each side for its own squads only.
     """
     pair = weights if isinstance(weights, tuple) else (weights, weights)
-    counts = term_counts(engine, before, after, events)
+    counts = term_counts(engine, before, after, events, approach)
     counts[acted]["step_cost"] -= 1.0
     progress = progress_before
     if any(e.kind == "setup_done" for e in events):
         # The baseline. Before the set up a side controls none of its own buildings, so
         # the swing reads minus five; the set up is not progress, and it pays nothing.
         progress = objective_progress(engine, after)
+        if approach is not None:
+            approach.start(after)
     elif any(e.kind == "player_turn_end" for e in events):
         progress = objective_progress(engine, after)
         swing = objective_swing(progress[0] - progress_before[0], progress[1] - progress_before[1])
         counts[0]["objective"] += swing
         counts[1]["objective"] -= swing
+        if approach is not None:
+            near_0, near_1 = approach.swing(after)
+            counts[0]["approach"] += near_0
+            counts[1]["approach"] += near_1
     return (pair[0].value(counts[0]), pair[1].value(counts[1])), progress
 
 

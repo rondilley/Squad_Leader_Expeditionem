@@ -150,6 +150,7 @@ class ArmorPolicy:
         self._positions: dict[tuple, frozenset[HexRef]] = {}
         self._costs: dict[tuple, dict[HexRef, int]] = {}
         self._danger: dict[tuple, dict[HexRef, int]] = {}
+        self._board_steps: dict[tuple, int | None] = {}
         # The hexes the tanks of this side fired at in the phase in hand (P6). The key is
         # the turn and the phase; each phase of an agent comes one time in a turn.
         self._shots_key: tuple[int, str] = (-1, "")
@@ -440,14 +441,23 @@ class ArmorPolicy:
 
     def _step_cost(self, state: State, vehicle, src: HexRef, dst: HexRef) -> int | None:
         """The cost in movement halves of one step from src to dst, with the risk of the
-        breakdown die of rule 39.1 as extra cost, or None when the vehicle cannot enter."""
+        breakdown die of rule 39.1 as extra cost, or None when the vehicle cannot enter.
+
+        The core reads the state only for the units and the smoke in dst, so the cost of a
+        step into a hex with neither is a fact of the board and the type, and the agent
+        keeps it for the game."""
+        empty = not state.units_in(dst) and not state.smoke_in(dst)
+        if empty:
+            key = (vehicle.type_key, src, dst)
+            if key in self._board_steps:
+                return self._board_steps[key]
         probe = vehicle.with_(hex=src, facing=r28_vehicles.facing_towards(src, dst))
         cost, _, breakdown = r30_vehicle_movement.entry_cost_halves(self.engine.vehicle_ctx, state, probe, dst)
-        if cost is None:
-            return None
-        if breakdown:
+        if cost is not None and breakdown:
             faces = 7 - r30_vehicle_movement.breakdown_number(self.engine.types, vehicle)
             cost += BREAKDOWN_PENALTY * faces
+        if empty:
+            self._board_steps[key] = cost
         return cost
 
     # ------------------------------------------------------------------- the section
