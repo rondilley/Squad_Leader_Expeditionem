@@ -4,6 +4,187 @@ The session log, newest entry first. This file gives the next session, human or 
 
 ---
 
+## 2026-10-26 - The victory conditions are on the map during play
+
+The owner's note: during play it is not clear what wins the game. When the attacker must occupy hexes, the map must show them, and a button must show the victory conditions.
+
+The causes: the scenario card before the game had the sentence of the victory condition, but the map showed no objective. The only count was in the log line at the end of the game.
+
+What changed:
+
+- Each frame has the field `objectives` (`src/slhost/objectives.py`). It has one record for each victory condition of the scenario: the side, the sentence of the card (`note`), and the hexes. The hexes of `hex_control` and `sole_occupant` are the building hexes of the groups, and those of `building_count` and `building_swing` are the hexes of the buildings. A condition such as a ratio of squads has no hexes.
+- The record of a condition of the viewer's own side also has `status`: the count, the threshold, the result, and the hexes that the side controls at this time. The host gets the count from `victory.evaluate_condition` on the state that the viewer may know (`player_state.for_player`). The record of a condition of the other side has no count, so it gives no fact of a hidden unit (AR-09). A watcher of two computer sides gets each count. `slcore/api.py` names `evaluate_condition` in `SURFACE`.
+- The two windows shade the objective hexes violet, and a hex that the person's side controls green. Violet is not the amber of the set up. In lib01 the German set up area is the objective building.
+- The "Victory conditions" button of the panel, or Ctrl and v, makes the hexes strong violet and green above each other shade. It also opens a box with the turn line, the sentence of the card, and the status. For example: "You control 0 of the 5 violet hexes. You need 1 at the end of turn 5." For the other side the box says which side the violet hexes are for. The button again, Ctrl and v, or Escape closes the box.
+- In the list of the click rows of the panel, the buttons (Undo, Victory conditions) come after the command rows. Thus the first click row is the first command, as before.
+
+The tests: `tests/host/test_objectives.py` (4), `tests/window/test_victory_conditions.py` (3), and 1 more in `tests/window3d/test_end3d.py`. The tests of `tests/host`, `tests/window`, `tests/window3d`, `tests/arch`, `tests/docs`, `tests/providers`, and `tests/secrecy` pass. The 7 failures that were there before stay.
+
+---
+
+## 2026-10-26 - The end of the game says "You lost.", and the panel gives the turns that are left
+
+The owner wanted an examination of the games against the computer. The owner played the Russian side of `lib01_grain_office` against the v6 opponent three times to the end, and the computer won each game. At the end of turn 5 the Russian side held 0 of the 5 hexes of the grain office, and 1 was necessary. The end line of the panel was "game over: Axis wins", and the owner did not see immediately that it was a loss. The card names the sides Russian and German, but the windows named them Allied and Axis.
+
+The analysis of the three games: the forces had almost no losses.
+
+The Russian squads were 13 hexes from the office after turn 1 and 4 to 5 hexes from it after turn 5. In 6 games of the v7 agent as the attacker against the same v6 defender, v7 won 5. It was 8 hexes from the office after turn 2, and in it or next to it by turn 3 or 4. Of the v7 steps, 84 to 111 of 109 to 135 were road steps (rule 5.52, half a movement factor in open ground). Of the owner's steps, 4 of 76 to 88 were road steps.
+
+What changed:
+
+- `src/slwindow/endgame.py` gives the text of the end. `summary` says "You won." or "You lost." when one side has the controller `human`. For a watcher or for two people it gives the side that wins. The lines below give the side that wins, the turn, each victory condition with its result, and the losses of each side.
+- The two windows show the end in a box in the middle of the board (`boxes.draw_end`), until Escape or a click. A frame of a game that continues closes the box of a previous game. Thus a new game in the same window starts with no box. The panel starts its end text with the same headline: "game over: you lost".
+- `endgame.turn_text` gives the turn line of the panel: "turn 2 of 5: 3 more turns after this one", then "the last turn", and after the end "the last turn is complete".
+- `annotate.side_names`: a side with a generic key (`allied`, `axis`, `attacker`, `defender`) gets the name of its army, for example Russian. The windows, the log, and the end use the names of the card. A scenario with army keys keeps its names.
+
+The tests: `tests/window/test_endgame.py` (5) and `tests/window3d/test_end3d.py` (2). The end panel test of `tests/window/test_window_play_v2.py` reads the new lines. The tests of `tests/host`, `tests/window`, `tests/window3d`, `tests/arch`, `tests/docs`, `tests/providers`, and `tests/secrecy` pass. The 7 failures that were there before stay.
+
+---
+
+## 2026-10-26 - The error "the host refused too many join tries" during a game
+
+The owner saw the error "the host refused too many join tries" in the game window.
+
+The cause: the host lets each connection send 30 questions in 5 seconds (SR-03). The questions are a line of sight, the options of a unit, and a view. Above that, the host answered with the code `rate_limited`, which is the code of a refused join. The window client showed the text of a refused join for that code. It also put the code in its terminal codes, so the session stopped and did not connect again.
+
+The window sent too many questions in two ways:
+
+- A sweep of the pointer sends a line of sight question from the unit in focus for each hex below the pointer.
+- The `options_request` of this day asked one time for each new frame. A computer turn sends many frames in a short time.
+
+A burst of 35 line of sight questions gave the error and stopped the session each time.
+
+What changed:
+
+- The protocol has the code `request_limited` for the question limit. It is not a terminal code, so the session continues. A refused join or connection keeps `rate_limited`.
+- The window client sends at most 24 questions in 5 seconds (`QUESTION_LIMIT`, `QUESTION_WINDOW_SECONDS`). `request_los` and `request_options` give False for a question above the budget. The two windows then do not record that question as sent, so they send it again in a subsequent frame.
+- The overlay sends the question of the options of a unit only when the frame has a legal list for the person. A frame of a computer turn sends no question.
+- After the change, the burst of 35 questions gives no error, and the session continues.
+
+The tests: `tests/window/test_question_budget.py` (2). The test of the host limit in `tests/host/test_protocol_v2.py` expects `request_limited` at this time. The tests of `tests/host`, `tests/window`, `tests/window3d`, `tests/arch`, `tests/docs`, and `tests/providers` pass. The 7 failures that were there before stay.
+
+---
+
+## 2026-10-26 - The menu of a unit and the Undo button
+
+The owner's notes after a play of the 3D window:
+
+1. The owner did not see the kinds of fire (suppressive fire, advancing fire) and the other options of a unit.
+2. The owner wants a list of options when a unit is selected and a key or a mouse button is pressed.
+3. The owner wants an Undo button for a step that is not complete, for a click in an incorrect place.
+
+The causes: the commands of a unit were only in the long list on the right. That list showed only the commands of the unit after a click on it. Undo was only the keys Ctrl and z, with no button on the screen.
+
+What changed:
+
+- A right click on a unit of the board during the game opens its menu. Ctrl and Space opens the menu of the unit in focus, or of the unit below the pointer. In the set up, a right click opens the about box, as before. A space with Ctrl, or a space in an empty filter, does not go into the filter.
+- `src/slwindow/unitmenu.py` makes the rows, and `src/slwindow3d/menu.py` makes their picture. The rows are the phase text of the host, then the commands of the unit in groups: fire, smoke, close combat, move, weapons and equipment, rally, and other. Each command row has the label and the odds of the host. A group shows at most 10 rows and counts the rest.
+- The one-hex steps of a move are a note with their count, because a vehicle has six facings for each hex. The note also gives the count of the pale blue hexes.
+- After the groups come the commands of the side (`group_fire`, `end_phase`), the note of the options answer (for example, a leader has no firepower), About this unit, and Undo.
+- A click on a command row plays it. The menu puts the unit in focus, so the board shades its options and the list on the right shows its commands.
+- The panel has an Undo button below the status (`panel.draw_panel(undo_button=True)`). It is bright when the frame has `can_undo`. The host cancels the last command of the person when no die rolled in it, as for Ctrl and z: a placement, a move (a full `move_to`), or a unit added to a fire group before the group fires.
+- The second note of the owner: the 2D window must have the menu and the Undo button too. The 2D window (`slwindow/app.py`) has the right click, Ctrl and Space, the menu, the about box, and the Undo button of the panel. The menu drawing and the about box moved to `src/slwindow/boxes.py`, and the 3D window reads them from there. `src/slwindow3d/menu.py` is gone.
+- The third note of the owner: the 2D window must show the reach and the field of fire too. `Window.update_overlay` gives the options answers of the frame to the overlay and sends `options_request` one time for each frame and unit, as the 3D indicators do. The 2D marks show the new tones of the theme with no change. `Window.move_to` sends `move_to` for a click on a pale blue hex of the pinned unit.
+- The fourth note of the owner: the 2D window must have the set up tray too. The steps of the tray moved out of the 3D app to `src/slwindow/traycontrol.py`, the `SetupTrayControl` mixin, which the 2D `Window` and the 3D `Board3DApp` share. The drawing of the tray moved from `slwindow3d/tray.py` to `src/slwindow/traydraw.py`, and `slwindow3d/tray.py` keeps `Overlay2D` and gives the names of the drawing to the 3D window.
+- The 2D window shows the tray along the bottom of the board, and the board fits the space above it. A press on a counter of the tray or of the board starts a drag. A release on a shaded hex puts the counter there, and a press and a release with no travel is a click, as in 3D. A right click in the set up opens the about box. The pointer on the tray is on no hex, so a release there puts no counter on the board.
+- The 3D tests (81) pass after the move with no change to them.
+- The kinds of fire: the rules of the project (the 4th edition) have no command for suppressive fire. The kind of fire is the phase (rule 4): Prep Fire, Defensive Fire, and Advancing Fire. The phase text of the host is at the top of the menu.
+- No change in `src/slcore/` and in the host.
+
+The tests: `tests/window/test_unit_menu.py` (4, the model), `tests/window3d/test_unit_menu3d.py` (1, offscreen, a host in the process). The 3D test opens the menu of a unit in a fire phase and plays a fire command from it. Then it cancels the command with the Undo button.
+
+The 2D tests are in `tests/window/test_window_menu.py` (4, the 2D window with a host in the process: the menu, Ctrl and Space with the about box, the field of fire, and the click on a pale blue hex). The 2D tray tests are in `tests/window/test_window_tray.py` (4). They do a test of the clicks, the pick up, the drag, the cause of a refused drop, and the two buttons. The tests of `tests/host`, `tests/window`, `tests/window3d`, `tests/arch`, and `tests/docs` pass. The 7 failures that were there before stay.
+
+---
+
+## 2026-10-26 - Why a hex refuses a counter, the reach and the field of fire of a unit, and the move to a far hex
+
+The owner's notes after more play of `lib01_grain_office` in the 3D window:
+
+1. When the set up refuses a counter on a hex, the game does not say why.
+2. When a unit moves or fires, the board must show each hex where it can move or fire.
+
+The causes:
+
+- A click or a drop on a hex that the legal list did not name did nothing. The window has no rule logic (AR-06), so it cannot find the reason.
+- The overlay shaded only the hexes of the legal list. A move of the core is one hex, so the shades showed the six hexes next to the unit. A fire command names only a hex with a known enemy unit. The tones of a step and of a target had an alpha of 72, so they were dim.
+
+What changed:
+
+- The protocol has a new client message `options_request` with a `unit`, and the host answers `options_result` with the `unit`, the `frame_id` of the connection, and a `result`. `src/slhost/options.py` makes the result from the core for a unit of a side that the connection holds:
+  - In the set up: the text of the set up area of the group, for example "in the largest stone building in columns U to EE". It also gives the hexes of the area that the stacking limit closes. Each hex of the area that refuses the counter gets its cause. The causes are rule 6.1 (squads, infantry units, portage points), rule 29.2 (below a vehicle), the portage limit of a leader (rule 5.7), and a weapon with no unit to carry it. A counter of a subsequent set up step gets that cause.
+  - In the Movement Phase: each hex that the unit, or the stack that it must move with, reaches with its remaining movement factors. The paths are `slagents.learned.routes.reach`, with the costs of the core. The legal list of the frame tells if the unit moves alone or with a stack.
+  - In a fire phase: the hexes in the range of the unit and of the weapons it carries, with a clear line of sight. One list has the range of rule 9.1, and one has the long range of rule 9.2. The line of sight is `los_eval.evaluate`, as the core reads a fire target. A unit that cannot fire gets a note. With strict line of sight the field is empty.
+- The window client keeps the answers of the frame in `GameView.options` and discards an answer for an expired frame. The overlay sends one question for each frame and unit (`Overlay.options_wanted`).
+- The tray of the 3D window shows the cause in red after a refused click or drop: "Not there: Q5 is outside the set up area. The 4-6-7 sets up in the largest stone building in columns U to EE." (`App.refusal_text`, `overlay.setup_refusal`). A click on a unit of the side with a weapon selected no longer picks that unit up. It gives the cause.
+- The new tones: `reach` (pale blue), `field` (orange), `field_long` (pale orange), and `full` (dark red, a full hex of the set up area). The tones of a step and of a target have alpha 120 and 124, the highest values that the shade test permits (below 128). Ctrl and o hides the option shades, as before.
+- `slcore/api.py` names the stacking limits, `hex_load`, `beneath_a_vehicle_overstacked`, `LEADER_MAX_PORTAGE`, the two limits of rule 29.2, and `phases.fire_rule` in `SURFACE`, because the host reads them. No rule of the core changed.
+- The second note of the owner: a click on a pale blue hex must move the unit there. The client message `move_to` has the `frame_id`, the `unit`, and the `hex`. The host (`on_move_to`) finds the path of lowest cost, the path of the pale shade, and applies each step as an intent. Each step must be a command of the legal list at that time (`options.route_step`). Thus the log, the save file, and a replay hold the single steps, and the core applies each rule.
+- The move stops at the first step that is not legal, for example at a hidden unit (rule 42.5). Then the host sends an error that gives the hex where the unit stopped.
+- The first step has the source `human`. Each subsequent step has the new source `route`, and `undo_count` counts it with the step before it, as it counts a forced command. Thus one undo cancels the full move.
+- The path sets the hexes where the defensive fire of rule 16.1 can hit the unit. A person who wants a different path clicks one blue hex at a time, as before.
+- The third note of the owner: the vehicles must also show the hexes they can get to. `options.vehicle_paths` does a search on the hex and on the use of the pivot, with the costs of `r30_vehicle_movement.entry_cost_halves`. Rule 30.5 lets a vehicle select its facing in the hex it enters. Thus each step after the first faces its next hex and pays no cost of rule 29.4.
+- The first step has the facing of the vehicle, or the facing to its first hex after the one free pivot of PR-30. A tie keeps the pivot for subsequent use. Rule 30.3 gives a vehicle that did not move its first hex, whatever the cost.
+- A hex with an enemy unit ends a path (rule 30.7, the overrun of rule 35). A hex with a different vehicle of the side is a hex to go through, but the vehicle cannot stop there (rule 30.8).
+- `options.route` gives the commands of a route: the pivot, then each `vehicle_move` with the facing to the next hex. The last step faces the direction of travel. `move_to` plays them as before.
+- The check: on `s04_armor_probe`, `lib06_the_crest`, and `lib08_village_and_hills`, the v7 agents played to the Movement Phases with vehicles. For each of the 1,227 hexes that the search gave for 11 vehicles, the route played through the core and got the vehicle to the hex. One route stopped on the breakdown die of rule 39.1. The search took 6 to 19 ms for each vehicle.
+- `slcore/api.py` names `r30_vehicle_movement.allowance_halves` and `seen_vehicle_in` in `SURFACE`.
+
+Measured: the first field of fire of an American 6-6-6 with its weapon on lib11 (1,006 hexes) took 1.15 s. The host does the work in a thread, so the window does not stop. The reach of a leader took 2 ms.
+
+The tests: `tests/host/test_unit_options.py` (11, one of them is the move, the undo, and the refusal of `move_to` over a socket, and one is the reach and the routes of a vehicle), `tests/window3d/test_unit_options3d.py` (2, offscreen, a host in the process, one of them is the click on a pale hex), and 1 more in `tests/window/test_overlay.py`. The tests of `tests/host`, `tests/window`, `tests/window3d`, `tests/arch`, and `tests/docs` pass. The 7 failures that were there before this change stay. They are the older browser client, the `node` tool, and the slow marker list.
+
+---
+
+## 2026-10-26 - The player experience: the set up tray, the pick up, and the unit box
+
+The owner started the work on the game of a person against the computer (plan item M2) and played `lib01_grain_office` in the 3D window. The owner's notes:
+
+1. The set up gave only a list of commands with unit IDs and hexes.
+2. The owner wants a picture of each counter to place, and a click on a counter that shows where it can go. The owner also wants to move a placed counter until the set up is complete.
+3. The owner wants a "tell me about this unit" option.
+4. The game started, closed, and started again with no action. The cause was not the game. My test runs of `sl-cli window3d` with timeouts opened and closed windows on the owner's screen. `tasks/lessons.md` has the rule.
+
+What changed:
+
+- `src/slwindow/setup.py` is the model of the set up tray: the counters of the side, the counter that the legal list names for a click (PR-06 offers the lowest ID of each type), and the hexes where a counter can go. A weapon can also go to a unit on the board (`place_weapon`), and the hex of that unit is its target.
+- `src/slwindow3d/tray.py` makes the tray along the bottom of the board. It has a picture of each counter, the count on the board, and three buttons: About this unit, Set up for me, and Finish set up. The overlay shades the hexes of the selected counter in the new `setup` tone (bright amber). After a counter goes on the board, the selection goes to the next counter of the same type.
+- The protocol has the client message `setup_lift` with a `unit`. The host (`Game.lift`) plays the game again from the seed to the first place command of the unit. Then it plays each subsequent command of the set up block of that side again through the core. The host does not apply a command that is not legal at this time. Thus a weapon given to the unit comes off the board with it.
+- PR-06 can stop the offer of a counter of the same type. Then the host uses the place command with the same hex, facing, type, and group.
+- No change in `src/slcore/`.
+- The host no longer applies `end_setup` for a person when it is the only legal command. Before, the last placement stopped the set up immediately, so the person could not change it.
+- A right click on a counter of the board or of the tray opens the box of `src/slwindow/unitinfo.py`: the counter picture and what each value means (firepower, range, morale, leadership, breakdown, the vehicle values, and the state now).
+- The camera puts the target in the middle of the part of the window that the panel and the tray do not cover. A screenshot (no host) gives the picture it gave before.
+- The tests: `tests/host/test_setup_lift.py` (5), `tests/window/test_setup_tray.py` (5), and `tests/window3d/test_setup_tray3d.py` (3, offscreen). `tests/window3d`, `tests/window`, and the documentation picture tests pass. The failures that stay are of the older browser client (its source and `node`), as before.
+- The 2D pygame window has no tray.
+
+The second note of the owner: drag a counter to the hex.
+
+- A press on a counter of the tray, or on a counter of the side on the board, starts a drag (`App.begin_carry`). The counter picture follows the pointer (`tray.draw_carried`). The release on a shaded hex puts the counter there (`App.drop`).
+- A press on the board sends `setup_lift` immediately. When the release comes before the host sends the new frame, the drop waits for that frame (`_pending_drop`).
+- A release with no travel is a click, as before. A press on a shaded hex of the selected counter is a placement, not a pick up.
+- `play.bat` starts `lib01_grain_office` against the `normal` opponent with no options, because the owner cannot copy a command out of the session.
+- The tests: 3 more in `tests/window3d/test_setup_tray3d.py`. One of them goes through the press, the travel, and the release of the mouse.
+
+The third note of the owner: the drop put the counter on a hex that was not at the pointer, and the window did not show the hex of the drop.
+
+- The cause: `hex_under_pointer` sent the ray through `self.camLens`, the first lens of Panda3D. `_place_camera` gives the camera a new lens each frame, with a 45 degree field and the film offset of the panel and the tray. Thus the ray and the picture did not agree, and the click had the same defect. The ray goes through the lens of the camera at this time.
+- The overlay has the tone `drop` (bright green). While a counter of the tray is selected or dragged, the shaded hex at the pointer gets it. The window gives the overlay the pointer hex at each frame, not only at each snapshot.
+- The picture of the dragged counter stays up and to the right of the pointer, so it does not cover the marked hex.
+- The tests: `test_the_pointer_finds_the_hex_that_the_picture_shows_under_it` (2D and 3D) projects hex centres through the lens and reads the hex at each point. With the first lens, the test gives a failure (the pointer on A1 found E2). `test_the_hex_under_the_pointer_where_the_counter_goes_is_marked` reads the tone.
+
+The fourth note of the owner: the set up and the movement of a machine gun were not clear.
+
+- The cause of most of the problem: the two windows did not show a weapon that a unit carries. After a `place_weapon`, the MMG went off the screen. `slwindow.overlay.with_carried` puts each carried weapon in the stack directly after its carrier.
+- The tray shades only the units that can carry the weapon (`setup.targets` with the view). A weapon alone on a hex cannot move until a unit picks it up. Thus the tray offers a hex alone only when no unit can carry it and no unit is left to place. While a unit of the side is off the board, the weapon has no target, and its label is "units first" (`setup.weapon_step`).
+- The tray has a second header line (`setup.hint`) that tells the person what to do with the selected counter. The label of a carried weapon is "with 6-2-8" (`setup.item_label`).
+- The view (`slcore.view._add_portage`) gives each support weapon its portage for a squad and for a leader, which are on the front of the counter. It gives the owner of a unit that carries a weapon the IDs it carries and its movement factors: with the load, with no load, and in a stack with a leader (rule 5.7, `r05_movement.allowance_halves`). The other side does not get them (AR-09).
+- The unit box says who carries a weapon, what a unit carries, and the movement factors of that unit.
+- A move, stack move, or advance label names the weapons that go with each unit: "move 6-2-8 (with MMG) to C3" (`annotate._with_weapons`).
+- No rule changed. The tests: 3 more in `tests/window/test_setup_tray.py` and 1 more in `tests/window3d/test_setup_tray3d.py`.
+
+---
+
 ## 2026-10-21 - L03, L04, and L05 of gate item 5 with the routes, and the Prep Fire fault of the clones
 
 The chain `runs/chain_20261020b_gate5_L03_L12` stopped at 17:05Z on 2026-10-20 for a workstation reboot, in L03 chunk 2. `resume.sh` started it again at 20:11Z. The farm ping gave the code hash of this tree on the four hosts. L03 chunk 2 started from the chunk 1 net, and the chain continues with L04 to L12.
@@ -55,6 +236,9 @@ The chain `runs/chain_20261020b_gate5_L03_L12` stopped at 17:05Z on 2026-10-20 f
 - Not changed: a lib11 game fills the LOS table to about 228,000 entries, so the environment clears it (`LOS_ENTRY_LIMIT`, 250,000) after almost each game. The results part holds about 590 MB after four lib11 games, and a worker holds about 1.5 GB, so a higher limit needs more memory on the hosts.
 - The owner deployed ecd4bf854c43 to case, kipp, and plex. The first two deploys to kipp left the old server in place: an old `farm serve` process that `farm.pid` did not name still held port 5160, and `farm_worker.sh` reported success after 3 seconds. The owner stopped that process by its ID, and the ping at 17:01Z on 2026-10-25 showed the new code on the three hosts.
 - `tools/farm_worker.sh` now succeeds only when the new process group holds port 5160. Before the start, a `farm serve` process that holds the port and that `farm.pid` does not name has its process group stopped; another program on the port, or a process of another user, stops the script with an error. After the start, the script waits up to 60 s for the bind, because the server binds after it starts its pool. If the bind does not occur, it stops the new group, removes `farm.pid`, and exits 1. `bash -n` and `tests/farm/test_deploy.py` passed (3). The stop and the bind logic did not run on Linux yet: this workstation has no `ss`, and its WSL images did not start.
+- L12: the evolution took 5.4 hours, and the imitation (400 games of four boards and the fit) 10.4 hours. Chunk 1 (player 0 against v6 and v3) gave 3,121,152 steps (289 steps/s). Its v7 gate took 71 minutes and gave 61 of 200: 61 of 100 as the allied side and 0 of 100 as the axis side. Chunk 2 started at 04:17Z on 2026-10-26 with v7 in the league, and the speed fell only to 284 steps/s (at 344,064 steps). From L11 chunk 1 to chunk 2 it fell by 30 percent. The work in a remote worker for each decision is 52 ms in L12 chunk 2 and was 63 ms in L11 chunk 2. Thus the faster v7 removes most of the speed fall at the chunk boundary.
+- L12 completed at 16:51Z on 2026-10-26, and the chain of gate item 5 for L03 to L12 is done. Chunks 2 and 3: 3,096,576 steps (286 steps/s) and 1,982,464 steps (183 steps/s; the two sides). The v7 gate: chunk 1 61, chunk 2 50, chunk 3 51 of 200, each one with 0 of 100 as the axis side. The gauntlet of chunk 1 gave 43.8 percent, Elo 1405, rank 3 of 5 (v7 2076, v6 1783, v3 1281, v5 955). The net won 70 of 80 games as the allied side and 0 of 80 as the axis side. Against v7 it won 11 of 20 as the allied side, and the v7 mirror gave the allied side 11 of 40. The axis side of lib12 is hard: in the mirror, v3 and v5 won 0 of 40 as the axis side, v6 won 5, and v7 won 29.
+- The final gauntlets of the chain, rank of 5 and wins against v7 of 40: L03 1 and 28, L04 3 and 12, L05 3 and 1, L06 3 and 16, L07 1 and 25, L08 1 and 32, L09 3 and 12, L10 2 and 11, L11 3 and 3, L12 3 and 11. The net is rank 1, above v7, on L03, L07, and L08.
 
 ## 2026-10-20 - The attack movement: the routes, the no-return filter, and the approach term
 

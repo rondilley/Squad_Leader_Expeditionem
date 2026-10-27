@@ -387,6 +387,8 @@ def build(
     ]
     if spectator:
         units = [u for u in units if not state.units[u["id"]].eliminated]
+    for item in units:
+        _add_portage(state, types, item, viewer, spectator)
     return {
         "viewer": viewer,
         "spectator": spectator,
@@ -412,6 +414,38 @@ def build(
         "fire_group": _fire_group_view(state, viewer, spectator),
         "units": units,
     }
+
+
+@dataclass(frozen=True)
+class _TypesOnly:
+    """The part of a movement context that the portage of rule 5.7 reads."""
+
+    types: Mapping[str, UnitType]
+
+
+def _add_portage(state: State, types: Mapping[str, UnitType], item: dict[str, Any], viewer: int, spectator: bool) -> None:
+    """Rule 5.7 for the window, so it can say what a weapon costs and how far its carrier
+    goes. The portage of a support weapon is on the front of its counter. The movement
+    factors of a unit that carries a weapon go only to its owner (AR-09)."""
+    from slcore.rules import r05_movement
+
+    unit = state.units[item["id"]]
+    t = types[unit.type_key]
+    if unit.kind == KIND_SW:
+        item["portage_halves"] = t.portage_squad_halves
+        item["portage_leader_halves"] = t.portage_leader_halves
+        return
+    if not (spectator or unit.player == viewer) or not unit.is_infantry:
+        return
+    carried = state.carried_by(unit.id)
+    if not carried:
+        return
+    ctx = _TypesOnly(types)
+    item["carries"] = [w.id for w in carried]
+    item["movement_free_halves"] = t.mf_halves
+    item["movement_halves"] = r05_movement.allowance_halves(ctx, state, unit, leader_bonus=False)  # type: ignore[arg-type]
+    if unit.kind != KIND_LEADER:
+        item["movement_stack_halves"] = r05_movement.allowance_halves(ctx, state, unit, leader_bonus=True)  # type: ignore[arg-type]
 
 
 def board_document(board: Any) -> dict[str, Any]:

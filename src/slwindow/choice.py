@@ -34,6 +34,8 @@ from slwindow.overlay import hexes_of, payload_of, position_of, unit_ids
 # The odds of the host are counts out of this number (two dice, then two more for a
 # second roll where the odds need it).
 ODDS_BASE = 1296
+# The entry that resolves the fire group of the side (rule 8.4).
+GROUP_FIRE = "group_fire"
 
 
 def unit_names(entry: dict[str, Any], view: dict[str, Any] | None = None) -> list[str]:
@@ -184,6 +186,8 @@ class Chooser:
         self.page_rows = 10
         self.unit: int | None = None
         self.hex: str | None = None
+        # The legal indexes a click of the set up tray narrowed the list to, or None.
+        self.only: set[int] | None = None
         self.frame_id = ""
 
     # --------------------------------------------------------------- the frame
@@ -198,6 +202,7 @@ class Chooser:
         self.position = 0
         self.scroll = 0
         self.hex = None
+        self.only = None
         if self.unit is not None and not entries_for(legal, self.unit):
             self.unit = None
         return True
@@ -207,8 +212,13 @@ class Chooser:
     def visible(self, legal: Sequence[dict[str, Any]], view: dict[str, Any] | None = None) -> list[tuple[int, dict[str, Any]]]:
         """The rows a person sees, each with its index in the legal list."""
         rows = list(enumerate(legal))
-        if self.unit is not None or self.hex is not None:
+        if self.only is not None:
+            rows = [(i, e) for i, e in rows if i in self.only]
+        elif self.unit is not None or self.hex is not None:
             keep = set(entries_for(legal, self.unit, self.hex))
+            # An entry that names no unit (resolve the fire group, end the phase) is for
+            # the side and not for one unit, so a unit in focus never hides it.
+            keep.update(i for i, e in rows if not unit_ids(e) and (self.hex is None or self.hex in hexes_of(e) or not hexes_of(e)))
             rows = [(i, e) for i, e in rows if i in keep]
         if self.filter_text:
             needle = self.filter_text.lower()
@@ -271,6 +281,9 @@ class Chooser:
         if self.filter_text:
             self.filter_text = ""
             cleared = "filter"
+        elif self.only is not None:
+            self.only = None
+            cleared = "hex"
         elif self.hex is not None:
             self.hex = None
             cleared = "hex"
@@ -314,6 +327,13 @@ class Chooser:
                 self.position = 0
                 self.scroll = 0
                 return BoardClick(pinned, chosen[0] if len(chosen) == 1 else None)
+        fire = [i for i in entries_for(legal, None, hex_id) if payload_of(legal[i]).get("action") == GROUP_FIRE]
+        if len(fire) == 1:
+            # A click on the target of the fire group resolves it (rule 8.4).
+            self.hex = None
+            self.position = 0
+            self.scroll = 0
+            return BoardClick(pinned, fire[0])
         focus = next_focus(view, hex_id, pinned)
         self.hex = None
         self.position = 0

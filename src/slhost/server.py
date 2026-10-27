@@ -42,9 +42,9 @@ from slagents.tuned.traces import TraceWriter, board_source
 from slcore import geometry, view
 from slcore.commands import Command
 from slcore.engine import Engine, IllegalCommand
-from slcore.game import PHASE_SETUP, State
+from slcore.game import PHASE_MOVEMENT, PHASE_SETUP, State
 from slcore.los_eval import evaluate as evaluate_los
-from slhost import annotate, protocol, rooms, savegame
+from slhost import annotate, objectives, options, protocol, rooms, savegame
 from slhost.protocol import ProtocolError
 
 HUMAN_FAMILY = "human"
@@ -67,12 +67,17 @@ SOURCE_HUMAN = "human"
 SOURCE_COMPUTER = "computer"
 SOURCE_FORCED = "forced"
 SOURCE_SETUP = "setup_helper"
+# A step of a `move_to` route after its first step. An undo takes back the whole route, as
+# it takes back a forced command with the command of the person before it.
+SOURCE_ROUTE = "route"
 # A log line the host writes, and not a rule of the core, has this rule ID.
 HOST_RULE = "host"
 
 STREAM_SPECTATOR = "spectator"
 
 SETUP_AGENT = "v7"
+# The commands of a set up block that a person may take back one unit at a time.
+LIFT_ACTIONS = ("place", "place_weapon", "place_concealment")
 TOKEN_BYTES = 16
 
 
@@ -257,6 +262,75 @@ class Game:
             stream.cursor = min(stream.cursor, len(self.log))
         if self.save is not None:
             self.save.rewrite([save_line(record) for record in self.commands])
+
+    def setup_block(self, player: int) -> int:
+        """The index of the first command of the set up block of this player that ends the
+        command list: the place commands it gave since the last command of anyone else."""
+        start = len(self.commands)
+        for record in reversed(self.commands):
+            action = str(record["payload"].get("action", ""))
+            if record["player"] != player or record["phase"] != PHASE_SETUP or action not in LIFT_ACTIONS:
+                break
+            start -= 1
+        return start
+
+    def lift(self, unit_id: int, player: int) -> int:
+        """Take a unit of the set up block of this player off the board (the setup pick up).
+
+        The host plays the game again from the seed to the first command that placed the
+        unit, and then plays each later command of the block again through the core. A
+        command that is not legal now is left out, so its unit is off the board too: a
+        weapon given to the unit, for example. Rule 21.2 with PR-06 offers the lowest ID of
+        each type, so a place of an identical counter that is not legal now takes the place
+        command of the frame with the same hex, the same facing, and a unit of the same type
+        and group. The host applies only commands of the legal list of the core (AR-06).
+        Return how many commands were left out.
+        """
+        start = self.setup_block(player)
+        block = self.commands[start:]
+
+        def names_unit(record: dict[str, Any]) -> bool:
+            payload = record["payload"]
+            if payload.get("action") == "place_weapon":
+                return payload.get("weapon") == unit_id
+            return payload.get("action") == "place" and (payload.get("units") or [None])[0] == unit_id
+
+        first = next((start + i for i, record in enumerate(block) if names_unit(record)), None)
+        if first is None:
+            raise ProtocolError("21.2", f"unit {unit_id} was not placed in this set up", protocol.CODE_ILLEGAL)
+        later = [record for record in self.commands[first + 1 :] if not names_unit(record)]
+        restored = self.replay_to(first)
+        self.take_back(len(self.commands) - first, restored)
+        left_out = 1
+        for record in later:
+            frame = self.engine.legal_commands(self.state)
+            if frame.player != player:
+                left_out += 1
+                continue
+            legal = frame.by_id(record["command_id"]) or self._same_kind(frame, record["payload"])
+            if legal is None:
+                left_out += 1
+                continue
+            self.apply(frame.frame_id, legal.id, record["source"])
+        return left_out
+
+    def _same_kind(self, frame: Any, payload: dict[str, Any]) -> Any:
+        """The place command of the frame that does what this one did with an identical
+        counter (PR-06): the same hex and facing, and a unit of the same type and group."""
+        if payload.get("action") != "place" or not payload.get("units"):
+            return None
+        units = self.state.units
+        wanted = units[int(payload["units"][0])]
+        for legal in frame.commands:
+            command = legal.command
+            if command.action != "place" or not command.units or legal.payload.get("hex") != payload.get("hex"):
+                continue
+            if dict(command.extra).get("facing") != payload.get("facing"):
+                continue
+            other = units[command.units[0]]
+            if other.type_key == wanted.type_key and other.group == wanted.group:
+                return legal
+        return None
 
     def write_traces(self, root: Path) -> Path | None:
         """The trace file of this game, when the host was started with a trace directory."""
@@ -502,6 +576,13 @@ class Host:
                 await self.on_undo(connection)
             elif message.type == protocol.CLIENT_AUTO_SETUP:
                 await self.on_auto_setup(connection)
+            elif message.type == protocol.CLIENT_SETUP_LIFT:
+                await self.on_setup_lift(connection, message)
+            elif message.type == protocol.CLIENT_MOVE_TO:
+                await self.on_move_to(connection, message)
+            elif message.type == protocol.CLIENT_OPTIONS_REQUEST:
+                self._limit(connection)
+                await self.on_options_request(connection, message)
         except ProtocolError as exc:
             await self.send(connection, protocol.error_message(exc.rule_id, exc.message, exc.code))
         except IllegalCommand as exc:
@@ -518,7 +599,7 @@ class Host:
 
     def _limit(self, connection: Connection) -> None:
         if not connection.requests.allow():
-            raise ProtocolError("SR-03", "too many requests from this connection; wait a few seconds", protocol.CODE_RATE_LIMITED)
+            raise ProtocolError("SR-03", "too many requests from this connection; wait a few seconds", protocol.CODE_REQUEST_LIMITED)
 
     async def on_join(self, connection: Connection, message: protocol.ClientMessage) -> None:
         if not self.attempts.allow(connection.address):
@@ -653,6 +734,7 @@ class Host:
 
     def _apply_forced(self) -> int:
         """Slice 8: a frame of a person's side with one legal command is applied for them.
+        The end of the set up is not: the person says when the set up is complete.
 
         The label goes to the person in the next frame (`auto_applied`), and the log has a
         line for it. The lock is held by the caller.
@@ -668,6 +750,10 @@ class Host:
             if len(frame.commands) != 1:
                 break
             only = frame.commands[0]
+            if only.command.action == "end_setup":
+                # A side arranges its counters until it says the set up is complete (rule
+                # 21.2), and the person may still pick a counter up, so the host waits.
+                break
             text = annotate.command_label(state, only, self.game.names, frame.player)
             self.game.apply(frame.frame_id, only.id, SOURCE_FORCED)
             self.game.log.append(
@@ -774,7 +860,7 @@ class Host:
             if not record.get("quiet"):
                 return 0
             count += 1
-            if record["source"] == SOURCE_FORCED:
+            if record["source"] in (SOURCE_FORCED, SOURCE_ROUTE):
                 continue
             if record["source"] in (SOURCE_HUMAN, SOURCE_SETUP) and record["player"] == active:
                 return count
@@ -820,6 +906,124 @@ class Host:
             await self.send_frames()
             await self._announce_game_over()
         self._start_agents()
+
+    async def on_setup_lift(self, connection: Connection, message: protocol.ClientMessage) -> None:
+        """Take a placed unit of the person off the board while the side sets up.
+
+        A side arranges its counters until it declares the set up complete (rule 21.2), so
+        the person may pick up a unit and place it again. `Game.lift` plays the game again
+        through the core without the place command of the unit.
+        """
+        unit = message.require("unit")
+        if not isinstance(unit, int) or isinstance(unit, bool):
+            raise ProtocolError("protocol", "the setup_lift message needs a unit ID")
+        async with self.lock:
+            state = self.game.state
+            player = state.active
+            if state.phase != PHASE_SETUP or state.game_over:
+                raise ProtocolError("21.1", "the set up is over", protocol.CODE_ILLEGAL)
+            if player in self.agents or not self.room.controls(connection.id, player):
+                raise ProtocolError("SR-03", "this connection does not hold the side that sets up now", protocol.CODE_SEAT)
+            try:
+                left_out = await asyncio.to_thread(self.game.lift, unit, player)
+            except savegame.SaveFileError as exc:
+                raise ProtocolError("host", f"the replay for the pick up failed: {exc}", protocol.CODE_ILLEGAL) from exc
+            self.game.log.append(
+                {"rule_id": HOST_RULE, "kind": "setup_lift", "data": {"unit": unit, "player": player, "commands": left_out}}
+            )
+            self.pending_auto = {0: [], 1: []}
+            await self.send_frames()
+
+    async def on_move_to(self, connection: Connection, message: protocol.ClientMessage) -> None:
+        """Move a unit of the person to a hex it reaches in this Movement Phase.
+
+        The path is the cheapest one of `options.route`, the path the pale shade of the
+        window shows. A vehicle can pivot first (PR-30), and each of its steps names the
+        facing to its next hex (rule 30.5). Each step is a command of the legal list at that time, and
+        `Game.apply` applies it as an intent of the person, so the log, the save file, and
+        an undo hold the single steps. The move stops when a step is not legal, for example
+        when a hidden unit stops it (rule 42.5).
+        """
+        token = str(message.require("frame_id"))
+        unit = message.require("unit")
+        if not isinstance(unit, int) or isinstance(unit, bool):
+            raise ProtocolError("protocol", "the move_to message needs a unit ID")
+        try:
+            target = geometry.parse_hex_id(str(message.require("hex")))
+        except ValueError as exc:
+            raise ProtocolError("protocol", f"a hex name is not valid: {exc}") from exc
+        async with self.lock:
+            state = self.game.state
+            active = state.active
+            if active in self.agents or not self.room.controls(connection.id, active):
+                raise ProtocolError("SR-03", "this connection does not hold the seat that acts now", protocol.CODE_SEAT)
+            if not connection.token or token != connection.token or connection.token_hash != self._core_hash():
+                raise ProtocolError(
+                    "DR-04",
+                    "the frame ID is not the newest frame the host sent; use the frame the host just sent",
+                    protocol.CODE_STALE_FRAME,
+                )
+            if state.phase != PHASE_MOVEMENT:
+                raise ProtocolError("5.1", "a unit moves to a far hex only in the Movement Phase", protocol.CODE_ILLEGAL)
+            if not 0 <= unit < len(state.units) or state.units[unit].player != active:
+                raise ProtocolError("protocol", f"unit {unit} is not a unit of the side that moves", protocol.CODE_ILLEGAL)
+            steps = options.route(self.engine, state, state.units[unit], target)
+            name = geometry.hex_id(*target)
+            if steps is None:
+                raise ProtocolError("5.4", f"the unit cannot get to {name} in this phase", protocol.CODE_ILLEGAL)
+            path = [step.hex for step in steps if step.hex is not None]
+            done = 0
+            applied = 0
+            for step in steps:
+                frame, legal = options.route_step(self.engine, self.game.state, step)
+                if legal is None:
+                    break
+                self.game.apply(frame.frame_id, legal.id, SOURCE_HUMAN if applied == 0 else SOURCE_ROUTE)
+                applied += 1
+                if step.hex is None:
+                    continue
+                done += 1
+                if self.game.state.phase != PHASE_MOVEMENT or self.game.state.units[unit].hex != step.hex:
+                    break
+            here = self.game.state.units[unit].hex
+            self.game.log.append(
+                {
+                    "rule_id": HOST_RULE,
+                    "kind": "move_to",
+                    "data": {"unit": unit, "hex": name, "steps": done, "of": len(path), "player": active},
+                }
+            )
+            self._apply_forced()
+            await self.send_frames()
+            await self._announce_game_over()
+            if done < len(path):
+                where = geometry.hex_id(*here) if here is not None else "its hex"
+                await self.send(
+                    connection,
+                    protocol.error_message(
+                        "5.4",
+                        f"the move stopped in {where} after {done} of {len(path)} hexes: the next hex is not a legal step now",
+                        protocol.CODE_ILLEGAL,
+                    ),
+                )
+        self._start_agents()
+
+    async def on_options_request(self, connection: Connection, message: protocol.ClientMessage) -> None:
+        """The options of one unit of the person's side (`slhost.options`): why a hex refuses
+        it in the set up, where it can go in the Movement Phase, and its field of fire."""
+        unit = message.require("unit")
+        if not isinstance(unit, int) or isinstance(unit, bool):
+            raise ProtocolError("protocol", "the options_request message needs a unit ID")
+        async with self.lock:
+            state = self.game.state
+            if not 0 <= unit < len(state.units):
+                raise ProtocolError("protocol", f"no unit has the ID {unit}")
+            owner = state.units[unit].player
+            if not self.room.controls(connection.id, owner):
+                # AR-09: the options of a unit tell where it is and what it sees.
+                raise ProtocolError("SR-03", "this connection does not hold the side of that unit", protocol.CODE_SEAT)
+            result = await asyncio.to_thread(options.unit_options, self.engine, state, unit, self.strict_los)
+            await self.send(connection, protocol.options_result_message(unit, connection.token, result))
 
     async def on_los_request(self, connection: Connection, message: protocol.ClientMessage) -> None:
         """FR-34: the host answers the line of sight question, because the client has no rule logic."""
@@ -989,12 +1193,20 @@ class Host:
                 self._spectator_cache = cached
             document = cached[1]
             return protocol.frame_message(
-                view.SPECTATOR, document, {**frame, "commands": []}, tail, connection.token, status, phase_text=phase_text
+                view.SPECTATOR,
+                document,
+                {**frame, "commands": []},
+                tail,
+                connection.token,
+                status,
+                phase_text=phase_text,
+                objectives=objectives.document(self.engine, self.game.state, view.SPECTATOR, self.game.sides, spectator=True),
             )
         acts = self.room.controls(connection_id, self.game.state.active) and self.game.state.active not in self.agents
         commands: list[dict[str, Any]] = []
         if acts:
             commands = self._legal_for(core.player)
+            phase_text = annotate.fire_group_text(self.game.state) or phase_text
         auto: list[str] = []
         if self.room.hot_seat:
             for side in (0, 1):
@@ -1014,6 +1226,7 @@ class Host:
             auto_applied=auto,
             can_undo=can_undo,
             phase_text=phase_text,
+            objectives=objectives.document(self.engine, self.game.state, player, self.game.sides),
         )
 
     def frame_for(self, connection: Connection) -> dict[str, Any]:

@@ -17,7 +17,7 @@ from typing import Any
 
 import pygame
 
-from slwindow import choice, logtext, theme
+from slwindow import choice, endgame, logtext, theme
 from slwindow.client import STATUS_GAME_OVER, STATUS_TEXT, STATUS_THINKING, STATUS_YOUR_TURN, status_of
 
 WIDTH = 320
@@ -26,6 +26,11 @@ LINE = 18
 LOG_LINES = 12
 # The fewest command rows the panel keeps, even in a short window.
 MIN_ROWS = 3
+# The index of the Undo button among the click rows. No legal index is negative.
+UNDO_ROW = -1
+UNDO_HEIGHT = 24
+# The index of the "Victory conditions" button among the click rows.
+OBJECTIVES_ROW = -2
 
 
 def draw_panel(
@@ -37,8 +42,15 @@ def draw_panel(
     selected: int | None,
     filter_text: str,
     chooser: choice.Chooser | None = None,
+    undo_button: bool = False,
+    objectives_on: bool | None = None,
 ) -> list[tuple[pygame.Rect, int]]:
     """Draw the panel and give back the clickable command rows, each with its legal index.
+
+    With `undo_button` the panel has an Undo button under the status, and its click row
+    has the index `UNDO_ROW`. With `objectives_on` (True or False, not None) the panel has
+    the "Victory conditions" button, bright while it is on, with the index `OBJECTIVES_ROW`. The button is bright when the host says that an undo can go
+    (`can_undo`), and dim when it cannot.
 
     `selected` is the legal index under the cursor. A window gives its `Chooser`, which
     holds the filter, the board narrowing, and the scroll. With no chooser the panel
@@ -61,7 +73,8 @@ def draw_panel(
         turns = state.scenario.get("turns", "?") if state.scenario else "?"
         y = _line(surface, rect, y, f"board {state.board.get('name', '')}, {turns} turns", small, theme.PANEL_DIM)
     y = _line(surface, rect, y, f"seat: {_seat_text(state)}", small, theme.PANEL_DIM)
-    y = _line(surface, rect, y, f"turn {state.turn}   {state.phase} / {state.sub_step}", small, theme.PANEL_DIM)
+    y = _line(surface, rect, y, endgame.turn_text(state), small, theme.HIGHLIGHT if not state.game_over else theme.PANEL_DIM)
+    y = _line(surface, rect, y, f"phase: {state.phase} / {state.sub_step}", small, theme.PANEL_DIM)
     y = _line(surface, rect, y, f"acts now: {_actor_text(state)}", small, theme.PANEL_DIM)
     y = _line(surface, rect, y, _status_line(state), small, _status_colour(state))
     phase_text = str(getattr(state, "phase_text", "") or "")
@@ -74,6 +87,23 @@ def draw_panel(
     applied = list(getattr(state, "auto_applied", []) or [])
     if applied:
         y = _wrapped(surface, rect, y, "applied for you: " + "; ".join(applied), small, theme.PANEL_DIM)
+    undo_rect = None
+    if undo_button and not state.game_over:
+        on = bool(getattr(state, "can_undo", False))
+        text = "Undo the last command (Ctrl and z)" if on else "Undo: nothing to take back now"
+        label = small.render(text, True, theme.PANEL_TEXT if on else theme.PANEL_DIM)
+        undo_rect = pygame.Rect(rect.left + PAD, y + 4, label.get_width() + 20, UNDO_HEIGHT)
+        pygame.draw.rect(surface, theme.UNDO_ON if on else theme.PANEL_RULE, undo_rect, border_radius=4)
+        surface.blit(label, (undo_rect.left + 10, undo_rect.top + (UNDO_HEIGHT - label.get_height()) // 2))
+        y = undo_rect.bottom + 4
+    objectives_rect = None
+    if objectives_on is not None:
+        text = "Victory conditions (Ctrl and v)"
+        label = small.render(text, True, theme.PANEL_TEXT)
+        objectives_rect = pygame.Rect(rect.left + PAD, y + 2, label.get_width() + 20, UNDO_HEIGHT)
+        pygame.draw.rect(surface, theme.OBJECTIVES_ON if objectives_on else theme.OBJECTIVES_OFF, objectives_rect, border_radius=4)
+        surface.blit(label, (objectives_rect.left + 10, objectives_rect.top + (UNDO_HEIGHT - label.get_height()) // 2))
+        y = objectives_rect.bottom + 4
     y += 6
     pygame.draw.line(surface, theme.PANEL_RULE, (rect.left + PAD, y), (rect.right - PAD, y), 1)
     y += 8
@@ -112,6 +142,12 @@ def draw_panel(
     if below > 0:
         y = _line(surface, rect, y, f"{below} more below (Tab, the page keys, the wheel)", small, theme.PANEL_DIM)
 
+    # The buttons come after the command rows, so the first row is the first command.
+    if undo_rect is not None and getattr(state, "can_undo", False):
+        rows.append((undo_rect, UNDO_ROW))
+    if objectives_rect is not None:
+        rows.append((objectives_rect, OBJECTIVES_ROW))
+
     y = max(y + 8, log_top)
     pygame.draw.line(surface, theme.PANEL_RULE, (rect.left + PAD, y), (rect.right - PAD, y), 1)
     y += 6
@@ -145,61 +181,17 @@ def _status_colour(state: Any) -> tuple[int, int, int]:
 
 def side_name(state: Any, player: Any) -> str:
     """The name of a side, from the welcome (version 2) or from the scenario."""
-    sides = getattr(state, "sides", None) or {}
-    record = sides.get(str(player)) if isinstance(sides, dict) else None
-    if isinstance(record, dict) and record.get("name"):
-        return str(record["name"])
-    names = (state.scenario or {}).get("players", [])
-    try:
-        index = int(player)
-    except (TypeError, ValueError):
-        return str(player)
-    return str(names[index]) if 0 <= index < len(names) else f"side {index}"
+    return endgame.side_name(state, player)
 
 
 def end_lines(state: Any) -> list[str]:
-    """The text of the end panel: the result, the conditions, the turn, and the losses."""
-    over = dict(getattr(state, "over", None) or {})
-    winner = over.get("winner_name")
-    result = over.get("result", state.result)
-    if winner:
-        head = f"game over: {winner} wins"
-    elif result in (None, "", "draw", "no_result"):
-        head = f"game over: {result or 'no winner'}"
-    else:
-        head = f"game over: result {result}"
-    lines = [head]
-    if over.get("turn") is not None:
-        lines.append(f"at the end of turn {over['turn']}")
-    conditions = over.get("conditions")
-    if isinstance(conditions, list):
-        for condition in conditions:
-            lines.append(f"condition: {_condition_text(condition)}")
-    cause = over.get("cause") or state.result_cause
-    if cause:
-        lines.append(str(cause))
-    casualties = over.get("casualties")
-    if isinstance(casualties, dict):
-        for player, losses in sorted(casualties.items(), key=lambda item: str(item[0])):
-            if isinstance(losses, dict):
-                text = ", ".join(f"{losses[key]} {key}" for key in ("squads", "leaders", "vehicles") if key in losses)
-                lines.append(f"losses of {side_name(state, player)}: {text}")
+    """The text of the end panel: "game over: you lost", then the lines of
+    `endgame.summary` (the side that wins, the turn, the conditions, the losses)."""
+    found = endgame.summary(state)
+    head = found.headline.rstrip(".")
+    lines = [f"game over: {head[:1].lower() + head[1:]}"]
+    lines.extend(found.lines)
     return lines
-
-
-def _condition_text(condition: Any) -> str:
-    """One victory condition of the `game_end` line: its kind, its side, whether it was
-    met, and the detail text of the core."""
-    if not isinstance(condition, dict):
-        return str(condition)
-    parts = [str(condition.get("kind", "condition")).replace("_", " ")]
-    if condition.get("side") is not None:
-        parts.append(f"for {str(condition['side']).replace('_', ' ')}")
-    if condition.get("satisfied") is not None:
-        parts.append("met" if condition["satisfied"] else "not met")
-    if condition.get("detail"):
-        parts.append(str(condition["detail"]))
-    return ", ".join(parts)
 
 
 def _end_panel(surface: pygame.Surface, rect: pygame.Rect, y: int, state: Any, font: pygame.font.Font, small: pygame.font.Font) -> int:

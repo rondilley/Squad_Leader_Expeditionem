@@ -61,6 +61,16 @@ STEP_TEXT: dict[str, str] = {
 }
 
 
+def fire_group_text(state: State) -> str | None:
+    """The text for the side that builds a fire group (rule 8.4): the group fires only
+    when that side resolves it, so the text says how. None with no fire group."""
+    group = state.fire_group
+    if group is None:
+        return None
+    target = geometry.hex_id(*group.target)
+    return f"Your fire group aims at {target}. Add more units to it, or click {target} (or 'resolve the fire group') to fire."
+
+
 def phase_text(phase: str, sub_step: str = "") -> str:
     """The text for the phase strip: the text of the sub-step, else of the phase."""
     if sub_step == "game_over":
@@ -93,14 +103,29 @@ PHASE_ORDER = (
 )
 
 UNKNOWN_UNIT = "unknown unit"
+# The side keys of a scenario that name no army. Such a side takes the name of its army.
+GENERIC_SIDES = frozenset({"allied", "axis", "attacker", "defender"})
 PLAYER_TEXT = re.compile(r"\bplayer ([01])\b")
 SIDE_KEYS = ("player", "phasing", "winner", "side")
 FIRE_ACTIONS = ("group_add", "group_add_weapon", "group_leader", "group_fire")
 
 
 def side_names(engine: Engine) -> dict[int, str]:
-    """The side name of each player, such as "Russian"."""
-    return {index: name.replace("_", " ").title() for index, name in enumerate(engine.scenario.players())}
+    """The side name of each player, such as "Russian".
+
+    A scenario of the library names its sides `allied` and `axis`, and its card names the
+    armies. Such a side gets the name of its army (or armies), so the windows, the log, and
+    the end of the game use the names of the card.
+    """
+    scenario = engine.scenario
+    out: dict[int, str] = {}
+    for index, name in enumerate(scenario.players()):
+        armies = scenario.side_spec(name).armies()
+        if name in GENERIC_SIDES and armies:
+            out[index] = " and ".join(army.replace("_", " ").title() for army in armies)
+        else:
+            out[index] = name.replace("_", " ").title()
+    return out
 
 
 def type_text(unit_type_key: str) -> str:
@@ -251,6 +276,12 @@ def command_hexes(state: State, lc: LegalCommand, viewer: int) -> list[str]:
     return list(dict.fromkeys(out))
 
 
+def _with_weapons(state: State, uid: int, name: Any) -> str:
+    """The name of a unit, with the weapons it carries: "6-2-8 (with MMG)"."""
+    weapons = [name(w.id) for w in state.carried_by(uid)] if 0 <= uid < len(state.units) else []
+    return f"{name(uid)} (with {' and '.join(weapons)})" if weapons else name(uid)
+
+
 def command_label(
     state: State, lc: LegalCommand, names: Names, viewer: int, blind: frozenset = frozenset()
 ) -> str:
@@ -267,6 +298,9 @@ def command_label(
         return names.for_viewer(state, uid, viewer)
 
     who = " and ".join(name(uid) for uid in command.units)
+    if command.action in ("move", "stack_move", "advance"):
+        # Rule 5.7: a carried weapon goes with its carrier, so the label names it.
+        who = " and ".join(_with_weapons(state, uid, name) for uid in command.units)
     where = payload.get("hex", "")
     weapon = name(command.weapon) if command.weapon is not None else ""
     action = command.action

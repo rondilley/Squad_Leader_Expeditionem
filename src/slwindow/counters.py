@@ -24,7 +24,7 @@ import pygame
 
 from slwindow import silhouettes, theme
 from slwindow.layout import ROOT_THREE, Camera
-from slwindow.overlay import position_of
+from slwindow.overlay import position_of, with_carried
 
 MIN_COUNTER = 14
 COUNTER_SCALE = 1.5
@@ -131,6 +131,7 @@ def draw_counters(
         # A vehicle is the widest counter, so it goes down first and the infantry on foot
         # sit on top of it, which is how rule 29.3 stacks them on a table.
         units.sort(key=lambda u: (u["kind"] != "vehicle", u["id"]))
+        units = with_carried(units, view)
         step = size * STACK_STEP
         for index, unit in enumerate(units):
             x = cx - step * (len(units) - 1) / 2 + step * index

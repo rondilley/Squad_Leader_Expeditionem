@@ -7,13 +7,17 @@
     "view_request": "view_request",
     "los_request": "los_request",
     "undo": "undo",
-    "auto_setup": "auto_setup"
+    "auto_setup": "auto_setup",
+    "setup_lift": "setup_lift",
+    "options_request": "options_request",
+    "move_to": "move_to"
   },
   "host_messages": {
     "welcome": "welcome",
     "frame": "frame",
     "error": "error",
     "los_result": "los_result",
+    "options_result": "options_result",
     "game_over": "game_over"
   },
   "statuses": {
@@ -26,6 +30,7 @@
     "room_code": "room_code",
     "room_full": "room_full",
     "rate_limited": "rate_limited",
+    "request_limited": "request_limited",
     "origin": "origin",
     "seat": "seat",
     "illegal": "illegal",
@@ -94,6 +99,29 @@
         "type"
       ],
       "optional": []
+    },
+    "setup_lift": {
+      "required": [
+        "type",
+        "unit"
+      ],
+      "optional": []
+    },
+    "options_request": {
+      "required": [
+        "type",
+        "unit"
+      ],
+      "optional": []
+    },
+    "move_to": {
+      "required": [
+        "type",
+        "frame_id",
+        "unit",
+        "hex"
+      ],
+      "optional": []
     }
   },
   "host_fields": {
@@ -129,7 +157,9 @@
         "can_undo",
         "phase_text"
       ],
-      "optional": []
+      "optional": [
+        "objectives"
+      ]
     },
     "error": {
       "required": [
@@ -145,6 +175,15 @@
         "type",
         "from",
         "to",
+        "result"
+      ],
+      "optional": []
+    },
+    "options_result": {
+      "required": [
+        "type",
+        "unit",
+        "frame_id",
         "result"
       ],
       "optional": []

@@ -175,7 +175,9 @@ def test_a_click_pins_a_unit_and_a_click_on_its_hex_option_chooses(movement):
     assert pinned == unit
     assert chooser.unit == unit
     shown = chooser.visible(v2, view)
-    assert shown and all(unit in choice.unit_ids(e) for _i, e in shown)
+    # An entry for the side (end the phase) names no unit and stays in the list.
+    assert shown and all(unit in choice.unit_ids(e) or not choice.unit_ids(e) for _i, e in shown)
+    assert any(unit in choice.unit_ids(e) for _i, e in shown)
     picked = chooser.board_click(view, v2, destination, pinned, next_focus)
     expected = next(i for i, e in enumerate(v2) if e["action"] == "move" and unit in choice.unit_ids(e) and destination in choice.hexes_of(e))
     assert picked.send == expected

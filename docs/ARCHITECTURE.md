@@ -479,7 +479,7 @@ The alternative: run the core in the browser through WebAssembly, so that hot se
 
 Why this is right: the host is the same code in hot seat and in LAN, so the per-player view (section 4) is built and tested one time. The trainer and the harness import the core and do not use the host, because they have no browser.
 
-The protocol is small, and it is version 2 since 2026-09-23. `src/slhost/protocol.py` holds the fields of each message, and `tools/make_protocol_schema.py` writes the shared schema from it. <!-- AI review 20260907-163721: gemini and openai, the frame ID replaces the list index. gemini, the los_request message. --> The client sends six messages:
+The protocol is small, and it is version 2 since 2026-09-23. `src/slhost/protocol.py` holds the fields of each message, and `tools/make_protocol_schema.py` writes the shared schema from it. <!-- AI review 20260907-163721: gemini and openai, the frame ID replaces the list index. gemini, the los_request message. --> The client sends nine messages:
 
 - `join(room_code, display_name, seat_token)`. The seat token is optional. The host gives a token to each client that holds a player seat. A join with that token gets the seat back after a drop. A watcher gets no token.
 - `intent(frame_id, command_id)`. The frame ID is an opaque token of 32 hex digits. The host makes a new token for each connection and each frame, and the token has no relation to the state hash. The host refuses a token that is not the newest one it gave to that connection. The command ID is one of the IDs in that frame.
@@ -487,8 +487,19 @@ The protocol is small, and it is version 2 since 2026-09-23. `src/slhost/protoco
 - `auto_setup()`. The host sets up the side of the person with the v7 agent.
 - `view_request()`.
 - `los_request(from_hex, to_hex)`. The host answers with the rule evaluator's result, because the client has no rule logic. In strict mode (FR-34) the host answers only at the times rule 19.3 lets a player use the tool. At other times it rejects the request with the rule ID. The welcome message has `strict_los`. The client shows that flag as text and sends no mode.
+- `setup_lift(unit)`. While the side of the person sets up, the host takes that placed unit off the board again (`Game.lift`).
+- `options_request(unit)` (2026-10-26). The host answers `options_result(unit, frame_id, result)` from `src/slhost/options.py`, for a unit of a side that the connection holds. The frame ID lets the client discard an answer for an expired frame. The contents of the result:
+  - In the set up: the text of the set up area, and the cause for each hex of the area that refuses the counter. The causes are rule 6.1, rule 29.2, the portage of a leader, and a weapon with no carrier.
+  - In the Movement Phase: each hex that the unit gets to with its remaining factors, by the costs of the core. For a vehicle, the search is on the hex and on the use of its free pivot (`options.vehicle_paths`). Rule 30.5 lets it select its facing in the hex it enters, so only its first step can pay the cost of rule 29.4.
+  - In a fire phase: the hexes in range (rule 9.1) and in long range (rule 9.2) with a clear line of sight. In strict mode the lists are empty.
 
-The host sends `welcome` with the seat, the board, the scenario, `strict_los`, and the controller of each side. It sends `frame(player, view, legal_commands, frame_id, log_tail, status)` after each command, `error(rule_id, message, code)` for a rejected intent, `los_result(from_hex, to_hex, result)`, and `game_over` with the result and the casualties. A client does not connect again after a terminal error code.
+- `move_to(frame_id, unit, hex)` (2026-10-26). In the Movement Phase the host moves the unit, or its stack, to the hex by the path of lowest cost of `options_request`. Each step is a command of the legal list at that time (`options.route_step`), and the host applies it as an intent. Thus the log, the save file, and a replay hold the single steps. The first step has the source `human` and each subsequent step has the source `route`, so one undo takes back the full move. The move stops at the first step that is not legal, and the host sends an error that gives the hex where the unit stopped.
+
+- Each frame has the field `objectives` (2026-10-26, `src/slhost/objectives.py`): one record for each victory condition, with its side, the sentence of the card, and its hexes. The record of a condition of the viewer's side also has the count at this time and the hexes that the side controls. The host gets them from the core on the state that the viewer may know (`player_state.for_player`). The record of a condition of the other side has no count, so it gives no fact of a hidden unit (AR-09).
+
+  The cause of the options message: the window has no rule logic (AR-06). The legal list names only the next step of a move and the targets with a known enemy. The legal list stays the one source of a command.
+
+The host sends `welcome` with the seat, the board, the scenario, `strict_los`, and the controller of each side. It sends `frame(player, view, legal_commands, frame_id, log_tail, status)` after each command, `error(rule_id, message, code)` for a rejected intent, `los_result(from_hex, to_hex, result)`, `options_result(unit, frame_id, result)`, and `game_over` with the result and the casualties. A client does not connect again after a terminal error code.
 
 A computer turn runs in a thread. Thus the event loop keeps each socket open while an agent makes its decision.
 
@@ -498,7 +509,9 @@ NFR-02 measures the time from the host's receipt of an intent to the client's re
 
 <!-- AI review 20260907-163721: openai, what NFR-02 measures -->
 
-Security posture: the LAN is trusted-party convenience (SR-03). The room code has 128 bits of entropy. The host examines the WebSocket origin, limits connection tries for each address, and gives the player slots itself. None of this is a confidentiality guarantee against a hostile machine on the same LAN, and the documents say so.
+Security posture: the LAN is trusted-party convenience (SR-03). The room code has 128 bits of entropy. The host examines the WebSocket origin, limits connection tries for each address, and gives the player slots itself.
+
+A refused join or connection has the code `rate_limited`, and the session stops. Each connection can also send 30 questions (a line of sight, the options of a unit, a view) in 5 seconds. A question above that gets the code `request_limited`, and the session continues. The window client sends at most 24 questions in 5 seconds, and it sends a held question again in a subsequent frame (`slwindow.client.QUESTION_LIMIT`). None of this is a confidentiality guarantee against a hostile machine on the same LAN, and the documents say so.
 
 Where it breaks: WebSocket libraries on Windows and the asyncio event loop policy. The LocalLLMPerf_AI sibling hit a pyzmq starvation defect on the Windows proactor loop.
 
@@ -979,6 +992,12 @@ Squad_Leader_AI/
       annotate.py                the unit names, the labels, the hexes, and the odds of each
                                  legal entry, for a person to read
       savegame.py                the save file of each host game (runs/games), and the resume
+      objectives.py              the victory conditions of each frame: the hexes, the sentence of
+                                 the card, and the count of the viewer's own conditions
+      options.py                 the options of one unit (options_request): why a hex refuses
+                                 a counter in the set up, the hexes a unit or a vehicle gets to
+                                 in the Movement Phase, the field of fire, and the steps of a
+                                 move_to route
     slagents/                    the four families behind one interface
       base.py                    the Agent interface, and decide(), the one way an agent decides
       registry.py                the agents by name and the engine of a scenario by name
@@ -1014,6 +1033,16 @@ Squad_Leader_AI/
       choice.py                  the command choice (Chooser) of the two windows, with no game library
       overlay.py                 the tactical overlay of the two windows; marks.py draws it in 2D
       logtext.py                 the text of one action log entry in the two windows
+      setup.py                   the set up tray: the counters, the offered counter, the hexes
+      traydraw.py                the set up tray drawn with pygame, for the two windows
+      traycontrol.py             SetupTrayControl: the clicks, the drags, the pick up, and the
+                                 refusal of the tray, a mixin of the two windows
+      unitinfo.py                the facts of the "about this unit" box
+      unitmenu.py                the rows of the menu of one unit, with no game library
+      boxes.py                   the menu, the about box, and the end box, drawn with pygame for
+                                 the two windows
+      endgame.py                 the text of the end of a game ("You lost.") and the turn line
+      victorytext.py             the text of the "Victory conditions" box
       theme.py                   the colours. The browser client holds the base tone of each
                                  terrain, and a test compares the two files
     slwindow3d/                  the 3D window (Panda3D), the MVP front end; it uses the
@@ -1023,6 +1052,8 @@ Squad_Leader_AI/
       counters.py                the 3D counters, from the same chit art as the 2D window
       indicators.py              the overlay in 3D, and the new log lines for the effects
       briefing.py                the scenario card before the game; the host starts on Begin
+      tray.py                    Overlay2D: a pygame picture (the tray, a box) as a texture
+                                 over the 3D board
       firekinds.py               the kind of weapon that a log line shows
       effects.py                 a short animation for each kind of fire
       sounds.py                  each sound, made by code; the vehicle is the owner's tank recording

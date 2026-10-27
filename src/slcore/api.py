@@ -135,6 +135,8 @@ SURFACE: dict[str, tuple[str, ...]] = {
     # that keeps the cache inside the core gives these as no-op calls.
     "slcore.los_cache": ("board_fingerprint", "load_static", "static_snapshot", "warm_static"),
     "slcore.los_eval": ("evaluate",),
+    # The fire restriction of a phase, for the field of fire of the host (`slhost.options`).
+    "slcore.phases": ("fire_rule",),
     "slcore.player_state": ("for_player",),
     "slcore.rng": ("RngState", "choice_index", "seed_state"),
     "slcore.scenario": (
@@ -187,8 +189,19 @@ SURFACE: dict[str, tuple[str, ...]] = {
     "slcore.view": ("SPECTATOR", "board_document", "build", "event_visible", "nationalities_of", "visible_to"),
     # The rule helpers that the scripted agents, the odds, and the reward read with no die.
     # `allowance_halves`: the movement a unit has, for the hop of v7 (`covered_approach`, 2026-10-14).
-    "slcore.rules.r05_movement": ("allowance_halves", "entry_cost_halves", "enemy_in_hex"),
-    "slcore.rules.r06_stacking": ("LIMIT_SQUADS", "overstacked_hexes", "rule_6_1_overstacked"),
+    "slcore.rules.r05_movement": ("LEADER_MAX_PORTAGE", "allowance_halves", "entry_cost_halves", "enemy_in_hex"),
+    # The host says why a hex of the set up area refuses a counter (`slhost.options`,
+    # 2026-10-26): the load of the hex against each limit of rule 6.1 and rule 29.2, and
+    # the portage limit of a leader.
+    "slcore.rules.r06_stacking": (
+        "LIMIT_INFANTRY",
+        "LIMIT_PORTAGE",
+        "LIMIT_SQUADS",
+        "beneath_a_vehicle_overstacked",
+        "hex_load",
+        "overstacked_hexes",
+        "rule_6_1_overstacked",
+    ),
     "slcore.rules.r08_fire": ("can_fire_inherent", "can_fire_weapon", "group_firepower", "member_firepower"),
     "slcore.rules.r10_resolution": ("common_modifier", "enemy_occupied_hexes", "rural_halves"),
     "slcore.rules.r11_terrain": ("is_open_ground", "moving_in_open_modifier", "target_hex_modifier"),
@@ -205,10 +218,29 @@ SURFACE: dict[str, tuple[str, ...]] = {
     "slcore.rules.r26_fanaticism": ("modifier_for",),
     # The combined-arms pass of the armor policy (2026-10-11) reads the face of an enemy
     # vehicle that a firing position sees (rule 33.5), to prefer a shot at side or rear armor.
-    "slcore.rules.r28_vehicles": ("REAR", "SIDE", "facing_towards", "in_covered_arc", "target_face", "vehicle_in"),
+    "slcore.rules.r28_vehicles": (
+        "BENEATH_INFANTRY",
+        "BENEATH_SQUADS",
+        "REAR",
+        "SIDE",
+        "facing_towards",
+        "in_covered_arc",
+        "target_face",
+        "vehicle_in",
+    ),
     # The route and the firing positions of the armor policy (`slagents/scripted/armor.py`,
     # 2026-10-10): the entry cost of a hex, the stops of rule 30.8, and the AT weapons.
-    "slcore.rules.r30_vehicle_movement": ("breakdown_number", "enemy_infantry_in", "enemy_vehicle_in", "entry_cost_halves", "must_leave"),
+    # The reach of a vehicle of the host (`slhost.options.vehicle_paths`, 2026-10-26) reads
+    # its movement points and the vehicles of its side that it may not stop on (rule 30.8).
+    "slcore.rules.r30_vehicle_movement": (
+        "allowance_halves",
+        "breakdown_number",
+        "enemy_infantry_in",
+        "enemy_vehicle_in",
+        "entry_cost_halves",
+        "must_leave",
+        "seen_vehicle_in",
+    ),
     "slcore.rules.r34_afv_vs_infantry": ("firepower_halves",),
     "slcore.rules.r37_at_weapons": ("anti_tank_weapons",),
     "slcore.rules.victory": (
@@ -219,6 +251,9 @@ SURFACE: dict[str, tuple[str, ...]] = {
         "buildings_on",
         "controlled_by",
         "evaluate",
+        # The host gives the present count of each condition to its side during play
+        # (`slhost.objectives`, 2026-10-26).
+        "evaluate_condition",
         "group_buildings",
         "group_hexes",
         "hex_controlled_by",

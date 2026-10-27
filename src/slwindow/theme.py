@@ -162,14 +162,37 @@ HEXSIDE_SHADOW = {
 # Each tone is RGBA, and the key is the tone name of the model.
 SHADE = {
     "focus": (172, 62, 46, 36),
-    "move": (64, 92, 132, 72),
-    "target": (150, 58, 40, 72),
+    # The next step of a move and a legal fire target are a click away, so they are strong.
+    "move": (40, 96, 196, 120),
+    "target": (196, 40, 28, 124),
+    # The hexes the unit reaches later in the Movement Phase: the hue of a step, paler.
+    "reach": (64, 120, 210, 64),
+    # The field of fire: the normal range, and the long range paler (rules 9.1, 9.2).
+    "field": (214, 120, 40, 70),
+    "field_long": (214, 120, 40, 32),
+    # A hex of the set up area that the stacking limit closes.
+    "full": (120, 40, 40, 90),
+    # A hex of a victory condition: violet, so it is not the amber of the set up. A hex
+    # that the person's side controls is green. The `_on` tones are for the button.
+    "objective": (150, 70, 210, 96),
+    "objective_held": (60, 190, 90, 72),
+    "objective_on": (170, 80, 235, 124),
+    "objective_held_on": (60, 215, 95, 124),
     "track": (128, 104, 56, 64),
     "los": (48, 44, 30, 44),
     "los_blocked": (48, 44, 30, 120),
     "return": (150, 58, 40, 48),
     "melee": (120, 40, 40, 80),
+    # The hexes of the set up tray are the one choice on the board, so their tone is bright.
+    "setup": (240, 200, 60, 140),
+    # The one hex of them under the pointer, where the counter goes on a click or a drop.
+    "drop": (70, 220, 90, 200),
 }
+# The Undo button of the panel when the host can take back the last command.
+UNDO_ON = (46, 104, 58)
+# The "Victory conditions" button of the panel, off and on (the violet of the objectives).
+OBJECTIVES_OFF = (78, 60, 96)
+OBJECTIVES_ON = (128, 70, 180)
 # A tracer is a thin dashed line in the tone of its phase: the prep fire, the defensive
 # fire, and the advancing fire of rule 4.
 TRACER = {

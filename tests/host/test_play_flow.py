@@ -211,7 +211,8 @@ async def test_a_forced_command_is_applied_for_the_person_and_logged():
             for _ in range(300):
                 if frame["status"] == protocol.STATUS_GAME_OVER:
                     break
-                assert len(frame["legal_commands"]) != 1, "a frame with one command never reaches the person"
+                only_end = [c["action"] for c in frame["legal_commands"]] == ["end_setup"]
+                assert len(frame["legal_commands"]) != 1 or only_end, "a frame with one command never reaches the person"
                 labels.extend(frame["auto_applied"])
                 if labels and host.game.state.turn > 1:
                     break

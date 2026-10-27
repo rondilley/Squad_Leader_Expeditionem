@@ -44,7 +44,10 @@ from slwindow.overlay import (
     RESULT_BROKEN,
     RESULT_CHECK,
     RESULT_KILL,
+    TONE_FIELD,
+    TONE_FIELD_LONG,
     TONE_MOVE,
+    TONE_REACH,
     TONE_TARGET,
     TONE_TRACK,
     Overlay,
@@ -80,7 +83,7 @@ GHOST_SIZE = 2.1
 # The high bin, so the overlay draws after the board and the counters.
 OVERLAY_BIN = 60
 # The shades of the options of the focus unit, which the `o` key hides.
-_OPTION_TONES = {TONE_MOVE, TONE_TARGET, TONE_TRACK}
+_OPTION_TONES = {TONE_MOVE, TONE_TARGET, TONE_TRACK, TONE_REACH, TONE_FIELD, TONE_FIELD_LONG}
 
 
 def rgba(colour: Sequence[int], alpha: float | None = None) -> tuple[float, float, float, float]:
@@ -97,7 +100,12 @@ class Indicators:
     snapshot, and `sweep` each frame, so a mark that lingered past its time goes.
     """
 
-    def __init__(self, parent: NodePath, ask_los: Callable[[str, str], None] | None = None) -> None:
+    def __init__(
+        self,
+        parent: NodePath,
+        ask_los: Callable[[str, str], None] | None = None,
+        ask_options: Callable[[int], None] | None = None,
+    ) -> None:
         self.root: NodePath = parent.attachNewNode("indicators")
         self.shade_root: NodePath = self.root.attachNewNode("shades")
         self.mark_root: NodePath = self.root.attachNewNode("marks")
@@ -111,9 +119,14 @@ class Indicators:
         self._snapshot: Any = None
         self._ask_los = ask_los
         self._asked: set[tuple[str, str]] = set()
+        self._ask_options = ask_options
+        # The (frame id, unit) pairs the window asked the options of, so one goes one time.
+        self._asked_options: set[tuple[str, int]] = set()
         # The window sets these: the unit a person clicked, and the hex under the pointer.
         self.pinned: int | None = None
         self.pointer_hex: str | None = None
+        # The "Victory conditions" button of the window makes the objective hexes strong.
+        self.show_objectives = False
         # The animations of fire, one kind for each weapon (`effects.py`). They hang under
         # the overlay root, so Ctrl and i hides them with the rest.
         self.effects = Effects(self.root, self._ground)
@@ -181,6 +194,7 @@ class Indicators:
         """A new session of the client (a reconnect) has no answer on the way for a line of
         sight question of the session before, so each one can go out again."""
         self._asked = set()
+        self._asked_options = set()
 
     def clear(self) -> None:
         """Remove every overlay node. The next update rebuilds from the snapshot."""
@@ -214,14 +228,26 @@ class Indicators:
             return self.overlay
         self._read_log(snapshot)
         los = getattr(snapshot, "los", None)
+        options = getattr(snapshot, "options", None)
         overlay = self.tracker.update(
-            snapshot, now, self.pinned, self.pointer_hex, los if isinstance(los, dict) else None
+            snapshot,
+            now,
+            self.pinned,
+            self.pointer_hex,
+            los if isinstance(los, dict) else None,
+            options if isinstance(options, dict) else None,
+            show_objectives=self.show_objectives,
         )
         if self._ask_los is not None:
             for pair in overlay.los_wanted:
-                if pair not in self._asked:
+                # A question that the client held back (False) goes again in a later frame.
+                if pair not in self._asked and self._ask_los(*pair) is not False:
                     self._asked.add(pair)
-                    self._ask_los(*pair)
+        if self._ask_options is not None and options is not None:
+            frame_id = str(getattr(snapshot, "frame_id", ""))
+            for unit in overlay.options_wanted:
+                if (frame_id, unit) not in self._asked_options and self._ask_options(unit) is not False:
+                    self._asked_options.add((frame_id, unit))
         self.overlay = overlay
         key = (overlay.key(), self.options)
         if key == self._key:

@@ -82,6 +82,24 @@ def _legal(action: str, units: list[int], hex_id: str):
 # ---------------------------------------------------------------------- the model
 
 
+def test_a_pinned_unit_of_the_side_asks_the_host_and_shades_its_answer():
+    a1, b1, c1, d1, e1 = (geometry.hex_id(col, 1) for col in range(5))
+    units = [_unit(1, 0, a1, own=True), _unit(2, 1, e1)]
+    snapshot = _snapshot(units, legal=[_legal("move", [1], b1)])
+    tracker = Tracker()
+    first = tracker.update(snapshot, 0.0, pinned=1, options={})
+    assert first.options_wanted == [1], "no answer yet, so the window asks"
+    assert tracker.update(snapshot, 0.0, pinned=2, options={}).options_wanted == [], "no question for the other side"
+    moved = tracker.update(snapshot, 0.0, pinned=1, options={1: {"kind": "move", "reach": {b1: 2, c1: 4}}})
+    assert moved.options_wanted == []
+    assert moved.shades[b1] == TONE_MOVE, "the next step keeps its strong tone"
+    assert moved.shades[c1] == model.TONE_REACH
+    fire = {"kind": "fire", "normal": [b1, c1], "long": [d1]}
+    fired = tracker.update(_snapshot(units, legal=[_legal("group_add", [1], e1)]), 0.0, pinned=1, options={1: fire})
+    assert fired.shades[c1] == model.TONE_FIELD and fired.shades[d1] == model.TONE_FIELD_LONG
+    assert fired.shades[e1] == TONE_TARGET, "a legal target is over its field"
+
+
 def test_a_click_pins_the_focus_and_its_options_are_shaded():
     tracker = Tracker()
     snapshot = _snapshot(

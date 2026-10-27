@@ -235,7 +235,7 @@ def test_a_click_on_a_unit_then_on_a_shaded_hex_moves_it(hot_seat):
     overlay = window.update_overlay(snapshot)
     assert overlay.shades.get(destination) == "move", "the destination of the pinned unit is shaded"
     shown = window.chooser.visible(snapshot.legal, snapshot.view)
-    assert shown and all(unit_id in choice.unit_ids(e) for _i, e in shown), "the list narrows to the unit"
+    assert shown and all(unit_id in choice.unit_ids(e) or not choice.unit_ids(e) for _i, e in shown), "the list narrows to the unit"
     before = len(host.game.commands)
     window.click(at(destination), snapshot)
     wait_for(client, lambda s: s.frame_id != snapshot.frame_id)
@@ -335,8 +335,10 @@ def test_the_panel_shows_the_result_the_conditions_and_the_losses_at_the_end():
         assert over.over.get("winner_name") or over.over.get("result") is None
         lines = panel.end_lines(over)
         assert lines[0].startswith("game over")
-        assert any(line.startswith("condition:") for line in lines), lines
-        assert any(line.startswith("losses of") for line in lines), lines
+        # Two computer sides: a watcher reads the side that wins (`slwindow.endgame`).
+        assert lines[0].startswith("game over: the ") and lines[0].endswith(" side wins"), lines
+        assert any(line.startswith("The ") and " side, " in line for line in lines), lines
+        assert any(line.startswith("Losses of the ") for line in lines), lines
         step_with(window, over)
         assert choice.Chooser().visible(over.legal) == [], "a game at its end offers no command"
         from slwindow.client import status_of

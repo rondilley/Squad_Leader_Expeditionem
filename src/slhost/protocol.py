@@ -1,7 +1,8 @@
 """The host protocol, version 2 (ARCHITECTURE section 8).
 
-The client sends `join`, `intent`, `view_request`, `los_request`, `undo`, and
-`auto_setup`. The host sends `welcome`, `frame`, `error`, `los_result`, and `game_over`.
+The client sends `join`, `intent`, `view_request`, `los_request`, `undo`,
+`auto_setup`, `setup_lift`, `options_request`, and `move_to`. The host sends `welcome`, `frame`,
+`error`, `los_result`, `options_result`, and `game_over`.
 Each message is one JSON object with a `type` field.
 
 The client sends intents only. It never sends a state hash (DR-04), and it never gets
@@ -24,7 +25,8 @@ Version 2 of the messages:
   `legal_commands`, `log_tail`, and `status` (`your_turn`, `waiting`,
   `computer_thinking`, `game_over`), `auto_applied` (the labels of the commands the host
   applied for this person because the frame had one legal command), `can_undo`, and
-  `phase_text` (a short project text for the phase).
+  `phase_text` (a short project text for the phase), and `objectives` (`slhost.objectives`:
+  the victory conditions, their hexes, and the status of the viewer's own conditions).
   Each legal entry has `id`, `action`, `payload`, `label`, `units` ([{"id", "name"}]),
   `hexes` (the hex names the command touches), and `odds` (when the host option is on and
   the actor can see the target). The odds are integers out of 1296.
@@ -33,12 +35,26 @@ Version 2 of the messages:
   client merges by `seq` and keeps the whole history. Each line has `names` (unit ID to
   a unit name such as "4-4-7 #3 (D4)") and `sides` (player index to side name).
 - `error`: `rule_id`, `message`, and `code` (see ERROR_CODES). A client does not connect
-  again after a code in TERMINAL_CODES.
+  again after a code in TERMINAL_CODES. `rate_limited` refuses a join or a connection;
+  `request_limited` answers a question over the limit of a connection, and the session
+  continues.
 - `game_over`: `result` (the winner index or null), `winner_name`, `outcome` (the core
   result text), `cause`, `conditions`, `turn`, and `casualties` for each side.
 - `undo`: no fields. The host takes back the last command of the person at the screen
   when that command rolled no die and showed no hidden information.
 - `auto_setup`: no fields. The host sets up the side of the person with the v7 agent.
+- `setup_lift`: `unit`. While the side of the person sets up, the host takes that placed
+  unit off the board again, so the person can place it in a different hex. A weapon
+  given to the unit comes off the board with it.
+- `options_request`: `unit`, a unit of a side that the connection holds. The host answers
+  with `options_result`: `unit`, `frame_id` (the token of the frame the answer is for),
+  and `result` (`slhost.options`): in the set up the area and the reason that each
+  refused hex of it gives, in the Movement Phase the hexes the unit can reach, and in a
+  fire phase the hexes in its range with a clear line of sight.
+- `move_to`: `frame_id`, `unit`, and `hex`. In the Movement Phase the host moves the unit
+  (or the stack it moves with) to that hex by the cheapest path of `options_request`.
+  Each step is a command of the legal list at that time, applied as an intent. The move
+  stops at the first step that is not legal, and the host sends an error that says where.
 """
 
 from __future__ import annotations
@@ -53,6 +69,9 @@ CLIENT_VIEW_REQUEST = "view_request"
 CLIENT_LOS_REQUEST = "los_request"
 CLIENT_UNDO = "undo"
 CLIENT_AUTO_SETUP = "auto_setup"
+CLIENT_SETUP_LIFT = "setup_lift"
+CLIENT_OPTIONS_REQUEST = "options_request"
+CLIENT_MOVE_TO = "move_to"
 CLIENT_MESSAGES = (
     CLIENT_JOIN,
     CLIENT_INTENT,
@@ -60,12 +79,16 @@ CLIENT_MESSAGES = (
     CLIENT_LOS_REQUEST,
     CLIENT_UNDO,
     CLIENT_AUTO_SETUP,
+    CLIENT_SETUP_LIFT,
+    CLIENT_OPTIONS_REQUEST,
+    CLIENT_MOVE_TO,
 )
 
 HOST_WELCOME = "welcome"
 HOST_FRAME = "frame"
 HOST_ERROR = "error"
 HOST_LOS_RESULT = "los_result"
+HOST_OPTIONS_RESULT = "options_result"
 HOST_GAME_OVER = "game_over"
 
 STATUS_YOUR_TURN = "your_turn"
@@ -76,6 +99,10 @@ STATUS_GAME_OVER = "game_over"
 CODE_ROOM_CODE = "room_code"
 CODE_ROOM_FULL = "room_full"
 CODE_RATE_LIMITED = "rate_limited"
+# Too many questions (a line of sight, the options of a unit, a view) from one connection in
+# a short time. The session goes on: the client asks again a moment later. It is not
+# `rate_limited`, which refuses a join or a connection and ends the session.
+CODE_REQUEST_LIMITED = "request_limited"
 CODE_ORIGIN = "origin"
 CODE_SEAT = "seat"
 CODE_ILLEGAL = "illegal"
@@ -87,6 +114,7 @@ ERROR_CODES = (
     CODE_ROOM_CODE,
     CODE_ROOM_FULL,
     CODE_RATE_LIMITED,
+    CODE_REQUEST_LIMITED,
     CODE_ORIGIN,
     CODE_SEAT,
     CODE_ILLEGAL,
@@ -115,7 +143,7 @@ SEAT_PLAYER = "player"
 SEAT_WATCHER = "watcher"
 SEATS = (SEAT_HOT_SEAT, SEAT_PLAYER, SEAT_WATCHER)
 
-HOST_MESSAGES = (HOST_WELCOME, HOST_FRAME, HOST_ERROR, HOST_LOS_RESULT, HOST_GAME_OVER)
+HOST_MESSAGES = (HOST_WELCOME, HOST_FRAME, HOST_ERROR, HOST_LOS_RESULT, HOST_OPTIONS_RESULT, HOST_GAME_OVER)
 STATUSES = (STATUS_YOUR_TURN, STATUS_WAITING, STATUS_COMPUTER, STATUS_GAME_OVER)
 
 # The field names of each message: the fields a message always has, and the fields it can
@@ -129,6 +157,9 @@ CLIENT_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
     CLIENT_LOS_REQUEST: {"required": ("type", "from", "to"), "optional": ()},
     CLIENT_UNDO: {"required": ("type",), "optional": ()},
     CLIENT_AUTO_SETUP: {"required": ("type",), "optional": ()},
+    CLIENT_SETUP_LIFT: {"required": ("type", "unit"), "optional": ()},
+    CLIENT_OPTIONS_REQUEST: {"required": ("type", "unit"), "optional": ()},
+    CLIENT_MOVE_TO: {"required": ("type", "frame_id", "unit", "hex"), "optional": ()},
 }
 HOST_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
     HOST_WELCOME: {
@@ -152,10 +183,11 @@ HOST_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
             "can_undo",
             "phase_text",
         ),
-        "optional": (),
+        "optional": ("objectives",),
     },
     HOST_ERROR: {"required": ("type", "rule_id", "message", "code"), "optional": ()},
     HOST_LOS_RESULT: {"required": ("type", "from", "to", "result"), "optional": ()},
+    HOST_OPTIONS_RESULT: {"required": ("type", "unit", "frame_id", "result"), "optional": ()},
     HOST_GAME_OVER: {
         "required": ("type", "result", "winner_name", "outcome", "cause", "conditions", "turn", "casualties"),
         "optional": (),
@@ -276,9 +308,10 @@ def frame_message(
     auto_applied: list[str] | None = None,
     can_undo: bool = False,
     phase_text: str = "",
+    objectives: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """One frame for one connection. `frame_token` is the opaque token of this connection."""
-    return {
+    message = {
         "type": HOST_FRAME,
         "player": player,
         "view": view,
@@ -294,6 +327,9 @@ def frame_message(
         "can_undo": can_undo,
         "phase_text": phase_text,
     }
+    if objectives is not None:
+        message["objectives"] = objectives
+    return message
 
 
 def error_message(rule_id: str, message: str, code: str = CODE_PROTOCOL) -> dict[str, Any]:
@@ -302,6 +338,10 @@ def error_message(rule_id: str, message: str, code: str = CODE_PROTOCOL) -> dict
 
 def los_result_message(from_hex: str, to_hex: str, result: dict[str, Any]) -> dict[str, Any]:
     return {"type": HOST_LOS_RESULT, "from": from_hex, "to": to_hex, "result": result}
+
+
+def options_result_message(unit: int, frame_token: str, result: dict[str, Any]) -> dict[str, Any]:
+    return {"type": HOST_OPTIONS_RESULT, "unit": unit, "frame_id": frame_token, "result": result}
 
 
 def game_over_message(

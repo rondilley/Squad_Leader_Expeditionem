@@ -409,7 +409,9 @@ async def test_view_and_line_of_sight_requests_have_a_rate_limit(drill):
                 message = await client.receive(5)
                 if message["type"] == protocol.HOST_ERROR:
                     codes.append(message["code"])
-            assert protocol.CODE_RATE_LIMITED in codes
+            # The question limit is not the join limit: the session goes on (SR-03).
+            assert set(codes) == {protocol.CODE_REQUEST_LIMITED}
+            assert protocol.CODE_REQUEST_LIMITED not in protocol.TERMINAL_CODES
             assert len(codes) == 10
     finally:
         await manager.__aexit__(None, None, None)

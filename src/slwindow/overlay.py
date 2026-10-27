@@ -11,6 +11,10 @@ The model has five parts:
 - The focus unit. A person's click pins it. With no pin it is the unit that acted last,
   so a watcher of two computer opponents sees the options of the unit that plays. The
   options of the focus unit are its move destinations, its fire targets, and its track.
+  For a pinned unit of the person's side the host also answers `options_request`
+  (`slhost.options`): each hex the unit can reach in the rest of the Movement Phase, and
+  its field of fire in a fire phase. A counter of the set up tray gets the hexes of its
+  area that the stacking limit closes.
 - The shades. Each is one hex and one tone. A tone is a key, and each window maps the key
   to its own colour. The tones are quiet: a shade is a translucent fill on the ground.
 - The tracers. A fire is a thin line from the firer to the target in the tone of its
@@ -40,17 +44,46 @@ TONE_LOS = "los"
 TONE_LOS_BLOCKED = "los_blocked"
 TONE_RETURN = "return"
 TONE_MELEE = "melee"
+# A hex where the counter of the set up tray can go. It is the strongest tone, because
+# in the set up it is the one choice on the board.
+TONE_SETUP = "setup"
+# The hex under the pointer where the counter of the tray goes on a click or a release.
+TONE_DROP = "drop"
+# A hex the focus unit can reach later in this Movement Phase, with more than one step.
+TONE_REACH = "reach"
+# A hex in the normal range of the focus unit, and one in its long range, with a clear
+# line of sight (rules 9.1 and 9.2).
+TONE_FIELD = "field"
+TONE_FIELD_LONG = "field_long"
+# A hex of the set up area of the tray counter that the stacking limit closes (rule 6.1).
+TONE_FULL = "full"
+# A hex of a victory condition (`slhost.objectives`), and one that the person's side controls.
+# The `_on` tones are the strong ones of the "Victory conditions" button.
+TONE_OBJECTIVE = "objective"
+TONE_OBJECTIVE_HELD = "objective_held"
+TONE_OBJECTIVE_ON = "objective_on"
+TONE_OBJECTIVE_HELD_ON = "objective_held_on"
 
 # When two tones fall on one hex, the higher rank wins.
 TONE_RANK = {
-    TONE_TRACK: 1,
-    TONE_MOVE: 2,
-    TONE_LOS: 3,
-    TONE_TARGET: 4,
-    TONE_MELEE: 5,
-    TONE_RETURN: 6,
-    TONE_LOS_BLOCKED: 7,
-    TONE_FOCUS: 8,
+    TONE_OBJECTIVE: -2,
+    TONE_OBJECTIVE_HELD: -1,
+    TONE_FIELD_LONG: 0,
+    TONE_FIELD: 1,
+    TONE_REACH: 1,
+    TONE_FULL: 1,
+    TONE_TRACK: 2,
+    TONE_MOVE: 3,
+    TONE_LOS: 4,
+    TONE_TARGET: 5,
+    TONE_MELEE: 6,
+    TONE_RETURN: 7,
+    TONE_LOS_BLOCKED: 8,
+    TONE_FOCUS: 9,
+    TONE_SETUP: 10,
+    TONE_DROP: 11,
+    TONE_OBJECTIVE_ON: 12,
+    TONE_OBJECTIVE_HELD_ON: 13,
 }
 
 # ------------------------------------------------------------------- the fire kinds
@@ -165,6 +198,9 @@ class Overlay:
     # The pairs of hexes the window has no line of sight answer for yet. The window sends
     # one `los_request` for each and the host answers (FR-34, TC-40).
     los_wanted: list[tuple[str, str]] = field(default_factory=list)
+    # The units the window has no options answer for in this frame. The window sends one
+    # `options_request` for each (`slhost.options`).
+    options_wanted: list[int] = field(default_factory=list)
 
     def key(self) -> tuple:
         """A value that changes when the drawing has to change, so a window that keeps
@@ -204,6 +240,20 @@ def units_in(view: dict[str, Any] | None, hex_id: str | None) -> list[dict[str, 
     found = [u for u in view.get("units", []) if position_of(u) == hex_id and u.get("carrier") is None]
     found.sort(key=lambda u: (u.get("kind") != "vehicle", int(u["id"])))
     return found
+
+
+def with_carried(stack: list[dict[str, Any]], view: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """A stack to draw, with each carried weapon directly after the unit that carries it.
+    Rule 5.7 puts the weapon in the hex of its carrier, so the person sees it there."""
+    carried: dict[int, list[dict[str, Any]]] = {}
+    for unit in (view or {}).get("units", []) or []:
+        if unit.get("carrier") is not None and unit.get("kind") == "sw":
+            carried.setdefault(int(unit["carrier"]), []).append(unit)
+    out: list[dict[str, Any]] = []
+    for unit in stack:
+        out.append(unit)
+        out.extend(sorted(carried.get(int(unit["id"]), []), key=lambda w: int(w["id"])))
+    return out
 
 
 def next_focus(view: dict[str, Any] | None, hex_id: str | None, pinned: int | None) -> int | None:
@@ -319,12 +369,15 @@ class Tracker:
         pinned: int | None = None,
         pointer_hex: str | None = None,
         los: dict[tuple[str, str], dict[str, Any]] | None = None,
+        options: dict[int, dict[str, Any]] | None = None,
+        show_objectives: bool = False,
     ) -> Overlay:
         """The model for one frame.
 
         `pinned` is the unit a person clicked, or None. `pointer_hex` is the hex under the
         pointer, for a line of sight from the focus unit. `los` is the table of answers
-        the window has, by pair of hex ids.
+        the window has, by pair of hex ids. `options` is the table of the host's answers
+        to `options_request` for this frame, by unit id.
         """
         overlay = Overlay()
         if snapshot is None:
@@ -340,15 +393,35 @@ class Tracker:
         self._read_log(log, units, now)
         self._expire(now)
 
-        focus = self._focus(pinned, units, view)
+        # A pinned counter with no hex is a counter of the set up tray (`slwindow.setup`).
+        in_tray = pinned == -1 or (pinned in units and position_of(units[pinned]) is None)
+        focus = None if in_tray else self._focus(pinned, units, view)
         overlay.focus = focus
         overlay.focus_hex = position_of(units[focus]) if focus is not None else None
 
         shades: list[tuple[str, str]] = [(s.hex, s.tone) for s in self._shades]
+        # The hexes of the victory conditions are always on the map. The button of the
+        # victory conditions makes them strong, over each other shade.
+        from slwindow import victorytext
+
+        every, held = victorytext.hexes(snapshot)
+        for hex_id in every:
+            if hex_id in held:
+                shades.append((hex_id, TONE_OBJECTIVE_HELD_ON if show_objectives else TONE_OBJECTIVE_HELD))
+            else:
+                shades.append((hex_id, TONE_OBJECTIVE_ON if show_objectives else TONE_OBJECTIVE))
         for hex_id in view.get("melee", []) or []:
             shades.append((str(hex_id), TONE_MELEE))
         if focus is not None:
             shades.extend(self._focus_shades(units[focus], legal, view))
+            # The options matter when the person acts, so a frame of the other side (a
+            # computer turn sends many) asks no question.
+            if focus == pinned and units[focus].get("own") and legal:
+                answer = options.get(focus) if options is not None else None
+                if answer is None:
+                    overlay.options_wanted.append(focus)
+                else:
+                    shades.extend(option_shades(answer))
             if overlay.focus_hex and pointer_hex and pointer_hex != overlay.focus_hex:
                 pair = (overlay.focus_hex, str(pointer_hex))
                 answer = los.get(pair)
@@ -356,6 +429,26 @@ class Tracker:
                     overlay.los_wanted.append(pair)
                 else:
                     shades.extend(_los_shades(answer))
+        elif in_tray:
+            # A counter of the set up tray is not on the board yet: its options are the
+            # hexes where the legal list lets it go (`slwindow.setup`).
+            from slwindow import setup
+
+            offered = pinned if pinned == setup.CONCEALMENT else setup.offered_id(view, legal, pinned)
+            # The host says why a hex refuses the counter, and which hexes of its area are
+            # full. A counter that cannot go on the board now gets the reason of the wait.
+            asked = offered if offered is not None else pinned
+            if asked is not None and asked != setup.CONCEALMENT:
+                answer = options.get(asked) if options is not None else None
+                if answer is None:
+                    overlay.options_wanted.append(asked)
+                else:
+                    shades.extend(option_shades(answer))
+            if offered is not None:
+                targets = setup.targets(legal, offered, view)
+                shades.extend((hex_id, TONE_SETUP) for hex_id in targets)
+                if pointer_hex in targets:
+                    shades.append((str(pointer_hex), TONE_DROP))
         for source, target, _until in self._fire_los:
             answer = los.get((source, target))
             if answer is None:
@@ -375,6 +468,7 @@ class Tracker:
         overlay.tracers = list(self._tracers)
         overlay.bursts = list(self._bursts)
         overlay.los_wanted = sorted(set(overlay.los_wanted))
+        overlay.options_wanted = sorted(set(overlay.options_wanted))
         return overlay
 
     # ------------------------------------------------------------------- the focus
@@ -516,6 +610,45 @@ class Tracker:
         self._bursts = [b for b in self._bursts if b.until > now]
         self._shades = [s for s in self._shades if s.until > now]
         self._fire_los = [f for f in self._fire_los if f[2] > now]
+
+
+def option_shades(answer: dict[str, Any]) -> list[tuple[str, str]]:
+    """The hexes of one options answer of the host (`slhost.options`).
+
+    The steps of the legal list keep their own tone, which is stronger, so a reach shade
+    shows only the hexes past the next step.
+    """
+    out: list[tuple[str, str]] = []
+    kind = answer.get("kind")
+    if kind == "move":
+        out.extend((str(h), TONE_REACH) for h in (answer.get("reach") or {}))
+    elif kind == "fire":
+        out.extend((str(h), TONE_FIELD) for h in answer.get("normal") or [])
+        out.extend((str(h), TONE_FIELD_LONG) for h in answer.get("long") or [])
+    elif kind == "setup":
+        out.extend((str(h), TONE_FULL) for h in answer.get("full") or [])
+    return out
+
+
+def setup_refusal(answer: dict[str, Any] | None, unit_name: str, hex_id: str) -> str | None:
+    """Why the hex refuses the counter of the tray, from the options answer of the host,
+    or None when no answer came yet.
+
+    The caller asks only for a hex that the legal list does not name for the counter. The
+    host gives a reason for each such hex of the set up area, so a refused hex with no
+    reason is outside the area.
+    """
+    if not answer or answer.get("kind") != "setup":
+        return None
+    if answer.get("later"):
+        return str(answer["later"])
+    why = answer.get("why") or {}
+    if hex_id in why:
+        return str(why[hex_id])
+    area = answer.get("area")
+    if not area:
+        return None
+    return f"{hex_id} is outside the set up area. The {unit_name} sets up {area}."
 
 
 def _los_shades(answer: dict[str, Any]) -> list[tuple[str, str]]:

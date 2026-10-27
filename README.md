@@ -27,6 +27,8 @@ sl-cli window3d --scenario s01_guards_counterattack --agent hard
   computer opponents play, and the window shows the game.
 - The scenarios are `s01_guards_counterattack`, `s02_tractor_works`,
   `s03a_streets_of_stalingrad`, and `s04_armor_probe` (the armor game).
+- On Windows, `play.bat` at the top of the tree starts `lib01_grain_office` against
+  the `normal` opponent. Type `.\play.bat` in PowerShell, with no options.
 
 The window first shows the scenario card: the situation, the forces of each side, the turn
 record, and the victory conditions. Press Begin, Space, or Enter to start the game.
@@ -34,10 +36,80 @@ record, and the victory conditions. Press Begin, Space, or Enter to start the ga
 
 How to play:
 
+- Set up: a tray at the bottom of the board shows each counter of your side. Click a
+  counter, and the hexes where it can go show in amber. Click one of them to place it.
+  Or drag the counter from the tray, and release it on an amber hex.
+- The amber hex at the pointer shows in green: the counter goes there.
+- When a hex refuses the counter, the line above the tray gives the cause: the set up
+  area of the counter, or the limit of rule 6.1 that the hex would go above. A hex of
+  the set up area that the stacking limit closes shows in dark red.
+- To move a counter that is on the board, click it on the board or in the tray: it goes
+  back to the tray, and you place it again. You can also drag it to a different amber
+  hex. Click Finish set up when you are satisfied.
+  Set up for me puts each counter of your side on the board for you.
+- A machine gun or other support weapon goes with a unit that carries it. Put your
+  squads and leaders on the board first. Then drag the weapon onto a shaded unit. A
+  leader cannot carry an MMG or an HMG, so only squads are shaded for them. On the board,
+  the weapon shows on top of the stack of its unit.
+- A load above the free portage of a unit costs movement factors. Right click the unit
+  to see its movement factors with the load.
+- To move a weapon, move the unit that carries it. The move label names the weapon, for
+  example "move 6-2-8 (with MMG) to C3". A weapon alone on a hex moves only after a unit
+  in that hex picks it up in the Movement Phase.
+- In the set up, right click a counter, on the board or in the tray, to read what each
+  value of the counter means. Escape, a click, or a second right click closes the box.
+- During the game, right click a unit on the board to open its menu. Or click the unit,
+  and then press Ctrl and Space. The menu shows the phase and each command of the unit
+  in this phase, in groups: fire, smoke, close combat, move, weapons and equipment, and
+  rally. Each row of a fire command gives its odds. Click a row to give that command.
+- The menu also has the commands of your side (end the phase, resolve the fire group),
+  About this unit, and Undo. Escape, a click off the menu, or a right click closes it.
+- The kinds of fire are the phases of the turn (rule 4): the Prep Fire Phase, the
+  Defensive Fire Phase, and the Advancing Fire Phase. In each fire phase, the menu shows
+  these commands:
+  - the fire of the unit with its own firepower
+  - the fire of each weapon that the unit carries
+  - the leader that directs a fire group
+  - the special weapons.
+
+  The rules have no different command for suppressive fire.
+- The Undo button is below the status at the top of the panel on the right. It cancels
+  the last command when no die rolled in it and the command showed you nothing new
+  of the other side: a placement, a move, or a unit that you added to a fire group. When
+  it is dim, nothing can be taken back. Ctrl and z does the same.
 - Click a hex to put its top unit in focus. A second click gets the next unit of the
   stack. The overlay shades where the unit can move and what it can fire at. Click a
   shaded hex to give that command. When the hex has more than one command, the list on
   the right shows them.
+  - In the Movement Phase, the hexes of the next step are blue. The pale blue hexes are
+    the hexes that the unit can get to in the remaining part of the phase, with its
+    remaining movement factors. Click a pale blue hex to move the unit there by the
+    path of lowest cost. If a hex on the path stops the move, the unit stays at the
+    last hex it entered, and the window says where. Ctrl and z cancels the full move
+    when no die rolled in it. To select the path, click one blue hex at a time.
+  - A vehicle also shows the hexes it can get to, by its movement points. On the path
+    it faces each next hex, so only its first hex can cost more for the covered arc.
+    When a pivot makes the path cost less, the vehicle uses its one free pivot first. At
+    the end it faces the direction of its last step.
+  - A hex with a different vehicle of your side is not pale blue: a vehicle can go
+    through it, but it cannot stop there (rule 30.8). A move into rough terrain can roll
+    the breakdown die (rule 39.1), and then the move stops.
+  - In a fire phase, the legal targets are red. The orange hexes are in the range of the
+    unit or of a weapon it carries (rule 9.1), with a clear line of sight. The pale orange
+    hexes are in the long range (rule 9.2, half firepower). With strict line of sight
+    the window shows the targets only.
+  - Press Ctrl and o to hide or show these shades.
+- The hexes of the victory conditions are violet on the map. A violet hex that your side
+  controls is green. Click "Victory conditions" in the panel, or press Ctrl and v, to make
+  them strong. A box then gives the condition of the card and where you are at this time, for
+  example "You control 0 of the 5 violet hexes. You need 1 at the end of turn 5." Click
+  the button again, or press Escape, to close the box.
+- The panel on the right shows the turn and the turns that are left, for example "turn 2
+  of 5: 3 more turns after this one". In the last turn it says "the last turn".
+- At the end of the game a box in the middle of the board says "You won." or "You lost.".
+  It also gives the side that wins, the victory condition and its result, and the losses
+  of each side. Escape or a click closes the box. The side names are the names of the
+  card, for example Russian and German.
 - The list on the right has the legal commands. Click a row, or move with Tab and press
   Enter. Type letters to make the list shorter. Ctrl and a sets up your side for you, and
   Ctrl and z cancels your last command when it rolled no die.
@@ -201,6 +273,12 @@ sl-cli window --scenario s04_armor_probe --agents v1,v2
 host in the same process. It then connects to that host on the loopback address, which is
 the path the browser client takes. `--connect ws://host:port/ --room-code CODE` connects to
 a host that operates at this time.
+
+The 2D window has the menu of a unit (a right click, or Ctrl and Space) and the Undo
+button of the panel, as the 3D window has. A unit of your side in focus shows its pale
+blue hexes in the Movement Phase, and its field of fire in a fire phase. A click on a
+pale blue hex moves the unit there. The 2D window has the set up tray too, with the same
+clicks, drags, and buttons.
 
 In the window: a click puts the top unit of a hex in focus. A second click takes the next
 unit of the stack. The overlay shades the hexes that unit can move to, the hexes it can

@@ -32,6 +32,7 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
+import time
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
@@ -54,11 +55,18 @@ STATUS_GAME_OVER = "game_over"
 # An error with one of these codes ends the session: the client does not connect again.
 TERMINAL_CODES = frozenset({"room_code", "rate_limited", "origin", "room_full"})
 
+# The questions the client sends in one window of time: a line of sight and the options of
+# a unit. The host takes 30 in 5 seconds from a connection (SR-03), so the client keeps
+# below that. A question over the budget does not go, and the window asks it again later.
+QUESTION_LIMIT = 24
+QUESTION_WINDOW_SECONDS = 5.0
+
 # One text for each error code of the host. The message of the host follows it.
 ERROR_TEXT = {
     "room_code": "the room code is not correct. Start the window again with the correct --room-code",
     "room_full": "the room is full. Each seat of this game has a player",
     "rate_limited": "the host refused too many join tries from this address. Wait one minute",
+    "request_limited": "the window asked the host too many questions. It asks again in a moment",
     "origin": "the host refused the origin of this connection",
     "seat": "this seat does not act now",
     "illegal": "the host refused the command",
@@ -120,6 +128,9 @@ class GameView:
     # The answers of the host to `los_request`, by the pair of hex ids (FR-34). The board
     # does not change during a game, so an answer holds for the game.
     los: dict[tuple[str, str], dict[str, Any]] = field(default_factory=dict)
+    # The answers of the host to `options_request` for this frame, by unit id. A new frame
+    # clears them, because a move or a placement changes them.
+    options: dict[int, dict[str, Any]] = field(default_factory=dict)
     # Protocol version 2. Each field has a value that a version 1 host also gives.
     status: str = ""
     sides: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -139,6 +150,8 @@ class GameView:
     # short text of the phase.
     can_undo: bool = False
     phase_text: str = ""
+    # The victory conditions of the frame (`slhost.objectives`).
+    objectives: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _merge_log(log: list[dict[str, Any]], tail: list[dict[str, Any]]) -> None:
@@ -198,6 +211,8 @@ class HostClient:
         self._terminal: SessionRefused | None = None
         self._welcomed = False
         self._error_here = False
+        # The times of the questions of the last `QUESTION_WINDOW_SECONDS`.
+        self._questions: list[float] = []
         # The frame the last intent went for. A second intent for the same frame waits for
         # a new frame or an error, so a double click sends one intent.
         self._sent_for: str | None = None
@@ -394,7 +409,10 @@ class HostClient:
                 state.los = {}
             elif kind == "frame":
                 state.view = message.get("view")
-                state.frame_id = str(message.get("frame_id", ""))
+                frame_id = str(message.get("frame_id", ""))
+                if frame_id != state.frame_id:
+                    state.options = {}
+                state.frame_id = frame_id
                 state.active = int(message.get("active", -1))
                 state.phase = str(message.get("phase", ""))
                 state.sub_step = str(message.get("sub_step", ""))
@@ -413,6 +431,8 @@ class HostClient:
                 state.status = str(message.get("status") or "")
                 state.can_undo = bool(message.get("can_undo", False))
                 state.phase_text = str(message.get("phase_text") or "")
+                objectives = message.get("objectives")
+                state.objectives = list(objectives) if isinstance(objectives, list) else []
                 applied = message.get("auto_applied")
                 if isinstance(applied, list) and applied:
                     state.auto_applied = [str(a) for a in applied]
@@ -428,6 +448,12 @@ class HostClient:
                 result = message.get("result")
                 if isinstance(result, dict):
                     state.los[(str(message.get("from")), str(message.get("to")))] = result
+            elif kind == "options_result":
+                result = message.get("result")
+                unit = message.get("unit")
+                # An answer for an old frame does not hold for this one.
+                if isinstance(result, dict) and isinstance(unit, int) and str(message.get("frame_id", "")) == state.frame_id:
+                    state.options[unit] = result
             elif kind == "error":
                 code = str(message.get("code") or "")
                 text = error_text(code, str(message.get("message", "")))
@@ -471,6 +497,7 @@ class HostClient:
                 connected=state.connected,
                 frames=state.frames,
                 los=dict(state.los),
+                options=dict(state.options),
                 status=state.status,
                 sides=dict(state.sides),
                 you=state.you,
@@ -483,6 +510,7 @@ class HostClient:
                 strict_los=state.strict_los,
                 can_undo=state.can_undo,
                 phase_text=state.phase_text,
+                objectives=list(state.objectives),
             )
 
     def send_intent(self, frame_id: str, command_id: str) -> bool:
@@ -500,6 +528,17 @@ class HostClient:
             self._sent_for = frame_id
         return self._put({"type": "intent", "frame_id": frame_id, "command_id": command_id})
 
+    def send_move_to(self, frame_id: str, unit_id: int, hex_id: str) -> bool:
+        """Ask the host to move a unit to a far hex of its reach (`move_to`). The host plays
+        the single steps through the core. One message goes for one frame, as an intent."""
+        if not frame_id:
+            return False
+        with self.lock:
+            if self._sent_for == frame_id:
+                return False
+            self._sent_for = frame_id
+        return self._put({"type": "move_to", "frame_id": frame_id, "unit": int(unit_id), "hex": hex_id})
+
     def send_undo(self) -> bool:
         """Ask the host to take back the last command of this side (slice 8). The host
         decides whether it can, and answers with a frame or an `undo_refused` error."""
@@ -513,10 +552,40 @@ class HostClient:
             self._sent_for = None
         return self._put({"type": "auto_setup"})
 
-    def request_los(self, from_hex: str, to_hex: str) -> None:
+    def send_setup_lift(self, unit_id: int) -> bool:
+        """Ask the host to take a placed unit of this side off the board again while the
+        side sets up, so the person can place it in a different hex."""
+        with self.lock:
+            self._sent_for = None
+        return self._put({"type": "setup_lift", "unit": int(unit_id)})
+
+    def _question_allowed(self) -> bool:
+        """True when one more question fits in the budget of `QUESTION_WINDOW_SECONDS`."""
+        now = time.monotonic()
+        with self.lock:
+            asked = [t for t in self._questions if now - t < QUESTION_WINDOW_SECONDS]
+            if len(asked) >= QUESTION_LIMIT:
+                self._questions = asked
+                return False
+            asked.append(now)
+            self._questions = asked
+            return True
+
+    def request_los(self, from_hex: str, to_hex: str) -> bool:
         """Ask the host for a line of sight (FR-34). The window has no LOS geometry of its
-        own (AR-06), so the answer is the only source of the overlay."""
-        self._put({"type": "los_request", "from": from_hex, "to": to_hex})
+        own (AR-06), so the answer is the only source of the overlay. Return False when the
+        question did not go (the budget is full), so the window asks it again later."""
+        if not self._question_allowed():
+            return False
+        return self._put({"type": "los_request", "from": from_hex, "to": to_hex})
+
+    def request_options(self, unit_id: int) -> bool:
+        """Ask the host for the options of one unit of this side (`slhost.options`): why a
+        hex refuses it in the set up, where it can go, and where it can fire. Return False
+        when the question did not go (the budget is full), so the window asks it again."""
+        if not self._question_allowed():
+            return False
+        return self._put({"type": "options_request", "unit": int(unit_id)})
 
     def _put(self, message: dict[str, Any]) -> bool:
         loop = self._loop
