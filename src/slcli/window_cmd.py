@@ -107,7 +107,8 @@ def connect_or_start(args: Any, title: str = "Squad Leader Expeditionem"):
         print(f"the game saves to {host.game.save.path}; go on with it: --resume {host.game.save.path}")
     from slwindow.embedded import start
 
-    embedded = start(host)
+    lan_port = int(getattr(args, "lan_port", 0) or 0)
+    embedded = start(host, "0.0.0.0", lan_port) if args.lan and lan_port else start(host)
     print(f"scenario {engine.scenario.id} on board {engine.board.name}")
     for seat, agent in agents.items():
         print(f"player {seat} ({engine.scenario.players()[seat]}) is the computer opponent {agent.name} v{agent.version}")
@@ -118,6 +119,8 @@ def connect_or_start(args: Any, title: str = "Squad Leader Expeditionem"):
         print(mode)
     if args.lan:
         print(f"the room code is {embedded.room_code}")
+        if lan_port:
+            print(f"the host takes connections from other computers on port {lan_port}")
     print(f"the window talks to a host inside this process at {embedded.url}")
     return embedded, embedded.url, embedded.room_code, f"{title} - {engine.scenario.title}"
 
@@ -157,6 +160,12 @@ def add_play_options(p: Any) -> None:
     p.add_argument("--connect", default=None, help="the address of a host that already runs, as ws://host:port/")
     p.add_argument("--room-code", default=None, help="the room code of that host, or a code for the host this starts")
     p.add_argument("--lan", action="store_true", help="one seat for each connection instead of hot seat")
+    p.add_argument(
+        "--lan-port",
+        type=int,
+        default=0,
+        help="with --lan: the port on all addresses, so a window on another computer connects with --connect ws://ADDRESS:PORT/",
+    )
     p.add_argument("--agent", default=None, help="give one side to a computer opponent")
     p.add_argument("--agents", default=None, help="give each side to a computer opponent, as two names: v1,v2")
     p.add_argument("--agent-side", default=None, help="the side name the computer opponent holds")

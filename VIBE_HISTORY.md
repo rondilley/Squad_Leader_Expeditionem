@@ -4,6 +4,109 @@ The session log, newest entry first. This file gives the next session, human or 
 
 ---
 
+## 2026-10-27 - The package for players, and the collection of played games
+
+The owner wanted a packager that makes the game simple to install and to play. The owner also wanted a record of the games that people play against the computer and against other people. A client and a server send these games from the packaged game to a collection server, for the training of the computer players. The owner's decisions: a Windows and a Linux build, the first collector on tars.uberadmin.com, a key for each player, and a question at the first start.
+
+What changed:
+
+- `tools/package.py` builds a PyInstaller folder (`dist/SquadLeaderExpeditionem/`) and an archive on the system where it runs. The `package` extra gives PyInstaller. The folder has `collector.json`, `READ_ME_FIRST.txt` (`tools/package_readme.txt`), and the licence. It has no torch and no numpy, and the build stops if a key file is in it. The Windows folder is 155 MB.
+- `src/slcli/frozen_main.py` is the entry of the package. With no arguments it starts the launcher. With arguments it is `sl-cli`. A Windows package has no console, so the output goes to `logs/` in the data directory.
+- `src/slwindow/launcher.py` (`sl-cli launch`) shows the consent question one time. Then it shows the menu: the 12 library scenarios, the side, the opponent, the window, and the send switch. Each game is a second process with a random seed and the save directory of the player. After each game, and at its start, the launcher sends the saved games on a thread.
+- A LAN host window binds all addresses on `--lan-port` (`slwindow.embedded.start` has a port). Before, the embedded host bound the loopback address only, so a window on a different computer could not connect.
+- `src/slcollect/`: the signed upload (`wire.py`), the keys (`keys.py`), the replay check (`verify.py`), the collector (`server.py`), the uploader (`client.py`), and the settings (`settings.py`). `sl-cli collect key|serve|send|status` (`src/slcli/collect_cmd.py`).
+- `tools/collect_deploy.py` and `tools/collect_server.sh` install the collector on tars in `~/squad_leader_collect`, with the games in `~/squad_leader_collect_data`, on port 5170.
+- `slhost.savegame.check_lines` reads parsed save file lines. `load` and the collector use it.
+
+The checks:
+
+- The tests: `tests/collect/test_collect.py` (8) and `test_package_tools.py` (4), and `tests/window/test_launcher.py` (5).
+- The packaged executable rendered a lib05 board offscreen (`window3d --screenshot`).
+- The packaged executable sent a game of 120 commands, 67 of them from a person, to a local collector (`collect send`). The collector played it again, and each hash agreed. A second send sent nothing.
+
+Not done:
+
+- The Linux package. It must have a build on a Linux computer.
+- The deploy of the collector on tars.
+- A game in a live window from the package. The tests open no window on the desktop of the owner.
+
+---
+
+## 2026-10-27 - The L05 losses: the leaders went on alone, and the route and the stack route share one sum
+
+The owner wanted the cause of the L05 losses. The scripts and their output are in `runs/exam_20261027_l05_losses/`.
+
+- The trace of the chunk 2 net and the teacher against v7 (seeds 1 to 3, `trace.py`): the teacher moves its 6 squads together, at 20, 14, 8, and 3 hexes from the objective after turns 1 to 4, and attacks in turn 5. The net moves 2 or 3 squads, and the other 3 stay 16 to 19 hexes from the objective for the full game.
+- The trace of each unit (`moves.py`): the three 8-4-7 squads stop in turn 1 to 3, with 6 legal moves in each subsequent phase. The leaders 3 and 7 go to 4 and 1 hexes from the objective alone. The M10 stops after turn 1. The clone from before PPO (`runs/gate5r/L05/imitate/snapshot-0.pt`) has the same faults, so they come from the imitation and the agent, not from PPO.
+- No teacher decision is dropped from the imitation data (`dropped.py`, 4 games): each move and each stack move of the teacher is a row.
+- The probability of each unit and action at the Movement Phase frames of turns 2 and 3 (`unitmass.py`): at the first frame of turn 2 the clone gave the single routes 0.57 in all and the stack routes 0.15. The action first adds the probability of each action on its legal commands. Each unit has single routes, and only a stack with a leader has stack routes. Thus the single route won each time, and the leader moved alone. The net made 5 stack moves in each game, and the teacher made 19.
+
+The correction (the owner, 2026-10-27): in the action-first sum, the route and the stack route are one action (`ACTION_FAMILY` in `src/slagents/learned/agent.py`). The training does not change. The test is `test_a_route_and_a_stack_route_share_one_sum`.
+
+The v7 gate of 200 games, with the Prep Fire rule of the same day before and after this change (`merged_gate.py`, `merged_summary.log`):
+
+| Slot and net | Attack, before | Attack, after | Defence, before | Defence, after |
+|---|---|---|---|---|
+| L03 c3 | 45 | 44 | 100 | 100 |
+| L04 c3 | 12 | 15 | 52 | 93 |
+| L05 c2 | 1 | 0 | 7 | 74 |
+
+The defence of L04 and of L05 increased by a large quantity, and the attack did not change. In one L05 game with the change, the net made 44 stack moves, and the leaders moved with a squad.
+
+The L05 attack has a second cause (`unithead.py`, 12 games). On the teacher's Movement Phase rows, the clone gives the end of the phase 0.15 to 0.25 when units have not moved. Where the teacher ends the phase, the clone gives 0.22 to 0.57. The action first compares that probability with the sum of each other action. When a small number of squads have not moved, their sum is less than the end of the phase, and the agent ends the phase. Thus squads 2, 4, and 6 did not move after turn 1, also with the change.
+
+An experiment rule for the Movement Phase is `stop_gate.py`. It ends the phase only when the end of the phase has more probability than all other commands together. In one game with it, four squads came to 3 or 4 hexes from the objective in turn 3. Three of them were eliminated before turn 4. Its v7 gate (with the one sum of the route and the stack route, `stop_summary.log`):
+
+| Slot and net | Attack, one sum | Attack, with the stop rule | Defence, one sum | Defence, with the stop rule |
+|---|---|---|---|---|
+| L03 c3 | 44 | 22 | 100 | 100 |
+| L04 c3 | 15 | 15 | 93 | 81 |
+| L05 c2 | 0 | 1 | 74 | 78 |
+
+The stop rule decreased the L03 attack by half and the L04 defence by 12, and it did not increase the L05 attack. Thus it does not go into `src/`. On L05 the squads come near the objective with it, but the fire of v7 removes them. A better tactic is necessary for the L05 attack, not more movement.
+
+---
+
+## 2026-10-27 - The Prep Fire choice of the learned agent is the highest joint score
+
+The owner approved option 1 of the Prep Fire check: a change of the selection rule, with no new training.
+
+- In the Prep Fire Phase, `LearnedAgent` plays the command with the highest joint score (`JOINT_SCORE_PHASES`, `_by_joint_score` in `src/slagents/learned/agent.py`). In each other phase the action first stays the rule. The training (`ppo.choose`) does not change.
+- The test is `test_the_prep_fire_choice_is_the_highest_joint_score` in `tests/agents/test_learned_agent.py`.
+- In 4 games against v7 on L05 (seeds 1 to 4), the chunk 2 net made no fire in the Prep Fire Phase. In each game it made 127 unit moves, 5 stack moves, and 11 vehicle moves. Before the change it made 44 unit moves and 0 vehicle moves. The teacher made 117, 19.2, and 25.5. v7 won the 4 games.
+
+The v7 gate of 200 games, with the same seeds as the chain of gate item 5 (`runs/exam_20261027_prep_rule/summary.log`):
+
+| Slot and net | Attack, before | Attack, after | Defence, before | Defence, after |
+|---|---|---|---|---|
+| L03 c3 | 41 | 45 | 100 | 100 |
+| L04 c3 | 13 | 12 | 52 | 52 |
+| L05 c2 | 0 | 1 | 7 | 7 |
+| L06 c3 | 34 | 34 | 54 | 54 |
+| L07 c3 | 37 | 40 | 85 | 85 |
+
+The change increased the attack by 3 to 4 games on L03 and L07 and gave no defence change. On L05 the units move at this time, but v7 continues to win against the attack. Thus the Prep Fire fault stopped the L05 movement, but it is not the cause of the L05 losses. The cause of the L05 losses is not known.
+
+---
+
+## 2026-10-27 - The check of the Prep Fire rows of L05
+
+The check of the Prep Fire fault (`tasks/todo.md`) had no change in `src/`. The script `runs/exam_20261021_prep_fire/share.py` plays new teacher games as the imitation of L05 did (the evolved v7 record and v6, with the record as the label of the two sides, seeds from 880000). It tags each row and measures each net on the rows. The output of 40 games is `runs/exam_20261021_prep_fire/share_40.log`.
+
+- The 40 games gave 13,743 rows. The first Prep Fire frame of a side in a turn gave 133 rows (0.97 percent). The other Prep Fire frames gave 1,173 rows (8.54 percent).
+- The first Prep Fire rows of player 0 (the attacker) were 84. The teacher stopped the phase in 65 of them and fired in 19.
+- The clone (`runs/gate5r/L05/imitate/snapshot-0.pt`) on those 84 rows: the greedy choice is the label in 78.6 percent, but the mean probability of the label is 0.315. On the 65 rows where the teacher stopped the phase, the mean probability of the end of the phase is 0.314.
+- The chunk 2 net (`runs/gate5r/L05/c2/snapshots/snapshot-10000000.pt`) gave 66.7 percent and 0.281 on the 84 rows, and 0.307 for the end of the phase.
+- On all rows the greedy choice of the clone is the label in 53.2 percent, and the mean probability of the label is 0.428.
+
+The conclusion: the greedy choice of the clone agrees with the teacher. But the probability of the end of the phase is low, near 0.31. The teacher stops the phase in 77 percent of these frames.
+
+The agent selects by the action first (`LearnedAgent._by_score`): the sum of the probability of each action on its legal commands. Each unit that can fire adds to the sum of a fire action. Thus a fire action gets a higher sum than the end of the phase, the agent fires, and the unit then cannot move. The rows are less than 1 percent of the data, so they have a small effect on the fit.
+
+PPO did not correct it. The option `--stop-weight` of `sl-cli imitate` weighs each row with a label of no unit. That includes the end of each phase. Before the action-first rule (2026-10-13), the joint argmax stopped the Movement Phase before the units moved. Thus a higher stop weight can also make the clone stop the Movement Phase before its units move. A correction is necessary, and the owner gives the approval of it.
+
+---
+
 ## 2026-10-26 - The victory conditions are on the map during play
 
 The owner's note: during play it is not clear what wins the game. When the attacker must occupy hexes, the map must show them, and a button must show the victory conditions.

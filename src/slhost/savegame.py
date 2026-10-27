@@ -85,16 +85,26 @@ def load(path: str | Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         parsed = [json.loads(row) for row in rows]
     except json.JSONDecodeError as exc:
         raise SaveFileError(f"the save file {source} has a line that is not JSON: {exc}") from exc
+    return check_lines(parsed, f"the save file {source}")
+
+
+def check_lines(parsed: list[Any], label: str) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """The header and the command lines of parsed save file lines. Every error is typed.
+
+    `load` reads a file with it, and the collector (`slcollect.verify`) reads an upload.
+    """
+    if not parsed:
+        raise SaveFileError(f"{label} is empty")
     header = parsed[0]
     if not isinstance(header, dict) or header.get("format") != FORMAT:
-        raise SaveFileError(f"the save file {source} does not start with a {FORMAT} header")
+        raise SaveFileError(f"{label} does not start with a {FORMAT} header")
     if header.get("version") != VERSION:
-        raise SaveFileError(f"the save file {source} has version {header.get('version')}, and this host reads {VERSION}")
+        raise SaveFileError(f"{label} has version {header.get('version')}, and this host reads {VERSION}")
     for key in ("seed", "scenario", "game_id"):
         if key not in header:
-            raise SaveFileError(f"the header of {source} has no {key}")
+            raise SaveFileError(f"the header of {label} has no {key}")
     lines = parsed[1:]
     for index, line in enumerate(lines, start=1):
         if not isinstance(line, dict) or not isinstance(line.get("payload"), dict) or not isinstance(line.get("hash"), str):
-            raise SaveFileError(f"line {index + 1} of {source} is not a command line")
+            raise SaveFileError(f"line {index + 1} of {label} is not a command line")
     return header, lines

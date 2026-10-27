@@ -26,3 +26,7 @@ Thumbs.db
 background/
 
 .claude/projects/
+
+# The collection of played games: the player key files and a local collector data folder.
+collect_players/
+collected/

@@ -12,6 +12,8 @@ from slcli import (
     boards_cmd,
     campaign_cmd,
     cards_cmd,
+    collect_cmd,
+    launch_cmd,
     evolve,
     farm_cmd,
     gates,
@@ -112,6 +114,8 @@ def build_parser() -> argparse.ArgumentParser:
     gauntlet.add_parser(sub)
     evolve.add_parser(sub)
     farm_cmd.add_parser(sub)
+    collect_cmd.add_parser(sub)
+    launch_cmd.add_parser(sub)
     shape_cmd.add_parser(sub)
     host_cmd.add_parser(sub)
     runs_cmd.add_parser(sub)

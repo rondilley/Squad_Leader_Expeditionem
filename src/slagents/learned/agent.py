@@ -25,6 +25,21 @@ command. In the s04 Movement Phase the policy gave `move` 0.66 over 30 commands 
 in a whole game and won 0 of 10 attacks against random; with the action first it won 6 of
 10 (docs/reports/2026-10-13_training_review.md).
 
+The Prep Fire Phase is the exception (`JOINT_SCORE_PHASES`, 2026-10-27). There the sum works
+the wrong way: each unit that can fire adds to the sum of a fire action, and the end of the
+phase stays on one command. At the first Prep Fire frame of a turn the L05 teacher ended the
+phase in 65 of 84 frames, and the clone's joint argmax agreed with it in 78.6 percent; but
+it gave the end of the phase 0.31, so the action first fired in each one, and the units that
+fired did not move (`runs/exam_20261021_prep_fire/share.py`). In that phase the agent plays
+the command of the highest joint score.
+
+A route and a stack route are one action in the sum (`ACTION_FAMILY`, 2026-10-27). With two
+sums the single route won each time, because each unit has single routes and only a stack
+has stack routes. On L05 the leaders went forward alone and left the squads of their stacks
+behind: 5 stack moves in each game, against 19 of the teacher. With one sum the v7 gate of
+200 games gave the defence of L04 93 of 100 (was 52) and of L05 74 of 100 (was 7), and the
+attack did not change (L03 44, L04 15, L05 0 of 100).
+
 The agent keeps out of a cycle. The environment ends a game whose position repeats as a
 defeat of the side that repeated it, and the policy cannot see that from the observation:
 a pickup and a drop each look like a fine command on their own. So the agent keeps the
@@ -93,6 +108,16 @@ WEAPON_ACTIONS = frozenset({"pickup", "drop"})
 
 # The commands that put a unit on a vehicle and take it off (rules 31.1 and 31.4).
 RIDE_ACTIONS = frozenset({"board", "debark"})
+
+# The phases where the agent plays the command of the highest joint score, not the action
+# first. In the Prep Fire Phase the sum of a fire action over each unit that can fire is
+# larger than the end of the phase, and a unit that fires does not move (rules 4.3 and 5.1).
+JOINT_SCORE_PHASES = frozenset({"prep_fire"})
+
+# The actions that share one sum in the action first: a stack route is the move of a unit
+# with the units of its stack. Each unit has single routes, and only a stack has stack
+# routes, so with two sums the single route won each time, and a leader went on alone.
+ACTION_FAMILY = {encoding.ACTION_INDEX["stack_route"]: encoding.ACTION_INDEX["route"]}
 
 
 class NoLegalCommand(RuntimeError):
@@ -239,7 +264,10 @@ class LearnedAgent:
         with torch.no_grad():
             trunk, unit_embeddings = self.policy.encode(board, units, scalars)
             scores = self._scores(trunk, unit_embeddings, groups, torch, device)
-        ordered = self._by_score(scores, groups)
+        if frame.phase in JOINT_SCORE_PHASES:
+            ordered = self._by_joint_score(scores, groups)
+        else:
+            ordered = self._by_score(scores, groups)
         if self._generator is not None:
             first = self._sample(scores, groups, torch)
             ordered = [first] + [c for c in ordered if c is not first]
@@ -361,12 +389,22 @@ class LearnedAgent:
         down, then the next action. The lowest key breaks a tie.
 
         The second part of a key is the index of the action in the encoding, the same for
-        each unit, so the sum is over each unit and hex of that action.
+        each unit, so the sum is over each unit and hex of that action. The actions of one
+        family (`ACTION_FAMILY`) share one sum.
         """
         mass: dict[int, float] = {}
         for key, score in scores.items():
-            mass[key[1]] = mass.get(key[1], 0.0) + math.exp(score)
-        return [groups[key] for key in sorted(scores, key=lambda t: (-mass[t[1]], -scores[t], t))]
+            action = ACTION_FAMILY.get(key[1], key[1])
+            mass[action] = mass.get(action, 0.0) + math.exp(score)
+        return [
+            groups[key]
+            for key in sorted(scores, key=lambda t: (-mass[ACTION_FAMILY.get(t[1], t[1])], -scores[t], t))
+        ]
+
+    @staticmethod
+    def _by_joint_score(scores: dict[tuple[int, int, int, int], float], groups) -> list[LegalCommand]:
+        """The legal commands from the highest joint score down. The lowest key breaks a tie."""
+        return [groups[key] for key in sorted(scores, key=lambda t: (-scores[t], t))]
 
     def _scores(self, trunk, unit_embeddings, groups: Mapping[tuple[int, int, int, int], LegalCommand], torch, device) -> dict[tuple[int, int, int, int], float]:
         """The composed log probability of each legal command.

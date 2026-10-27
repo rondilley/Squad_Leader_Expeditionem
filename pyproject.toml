@@ -34,6 +34,10 @@ play = [
     "panda3d>=1.10",
     "pygame-ce>=2.5",
 ]
+# The packager of the game for players (`tools/package.py`): pip install -e ".[play,package]"
+package = [
+    "pyinstaller>=6.10",
+]
 train = [
     "torch>=2.4",
     "numpy>=2.0",

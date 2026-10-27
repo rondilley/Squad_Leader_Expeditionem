@@ -29,6 +29,8 @@ sl-cli window3d --scenario s01_guards_counterattack --agent hard
   `s03a_streets_of_stalingrad`, and `s04_armor_probe` (the armor game).
 - On Windows, `play.bat` at the top of the tree starts `lib01_grain_office` against
   the `normal` opponent. Type `.\play.bat` in PowerShell, with no options.
+- A player with no Python uses the package and its launcher (see "The package for players,
+  and the collection of played games").
 
 The window first shows the scenario card: the situation, the forces of each side, the turn
 record, and the victory conditions. Press Begin, Space, or Enter to start the game.
@@ -315,6 +317,36 @@ A learned snapshot from 2026-09-22 or earlier does not load. The observation use
 A run artifact goes in `runs/<ISO8601-Z>-<slug>/` with a manifest, the command log, the action log, and the statistics. `runs/runs.sqlite` indexes them. `sl-cli runs --rebuild` deletes the rows and writes the new rows in one transaction. A bad artifact does not empty the index. Git does not record the run directory or the index.
 
 API keys for SaaS providers go in `claude.key.txt`, `openai.key.txt`, `gemini.key.txt`, `mistral.key.txt`, and `xai.key.txt` at the project root. `.gitignore` lists them on its first line. A missing key marks that provider unavailable and stops nothing else.
+
+## The package for players, and the collection of played games
+
+The package is one folder with the game executable. A player does not install Python. The executable starts the launcher. At the first start, the launcher shows a question: can the game send the recorded games?
+
+Then it shows a menu of the 12 library scenarios, the side, the opponent, and the 2D or the 3D window. The opponent is the computer at three levels, a person at the same computer, or a person on the LAN. Each game window is a second process of the same executable.
+
+Build the package on each system. PyInstaller does not build for a different system, so run the build on Windows for the Windows package and on Linux for the Linux package:
+
+```
+python -m pip install -e ".[play,package]"
+python tools/package.py                                   # the collector is tars.uberadmin.com:5170
+python tools/package.py --collector https://collect.example.org
+```
+
+The output is `dist/SquadLeaderExpeditionem/` and an archive: `SquadLeaderExpeditionem-<version>-windows-x64.zip` or `...-linux-x64.tar.gz`. The Windows folder is 155 MB. The package does not have torch or numpy, so the menu offers the scripted computer players only. `READ_ME_FIRST.txt` in the folder tells the player how to play and what the game sends (`tools/package_readme.txt`). The build stops if a key file is in the folder.
+
+Each game saves to the data directory of the player: `%LOCALAPPDATA%\SquadLeaderExpeditionem\games` on Windows and `~/.local/share/squad-leader-expeditionem/games` on Linux. The save file is the full record of the game: the seed, the switches, and each command with its source (`human`, `agent`, `route`, or `forced`). The trainer makes each position and each decision again from it. A game with no command of a person stays on the computer.
+
+In a LAN game only the host computer has the save file, and it records the commands of the two persons.
+
+When the player agreed and has a player key, the launcher sends the games at its start and after each game. The collector checks the key, plays each game again through the core, and keeps it. When the hashes of a game do not agree with the replay (a different version of the rules), the game goes to a different folder.
+
+- Make a key for each player on the workstation: `sl-cli collect key add <name>`. The store is `collect_keys.key.txt`, and the player file is `collect_players/<name>/collect.key.txt`. Give the player that file. It goes next to the game executable. `sl-cli collect key revoke <name>` stops one key.
+- Install or update the collector on tars: `python tools/collect_deploy.py`. After a new key, `python tools/collect_deploy.py --keys-only` copies the store, and the collector reads it with no restart.
+- The collector listens on port 5170 and keeps the games in `~/squad_leader_collect_data` on the host: `games/` (verified), `unverified/`, and `index.jsonl`. `sl-cli collect status --data <folder>` gives the counts.
+- Each request has an HMAC with the player key, a time, and a nonce. The key does not go on the network. The server is plain HTTP. An Internet collector must have TLS in front of it.
+- `sl-cli collect send` sends the saved games of a computer by hand. `sl-cli launch` starts the launcher from the source tree.
+
+A LAN game: the host selects "you are the host". The launcher shows the address of the computer and a room code, and the host window accepts connections on port 8731 (`--lan-port`). The other person selects "join a game" and types the address and the code.
 
 ## The game farm
 

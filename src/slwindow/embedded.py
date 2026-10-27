@@ -52,8 +52,13 @@ class Embedded:
         self.thread.join(timeout=STOP_TIMEOUT)
 
 
-def start(host: Host, address: str = DEFAULT_HOST) -> Embedded:
-    """Run the host on a thread of its own and give back the port it bound."""
+def start(host: Host, address: str = DEFAULT_HOST, port: int = 0) -> Embedded:
+    """Run the host on a thread of its own and give back the port it bound.
+
+    The default is the loopback address and a port that the system selects. A LAN game
+    (`--lan-port`) binds all addresses on a known port, so a window on another computer can
+    connect to it; the window of this process still connects on the loopback address.
+    """
     ready = threading.Event()
     holder: dict[str, Any] = {}
 
@@ -65,7 +70,7 @@ def start(host: Host, address: str = DEFAULT_HOST) -> Embedded:
         async def serve() -> None:
             done = asyncio.Event()
             holder["done"] = done
-            async with host.start(address, 0) as server:
+            async with host.start(address, port) as server:
                 holder["port"] = Host.bound_port(server)
                 ready.set()
                 await done.wait()

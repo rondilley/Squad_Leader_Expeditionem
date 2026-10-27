@@ -2,7 +2,7 @@
 
 Author: Ron Dilley, with design work by Claude Fable 5.1
 Date: 2026-09-07, updated 2026-10-15
-Status: v0.3, the design of the tree as built. Section 9.5 gives the methods of the computer players (2026-10-15)
+Status: v0.3, the design of the tree as built. Section 9.5 gives the methods of the computer players (2026-10-15, the choice rule 2026-10-27)
 Companion documents: `VISION.md` (direction), `REQUIREMENTS.md` (the requirements with IDs), `SUCCESS_CRITERIA.md` (the gates), `2026-09-07_Squad_Leader_Digital_Edition_Research.md` (the evidence), `../tasks/todo.md` (the build slices)
 
 <!-- AI review 20260907-163721 (gemini, xai, openai). The changes: the decision frame, the exact lattice, the two-part LOS, and the command list for rules 1 to 21. Also the sub-step table, the SR-10 control, the throughput gate after slice 3, and Appendix B. Each changed section has its own note. -->
@@ -517,6 +517,40 @@ Where it breaks: WebSocket libraries on Windows and the asyncio event loop polic
 
 Mitigation: the host uses `websockets` with the selector loop policy on Windows, set in one place, as the sibling does.
 
+### 8.1 The package for players, and the collection of played games (2026-10-27)
+
+The decision: the package is a PyInstaller folder for each system (`tools/package.py`), with the launcher as its entry (`slcli.frozen_main`, `slwindow.launcher`). The packaged game sends each game that a person played to a collector (`slcollect`, `sl-cli collect serve`). It sends only when the player agreed at the first start and has a player key. The first collector is `tars.uberadmin.com:5170` (owner, 2026-10-27). An Internet collector with its own name comes when the game is published.
+
+The record is the save file of the host (`slhost.savegame`). A game is its seed, its switches, and its command log, and each command line has its source. Thus the save file is sufficient for the training: the trainer makes each position, each legal list, and each decision of a person again through the core. The collector does not keep a second format.
+
+The wire is HTTP. Each `POST /v1/games` has the key name, a time, a nonce, and an HMAC-SHA256 (`slcollect.wire`). The HMAC covers the method, the path, the time, the nonce, and the hash of the body. The collector refuses a time more than 600 s from its clock and a nonce that it saw. Each player has a key of their own (`slcollect.keys`), so the owner can revoke one key.
+
+The collector plays each game again (`slcollect.verify`) and keeps it in `games/` when each hash agrees, or in `unverified/` when not. A game with no command of a person is refused. A resumed game comes again with more lines, and the collector keeps the longer file when the older one is the start of it.
+
+Why: a player must have the game with no Python install, and the decisions of persons are necessary for the computer players. The save file and the replay check exist, so the collection adds only a signed upload and a store.
+
+The alternatives:
+
+- A Python wheel and a launcher script. It is small, but each player must install Python 3.12.
+- One key in the package. Each person can read it from the files, and one bad key stops all the players.
+- The trace records of FR-60 in place of the save file. A trace is larger, and the replay makes it again.
+
+Where it breaks:
+
+- PyInstaller builds only for the system it runs on. The Linux package must have a Linux build.
+- A game from a package with other rules gives other hashes, so the collector cannot make sure of it.
+- The server is plain HTTP. On the Internet the key name and the address of the player go in clear text.
+- A player can send false games with a valid key. The replay check stops a game that the rules do not let occur, but not a game that a script played.
+
+The mitigation:
+
+- The build of each system has the same script.
+- The upload names the package version, and `unverified/` keeps those games for a replay with the code of that version.
+- An Internet collector has TLS in front of it.
+- The index records the key of each game, so the owner can remove the games of one key and revoke it.
+
+Privacy: the launcher shows the question one time before it sends (`slcollect.settings`, `consent`). A sent game has the scenario, the seed, the commands, the key name, and the package version. The collector also records the network address. The game saves each game on the disk of the player in all cases.
+
 ## 9. The four agent families
 
 The decision: all four families use one interface: observe a view, get the decision frame, select one command ID. They share the trace format and the tournament (AR-10). Each family is a Python package that imports the core.
@@ -824,6 +858,13 @@ Where it breaks: a copy is not better than its teacher. The best clone of each s
 
 The choice rule at play time (`agent.py`): the learned agent adds the probability of the legal commands of each action and plays the best command of the action with the highest sum. The joint argmax divided a move between many units and hexes, and it stopped each phase with no move (2026-10-13). The training samples the policy. Thus the training win rate and the win rate of the agent are different numbers.
 
+In two cases the agent does not use the action first (2026-10-27):
+
+- In the Prep Fire Phase the agent plays the command with the highest joint score (`JOINT_SCORE_PHASES`). There each unit that can fire adds to the sum of a fire action, and the end of the phase stays on one command. The L05 clone fired where the teacher stopped the phase, and a unit that fires does not move. With the joint score the v7 attack of the L03 and L07 nets increased by 3 to 4 of 100.
+- A route and a stack route share one sum (`ACTION_FAMILY`). Each unit has single routes, and only a stack has stack routes. Thus with two sums a leader went forward alone and left the squads of its stack. With one sum the v7 defence increased from 52 to 93 of 100 on L04 and from 7 to 74 on L05. The attack did not change.
+
+A third rule did not go in: an end of the Movement Phase only when its probability is more than that of all other commands together. It decreased the L03 attack from 44 to 22 of 100. On L05 the squads came near the objective with it, but v7 removed them. A better tactic is necessary for the L05 attack, and a rule of choice does not give it (`runs/exam_20261027_l05_losses/`).
+
 Why: PPO with action masks is the method that worked on games with large legal lists (RV-5). The trainer is CleanRL style, as in the sibling projects. Each extension above comes from a run that did not learn. Self-play on one workstation is Vision bet 4.
 
 Where it breaks: the learner wins almost no training game against a strong opponent, so the win term of the reward gives almost no signal. The s04 Axis run of 40,000,000 decisions against v7 won 0.4 percent of its training games. In the gauntlet it won 5 of 20 attacks against v7, and the clone won 0 of 20. Its Allied side became worse, because the run updated only the Axis side. Jump-Start RL against v7 did not change the horizon in 8 hours.
@@ -1019,6 +1060,10 @@ Squad_Leader_AI/
     slfarm/                      protocol.py (the HMAC challenge, the job check), server.py (the
                                  farm host), client.py (the job sender and the PPO bridges),
                                  envwire.py (the PPO commands and decisions as checked JSON)
+    slcollect/                   the collection of played games (section 8.1): wire.py (the signed
+                                 upload), keys.py (a key for each player), verify.py (the replay
+                                 check), server.py (the collector), client.py (the uploader),
+                                 settings.py (the data directory, the consent, the collector address)
     slwindow/                    the desktop window, a consumer of the host protocol
       app.py                     the window, the loop, the keys, and the pointer
       client.py                  the protocol client on a task of its own
@@ -1043,6 +1088,7 @@ Squad_Leader_AI/
                                  the two windows
       endgame.py                 the text of the end of a game ("You lost.") and the turn line
       victorytext.py             the text of the "Victory conditions" box
+      launcher.py                the launcher of the package: the consent, the menu, the game process
       theme.py                   the colours. The browser client holds the base tone of each
                                  terrain, and a test compares the two files
     slwindow3d/                  the 3D window (Panda3D), the MVP front end; it uses the
@@ -1062,7 +1108,7 @@ Squad_Leader_AI/
     slcards/                     card.py, the printable scenario cards
     slcampaign/                  the design-your-own tools and the campaign game of Game Set IV
                                  library.py, the 12 slots of the scenario library
-    slcli/                       main.py, play.py, bench.py, tournament.py, gauntlet.py, gates.py, host_cmd.py, runs_cmd.py, boards_cmd.py, agents_cmd.py, cards_cmd.py, train.py, imitate_cmd.py, evolve.py, farm_cmd.py, shape_cmd.py, traces_cmd.py, finetune_cmd.py, campaign_cmd.py, library_cmd.py, window_cmd.py, window3d_cmd.py, worker_limit.py
+    slcli/                       main.py, play.py, bench.py, tournament.py, gauntlet.py, gates.py, host_cmd.py, runs_cmd.py, boards_cmd.py, agents_cmd.py, cards_cmd.py, train.py, imitate_cmd.py, evolve.py, farm_cmd.py, shape_cmd.py, traces_cmd.py, finetune_cmd.py, campaign_cmd.py, library_cmd.py, window_cmd.py, window3d_cmd.py, worker_limit.py, collect_cmd.py, launch_cmd.py, frozen_main.py (the entry of the package)
   client/                        TypeScript, Vite, PixiJS or Canvas
     src/
       board/                     render the polygons in the 1977 look, with the base tones of

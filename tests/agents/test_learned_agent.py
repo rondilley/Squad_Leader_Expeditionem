@@ -369,6 +369,76 @@ def test_the_choice_is_the_action_with_the_most_probability_first():
     assert ordered[len(moves)] is groups[end]
 
 
+def _prep_fire_with(engine, seed: int, agent_name: str, count: int):
+    """A real state in a Prep Fire Phase whose frame offers `count` commands or more that are not end_phase."""
+    from slagents.base import decide
+    from slcli.play import make_agent
+
+    agents = (make_agent(agent_name, engine, seed, 0), make_agent(agent_name, engine, seed, 1))
+    state = engine.new_game(seed)
+    for _ in range(20000):
+        assert not state.game_over, "the game ended before a Prep Fire Phase with fire"
+        frame = engine.legal_commands(state)
+        if frame.phase == "prep_fire" and sum(c.command.action != "end_phase" for c in frame.commands) >= count:
+            return state, frame
+        state, _ = engine.apply(state, frame.by_id(decide(agents[state.active], state, frame)).command, frame)
+    raise AssertionError("no Prep Fire Phase with fire")
+
+
+def test_the_prep_fire_choice_is_the_highest_joint_score():
+    """In the Prep Fire Phase each unit that can fire adds to the sum of a fire action, and
+    the end of the phase stays on one command. The L05 clone gave the end of the phase 0.31
+    where the teacher ended it in 77 percent, so the action first fired, and the units that
+    fired did not move (2026-10-27). In that phase the agent plays the highest joint score.
+    """
+    import math
+
+    from slagents.learned.agent import JOINT_SCORE_PHASES, LearnedAgent
+
+    assert "prep_fire" in JOINT_SCORE_PHASES and "movement" not in JOINT_SCORE_PHASES
+    engine = build_engine("s01_guards_counterattack")
+    state, frame = _prep_fire_with(engine, 1, "random", 3)
+    groups = encoding.group_commands(frame, encoding.hex_slots(engine.board))
+    end = next(k for k, c in groups.items() if c.command.action == "end_phase")
+    fires = [k for k, c in groups.items() if c.command.action != "end_phase"]
+    same = [k for k in fires if k[1] == fires[0][1]]
+    assert len(same) >= 2, "one fire action has two commands or more"
+    scores = {k: math.log(0.2 / len(fires)) for k in fires}
+    scores.update({k: math.log(0.5 / len(same)) for k in same})
+    scores[end] = math.log(0.3)
+    assert LearnedAgent._by_score(scores, groups)[0] is not groups[end], "the action first fires"
+    assert LearnedAgent._by_joint_score(scores, groups)[0] is groups[end], "the joint score ends the phase"
+
+
+def test_a_route_and_a_stack_route_share_one_sum():
+    """Each unit has single routes and only a stack has stack routes, so with two sums the
+    single route won each time, and the L05 leaders went forward alone (2026-10-27). The
+    two actions share one sum, and the best command of the two comes first.
+    """
+    import math
+
+    from slagents.learned import routes
+    from slagents.learned.agent import LearnedAgent
+
+    engine = build_engine("s01_guards_counterattack")
+    state, frame = _movement_with(engine, 1, "v6", "stack_move", 1)
+    hexes = encoding.hex_slots(engine.board)
+    table = routes.route_table(engine, state, frame, hexes, routes.PhaseMemory())
+    groups = routes.with_routes(encoding.group_commands(frame, hexes), dict(table))
+    route = encoding.ACTION_INDEX["route"]
+    stack = encoding.ACTION_INDEX["stack_route"]
+    singles = [k for k in groups if k[1] == route]
+    stacks = [k for k in groups if k[1] == stack]
+    others = [k for k in groups if k[1] not in (route, stack)]
+    assert singles and stacks and others
+    scores = {k: math.log(0.3 / len(singles)) for k in singles}
+    scores.update({k: math.log(0.1 / len(stacks)) for k in stacks})
+    scores[stacks[0]] = math.log(0.25)
+    scores.update({k: math.log(0.35 / len(others)) for k in others})
+    ordered = LearnedAgent._by_score(scores, groups)
+    assert ordered[0] is groups[stacks[0]], "the best stack route comes first, by the sum of the two actions"
+
+
 @needs_torch
 def test_a_policy_that_likes_to_ride_does_not_board_and_debark_without_end():
     """The core lets a unit that debarked board again, so a policy that likes a board and a
