@@ -16,7 +16,10 @@ The output:
 
 The program (`SquadLeaderExpeditionem.exe` or `SquadLeaderExpeditionem`) is the launcher
 (`slcli.frozen_main`). The folder also has `collector.json` (the address of the collection
-server), `READ_ME_FIRST.txt` (from `tools/package_readme.txt`), and the licence. The training
+server), `READ_ME_FIRST.txt` (from `tools/package_readme.txt`), `HOW_TO_PLAY.md` (from
+`docs/PLAYER_GUIDE.md`), the licence, `THIRD_PARTY.txt`
+(from `tools/package_third_party.txt`), and `licenses/`, the licence texts of the third-party
+software. The build removes the files of `PRUNED`, which the game does not use. The training
 libraries (torch, numpy) are not in it: the menu offers only the scripted computer players.
 No key file goes into a package: each player gets a key of their own (`sl-cli collect key add`).
 """
@@ -28,8 +31,10 @@ import json
 import platform
 import shutil
 import sys
+import sysconfig
 import tarfile
 import zipfile
+from importlib import metadata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +46,14 @@ PACKAGES = ("slcli", "slcore", "sldata", "slagents", "slhost", "slwindow", "slwi
 DATA_PACKAGES = ("sldata", "slhost", "slwindow3d")
 # The training libraries and the test tools: not in the package of a player.
 EXCLUDED = ("torch", "numpy", "gymnasium", "pettingzoo", "tensorboard", "transformers", "peft", "datasets", "accelerate", "playwright", "pytest", "hypothesis", "IPython", "matplotlib", "PIL", "tkinter")
+# Files that `--collect-all` and `--collect-data` bring and the game does not use: the
+# examples, tests, and documents of pygame-ce (they hold third-party pictures and fonts), and
+# the FMOD audio plugin (not free software) and the Direct3D 9 plugin of Panda3D. The 3D
+# window uses OpenAL and OpenGL. Each pattern is a glob under `_internal`.
+PRUNED = ("pygame/examples", "pygame/tests", "pygame/docs", "panda3d/*fmod*", "panda3d/*pandadx9*", "panda3d/d3dx9*")
+# The distributions whose licence files go in `licenses/`, and `tools/package_third_party.txt`
+# names each one.
+LICENSED = ("pyinstaller", "panda3d", "websockets", "werkzeug", "markupsafe")
 
 
 def version() -> str:
@@ -84,9 +97,50 @@ def pyinstaller_args(dist: Path, work: Path) -> list[str]:
 def write_extras(folder: Path, collector: str) -> None:
     (folder / "collector.json").write_text(json.dumps({"url": collector}, indent=1) + "\n", encoding="utf-8")
     shutil.copyfile(ROOT / "tools" / "package_readme.txt", folder / "READ_ME_FIRST.txt")
+    shutil.copyfile(ROOT / "docs" / "PLAYER_GUIDE.md", folder / "HOW_TO_PLAY.md")
     for name in ("LICENSE", "LICENSE.md", "COPYING"):
         if (ROOT / name).exists():
             shutil.copyfile(ROOT / name, folder / name)
+
+
+def prune(folder: Path) -> None:
+    for pattern in PRUNED:
+        for path in (folder / "_internal").glob(pattern):
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+
+
+def python_licence() -> Path:
+    """The licence text of the interpreter that the package holds."""
+    version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    candidates = (
+        Path(sys.base_prefix) / "LICENSE.txt",
+        Path(sysconfig.get_path("stdlib")) / "LICENSE.txt",
+        Path("/usr/share/doc") / f"python{version}" / "copyright",
+    )
+    for path in candidates:
+        if path.is_file():
+            return path
+    raise RuntimeError(f"no licence text of Python {version} at {[str(p) for p in candidates]}, and the build stops")
+
+
+def write_licences(folder: Path) -> None:
+    """The licence texts of the third-party software in the package (`package_third_party.txt`)."""
+    target = folder / "licenses"
+    target.mkdir(exist_ok=True)
+    shutil.copyfile(python_licence(), target / "Python-LICENSE.txt")
+    shutil.copyfile(ROOT / "tools" / "licenses" / "LGPL-2.1.txt", target / "LGPL-2.1.txt")
+    for name in LICENSED:
+        dist = metadata.distribution(name)
+        files = [f for f in dist.files or () if f.parent.name == "licenses" or f.name.upper().startswith(("LICENSE", "COPYING"))]
+        if not files:
+            raise RuntimeError(f"{name} has no licence file, and the build stops")
+        (target / name).mkdir(exist_ok=True)
+        for file in files:
+            shutil.copyfile(dist.locate_file(file), target / name / file.name)
+    shutil.copyfile(ROOT / "tools" / "package_third_party.txt", folder / "THIRD_PARTY.txt")
 
 
 def check_no_keys(folder: Path) -> None:
@@ -125,7 +179,9 @@ def main(argv: list[str] | None = None) -> int:
     work = ROOT / "build" / "pyinstaller"
     pyinstaller.run(pyinstaller_args(dist, work))
     folder = dist / NAME
+    prune(folder)
     write_extras(folder, args.collector)
+    write_licences(folder)
     check_no_keys(folder)
     print(f"the package folder is {folder}")
     if not args.no_archive:

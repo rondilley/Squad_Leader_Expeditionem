@@ -1,0 +1,50 @@
+Third-party software in this package
+
+The game code is GPL-3.0-or-later (see LICENSE). The package also holds the software below.
+The folder "licenses" has the licence text of each one.
+
+
+Python 3.12 (the interpreter and its standard library)
+  Licence: Python Software Foundation License. The text also has the notices of the
+  libraries that Python includes (OpenSSL, libffi, SQLite, bzip2, xz, and others).
+  File: licenses/Python-LICENSE.txt
+  Source: https://www.python.org/downloads/source/
+
+PyInstaller bootloader (the program that starts the game)
+  Licence: GPL-2.0-or-later with the PyInstaller bootloader exception.
+  File: licenses/pyinstaller/
+  Source: https://github.com/pyinstaller/pyinstaller
+
+Panda3D 1.10 (the 3D window)
+  Licence: Modified BSD License.
+  File: licenses/panda3d/
+  Source: https://github.com/panda3d/panda3d
+
+  Panda3D includes the NVIDIA Cg runtime (cg and cgGL). The licence of NVIDIA lets a
+  person redistribute the runtime. Panda3D also includes the FFmpeg libraries (avcodec,
+  avformat, avutil, swscale, swresample), which are LGPL-2.1-or-later
+  (licenses/LGPL-2.1.txt). The source of FFmpeg is at https://ffmpeg.org/download.html.
+
+  This package does not have the FMOD audio plugin or the Direct3D 9 plugin of Panda3D.
+  The game plays its sounds through OpenAL and makes its pictures through OpenGL.
+
+pygame-ce 2.5 (the 2D window, the launcher, and the fonts)
+  Licence: LGPL-2.1. File: licenses/LGPL-2.1.txt
+  Source: https://github.com/pygame-community/pygame-ce
+
+  pygame-ce includes SDL2, SDL2_image, SDL2_mixer, and SDL2_ttf (zlib licence), FreeType
+  (FreeType License), libpng, libjpeg-turbo, libtiff, libwebp, libogg, opus, opusfile,
+  wavpack, libxmp, and portmidi. The licence of each is in the source of pygame-ce and of
+  that library.
+
+  You can replace each pygame-ce library file in the folder "_internal" with a version
+  that you build from the source. The font freesansbold.ttf is from GNU FreeFont:
+  GPL-3.0-or-later with the font exception.
+
+websockets, Werkzeug, MarkupSafe (the network code of the host)
+  Licence: BSD-3-Clause.
+  Files: licenses/websockets/, licenses/werkzeug/, licenses/markupsafe/
+
+Microsoft Visual C++ runtime and the Universal C Runtime (Windows only)
+  The files VCRUNTIME140.dll, MSVCP140.dll, ucrtbase.dll, and api-ms-win-*.dll.
+  Microsoft lets a person redistribute these files with a program.

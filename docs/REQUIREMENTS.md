@@ -1,8 +1,8 @@
 # Squad_Leader_AI: Requirements
 
-Status: Draft v0.3, after the second multi-AI review (architecture)
+Status: Draft v0.4, after the second multi-AI review (architecture) and the requirements of 2026-10 (the 3D window, the library, the farm, the package, and the collection)
 Author: Ron Dilley
-Last updated: 2026-09-07
+Last updated: 2026-10-28
 Companion documents: `VISION.md` (direction), `SUCCESS_CRITERIA.md` (measurable outcomes), `ARCHITECTURE.md` (design), `2026-09-07_Squad_Leader_Digital_Edition_Research.md` (evidence), `../tasks/discovery_notes.md` (the input brief, historical)
 
 <!-- AI review 20260907-160656 (gemini, xai, openai): re-tiered into v0.1 to v0.4 plus RC, with topology, throughput, geometry, secrecy, and scenario-mode edits. Owner directive 2026-09-07: the tuned local model is a fourth agent family. -->
@@ -13,15 +13,17 @@ Requirement keywords follow RFC 2119: MUST, SHOULD, MAY. Each requirement has an
 
 ### 0.1 Context
 
-The game is a browser edition of the 1977 Avalon Hill board game Squad Leader, with the 4th edition rules. It has one rules core with no input or output. The core is the engine for the browser client, the local host, the reinforcement learning trainer, the model agent harness, and replay. The owner selected a Python core first, with a throughput gate that decides a Rust port (see AR-05).
+The game is an edition of the 1977 Avalon Hill board game Squad Leader, with the 4th edition rules. It plays in a window of its own on Windows and on Linux, and in a browser. It has one rules core with no input or output.
 
-The project is GPL-3 and non-commercial. The repository is `Squad_Leader_AI`. The game gets a different public title before a release.
+The core is the engine for the two windows, the browser client, the local host, the reinforcement learning trainer, the model agent harness, and replay. The farm hosts and the collector also use it. The owner selected a Python core first, with a throughput gate that decides a Rust port (see AR-05).
+
+The project is GPL-3 and non-commercial. The repository is `Squad_Leader_AI`. The public title of the game is "Squad Leader Expeditionem" (owner, 2026-09-18, SR-08).
 
 ### 0.2 Terms
 
 - Core: the rules engine. No input, no output, no network, no file access.
 - Host: the local process that owns the authoritative game state, applies commands through the core, and gives each player a view. The host runs on the owner's machine for hot seat and on one player's machine for LAN.
-- Client: the browser page. It shows a view and sends intents. It has no rule logic.
+- Client: a front end. The 3D window (`sl-cli window3d`), the 2D window (`sl-cli window`), and the browser page are clients. A client shows a view and sends intents. It has no rule logic.
 - Command: one player intent (unit, action, target, or end phase) that the host applies.
 - Environment step: one agent decision, which is one command. This is one PettingZoo step. Steps/s means commands applied each second, with the legal-command list and the observation built for each.
 - Scripted agent: an opponent that follows constant code with named parameters.
@@ -31,6 +33,10 @@ The project is GPL-3 and non-commercial. The repository is `Squad_Leader_AI`. Th
 - Agent family: one of the four kinds above. The tournament compares all four on the same scenarios.
 - Reference mode: play on one of the four 1977 layouts, from private data on the owner's machine. Never shipped.
 - Generated mode: play on a board from the generator, with scenario set up areas resolved by zone. The public build ships this mode only.
+- Library scenario: one of the 12 project scenarios `lib01_grain_office` to `lib12_the_long_front`. A project tool makes each one from a slot of `src/sldata/library/slots.json`.
+- Farm: the Ubuntu hosts that play games for the workstation (`sl-cli farm serve`). At this time they are tars, case, kipp, and plex.
+- Package: the PyInstaller folder and archive that `tools/package.py` builds for players.
+- Collector: the HTTP server that keeps the games that persons played (`sl-cli collect serve`).
 
 ### 0.3 Tiers
 
@@ -41,7 +47,8 @@ Each requirement has one tier tag. The tiers are sequential, and each has an exi
 - v0.3, scenarios and LAN: rules to 27, scenarios 2 and 3A, three scripted agents, the LAN host with per-player views, the tournament runner.
 - v0.4, agents that learn: the PettingZoo environment, the learning ladder, the snapshot league, one local prompted model agent, one SaaS prompted model agent, and the tuned model agent test.
 - RC, release candidate: the last art pass, four board types, the look and counter rubrics, the content audit, the public title.
-- Scale: year two (armor, all 12 scenarios, unattended league, play by email, tuned model at scale).
+- MVP (2026-10-10 on): a person plays a full game in the 3D window. This tier also has the scenario library, the farm, the package, and the collection.
+- Scale: year two (rules 45 to 63, unattended league, play by email, an Internet collector, tuned model at scale).
 - vNext: year three or a decision that is not made at this time (gamette overlays, community scenarios, public play).
 
 ID prefixes: FR functional, NFR non-functional, SR security, IR integration, DR data, OR observability, OP operational, AR architectural, MR maintainability, TR testing.
@@ -128,9 +135,9 @@ FR-19: Scenario 1 MUST play from its data file in v0.1. Scenarios 2 and 3A MUST 
 
 *v0.1 and v0.3.*
 
-FR-20: Scenarios 4 to 12 MUST play from data files.
+FR-20: The printed scenarios 4 to 12 are out of the project. FR-69 replaces this requirement.
 
-*Scale.*
+*Replaced on 2026-10-16.* Source: owner directive 2026-10-16.
 
 FR-21: A scenario file MUST give its set up areas in two forms: hex lists for reference mode, and zone definitions for generated mode (for example "stone buildings in the western third"). A generated board of the scenario's type MUST satisfy the zone definitions.
 
@@ -158,7 +165,7 @@ FR-26: The generator MUST accept style parameters that control the density and p
 
 *RC.*
 
-FR-27: The core MUST load a reference-mode layout from a local path that git does not record. Then the 12 printed scenarios play on the owner's machine. Default tests MUST NOT load reference-mode data. Committed fixtures, screenshots, and public run artifacts MUST NOT hold reference-mode data.
+FR-27: The core MUST load a reference-mode layout from a local path that git does not record. Then a printed layout plays on the owner's machine. Default tests MUST NOT load reference-mode data. Committed fixtures, screenshots, and public run artifacts MUST NOT hold reference-mode data.
 
 *v0.2.* Source: owner decision on 2026-09-07 and the consolidated review.
 
@@ -174,11 +181,11 @@ FR-29: The core MUST connect two to four boards along long edges or short edges 
 
 *Scale.* Scenario 4 is the first that uses more than one board.
 
-### 1.4 Browser client
+### 1.4 Clients
 
 FR-30: A client MUST render a board in the 1977 look. The look has flat colors with no gradients, a woods mass with a ragged edge, and brown hill contours with crest lines. It also has gray stone buildings, red-brown wooden buildings, and a hex grid with center dots and grid labels. Each terrain is a shape on the ground, and not a hexagon of color. A building is the plan of a structure that can cover more than one hex.
 
-Two clients do it: the browser client in `client/` and the desktop window in `src/slwindow/`, which opens on Windows and on Unix with no browser. `src/slwindow/theme.py` holds the colors. The browser client holds the base tone of each terrain, and `tests/browser/test_render_constants.py` compares the two files.
+Three clients do it: the 3D window in `src/slwindow3d/`, the browser client in `client/`, and the 2D window in `src/slwindow/`. The two windows open on Windows and on Unix with no browser. `src/slwindow/theme.py` holds the colors. The browser client holds the base tone of each terrain, and `tests/browser/test_render_constants.py` compares the two files.
 
 *v0.2 for a first pass. RC for the rubric.* Source: discovery notes section 6.6.
 
@@ -216,7 +223,7 @@ FR-38: The game MUST let two humans play from two browsers on one LAN through on
 
 *v0.3.*
 
-FR-39: The game MUST let a human play against a scripted agent in the browser.
+FR-39: The game MUST let a human play against a scripted agent in a client. The 3D window is the client of the MVP.
 
 *v0.2.* Against a learned agent, a prompted model agent, or a tuned model agent:
 
@@ -330,6 +337,79 @@ FR-58: A tournament command MUST play N games between two agents, balance sides,
 
 *v0.3.*
 
+### 1.8 The 3D window
+
+FR-66: The 3D window (`src/slwindow3d/`, `sl-cli window3d`) MUST be the front end of the MVP. It MUST render the board document and the view document that the host sends. Each hex is a prism, and the elevation of a hex lifts its prism. The window MUST have a 2D camera and a 3D camera.
+
+The window MUST hold no rule (AR-06). It speaks the host protocol and sends intents only. `sl-cli window3d --screenshot PATH` MUST render one board offscreen with no display.
+
+*MVP.* Source: owner directive 2026-10-10 (`tasks/todo.md`, the plan to the MVP).
+
+FR-67: A person MUST play a full game with the mouse in the 3D window and in the 2D window. The play input has these parts:
+
+- the set up tray: a click or a drag puts a counter on a shaded hex, and a click on a placed counter lifts it (`setup_lift`)
+- the cause of a refused placement, from the host (`options_request`, `src/slhost/options.py`)
+- the reach of a unit in a Movement Phase and its field of fire in a fire phase, from the host
+- a click on a reach hex that moves the unit there (`move_to`), one legal step at a time
+- the menu of a unit (a right click, or Ctrl and Space), the about box, and the Undo button
+- the objective hexes on the map, and the "Victory conditions" box with the count of the side of the person
+- the end box, with "You won." or "You lost." for the one human side
+
+*MVP.* Source: the notes of the owner of 2026-10-26 (`VIBE_HISTORY.md`).
+
+FR-68: The 3D window MUST show the scenario card before the game (`src/slwindow3d/briefing.py`). The two windows MUST accept an opponent by its difficulty name: `easy`, `normal`, and `hard` give v5, v6, and v7. The two windows MUST save each game to `--save-dir` and continue a saved game with `--resume`.
+
+*MVP.* Source: `src/slcli/window_cmd.py` (`DIFFICULTY`).
+
+### 1.9 The scenario library
+
+FR-69: The project MUST have a library of 12 project scenarios, `lib01_grain_office` to `lib12_the_long_front`. No part of a library scenario MAY be a copy of a 1977 card. A library scenario MUST use only the rules that are in the core.
+
+`src/sldata/library/slots.json` MUST hold the 12 slots (L01 to L12). Each slot has the board types, the armies, the rule level, and the bands of points and turns.
+
+*MVP. All 12 are in `src/sldata/scenarios/` since 2026-10-18.* Source: owner directive 2026-10-16.
+
+FR-70: Each library scenario MUST be balanced before it goes into the library. The measure is v7 against v7 in 1,600 games on the farm, and the first side MUST win 45 to 55 percent. The search MUST try the board seeds and the draw seeds first. A change of the forces, the turns, or the victory condition comes only when no seed gives the balance.
+
+The notes of the scenario file MUST give the seeds and the balance result. `sl-cli library search` MUST write a run artifact of each search.
+
+*MVP.* Source: owner directive 2026-10-16.
+
+FR-71: Each sentence of a library card MUST agree with the rules and the data of its scenario. A card MUST name a building by its rank and its band of columns, because nothing on the board marks a building. A balanced candidate with a card that has no fault MUST go into the library with no review step.
+
+*MVP.* Source: the owner decisions of 2026-10-17.
+
+### 1.10 The game farm
+
+FR-72: The farm MUST play games for the workstation. Each host runs `sl-cli farm serve` on port 5160. `sl-cli gauntlet`, `sl-cli evolve`, and `sl-cli library search` MUST send games to it with `--remote`. `sl-cli train --remote` MUST open PPO environments on it.
+
+The results MUST come back in the sequence of the jobs, so the artifact is the one that a single machine writes. `--remote-slots N` MUST limit the games at one time on each host.
+
+*MVP.* Source: `src/slfarm/`, 2026-10-14.
+
+### 1.11 The package, the launcher, and the collection
+
+FR-73: `tools/package.py` MUST build a PyInstaller folder and an archive on the system where it runs, for Windows and for Linux. The package MUST NOT hold torch or numpy. The build MUST stop when a `*.key.txt` file is in the folder.
+
+The entry of the package is `src/slcli/frozen_main.py`. With no arguments it starts the launcher, and with arguments it is `sl-cli`.
+
+*MVP.* Source: owner decisions 2026-10-27.
+
+FR-74: The launcher (`sl-cli launch`, `src/slwindow/launcher.py`) MUST show the consent question one time, at the first start. Then it MUST give these choices:
+
+- the 12 library scenarios
+- the side
+- the opponent: `easy`, `normal`, `hard`, hot seat, LAN host, and LAN join
+- the window: the 3D window or the 2D window
+
+The launcher MUST start each game window as a second process of the same program. A LAN host window MUST bind all addresses on `--lan-port` (8731).
+
+*MVP.* Source: owner decisions 2026-10-27.
+
+FR-75: The packaged game MUST save each game to the data directory of the player in all cases. The uploader MUST send a game only when the player gave consent and has a player key. It MUST send only a game with a minimum of one command of a person. A network error MUST NOT stop the game. The uploader tries again at the next start and after the next game.
+
+*MVP.* Source: `src/slcollect/client.py`, `src/slcollect/settings.py`.
+
 ## 2. Non-functional requirements
 
 NFR-01: The core MUST give a minimum of 3,500 environment steps/s end to end on the owner's training workstation, with the benchmark specification below. This is the gate for AR-05, measured in v0.1 on the vertical slice and again before the first long run.
@@ -385,6 +465,8 @@ NFR-09: The tuned model fine-tune MUST complete on the owner's workstation (one 
 
 The threat model: one owner's workstation, a trusted LAN with a second player, and outbound calls to model providers. LAN play is trusted-party convenience. It gives no confidentiality against a hostile machine on the same LAN.
 
+The farm hosts are on the owner's LAN. The collector gets uploads from players of the package. At this time it runs on the workstation on 127.0.0.1, and its deploy to tars waits.
+
 SR-01: API keys MUST live in `*.key.txt` files at the project root or in environment variables. They MUST NOT be in source control. `.gitignore` MUST list `*.key.txt` on its first line. This is a private-workstation practice, not a deployment practice.
 
 *v0.1.*
@@ -430,6 +512,28 @@ SR-10: The trace data set and the tuned model weights MUST NOT contain reference
 <!-- AI review 20260907-163721: openai -->
 
 *v0.3.* Source: FR-27 and the owner decision.
+
+SR-11: A farm connection MUST prove the farm key with an HMAC-SHA256 of a nonce that the host selects. The key MUST NOT go on the wire. The client MUST refuse a host when the hash of `src/` on the host is not the same as its own. The host MUST refuse a learned agent and a model agent, and it MUST run no code that the network sends. The arrays of a PPO environment MUST go as JSON that the receiver validates, and MUST NOT go as pickle.
+
+*MVP.* Source: `src/slfarm/protocol.py`, `src/slfarm/envwire.py`.
+
+SR-12: Each upload to the collector MUST have the key name, a time, a nonce, and an HMAC-SHA256 with the key of the player. The HMAC MUST cover the method, the path, the time, the nonce, and the SHA-256 of the body. The key MUST NOT go on the wire.
+
+The collector MUST refuse these uploads:
+
+- a time more than 600 s from its clock
+- a nonce that it saw
+- an unknown key or a revoked key
+- more than 30 uploads of one key in 60 s
+- a body larger than 8 MB
+
+Each player MUST have a key of their own (`sl-cli collect key add NAME`), so the owner can revoke one key. The key store is `collect_keys.key.txt`.
+
+*MVP.* Source: `src/slcollect/wire.py`, `src/slcollect/keys.py`, `src/slcollect/server.py`.
+
+SR-13: An upload MUST hold only the lines of the save file and the package version. The collector MUST give no game to a client. Its one answer with no key is `GET /v1/ping`. An Internet collector MUST have TLS in front of it. On plain HTTP, the key name and the address of the player go in clear text.
+
+*MVP for the first two sentences. Scale for TLS.* Source: `docs/ARCHITECTURE.md` section 8.1.
 
 ## 4. Integration requirements
 
@@ -493,13 +597,25 @@ DR-06: The reference-mode layouts MUST live in `background/reference/`, which `.
 
 *v0.2.* <!-- AI review 20260907-160656: openai. The earlier text inverted the meaning. -->
 
-DR-07: The project MUST hold no personal data. Player names in a LAN game are display strings that live for the session only.
+DR-07: The project MUST hold no personal data. Player names in a LAN game are display strings that live for the session only. The one exception is the index of the collector (DR-09), which records the key name and the network address of each upload.
 
 *v0.3.*
 
 DR-08: A trace record MUST hold these fields: the game ID, the decision index, the agent family and version, the view text, the legal command IDs, the selected command ID, and the outcome. Traces MUST live in `runs/` with the game.
 
 *v0.3.*
+
+DR-09: The collector MUST play each upload again through the core (`slcollect.verify`). It MUST keep the game in `games/` when each command is legal and each hash agrees, and in `unverified/` when not. It MUST refuse a game with no command of a person. A game that a player continued comes again with more lines. The collector MUST keep the longer file when the older file is the start of it.
+
+`index.jsonl` MUST have one line for each kept upload: the time, the key, the address, the package, the folder, and the result of the check.
+
+*MVP.* Source: `src/slcollect/server.py`, `src/slcollect/verify.py`.
+
+DR-10: The record of a collected game MUST be the save file of the host (`slhost.savegame`). Each command line MUST have its source (`human`, `computer`, `route`, or `forced`). The collector MUST NOT keep a second format.
+
+The data directory of the player is `%LOCALAPPDATA%\SquadLeaderExpeditionem` on Windows and `~/.local/share/squad-leader-expeditionem` on Linux. `SL_DATA_DIR` changes it.
+
+*MVP.* Source: `src/slcollect/settings.py`.
 
 ## 6. Observability requirements
 
@@ -543,6 +659,10 @@ OP-04: A README MUST give the install procedure, the start procedure, and the cu
 
 *v0.1.*
 
+OP-05: One command MUST deploy the code and the key to the farm hosts (`python tools/farm_deploy.py [host]`). One command MUST deploy the collector (`python tools/collect_deploy.py`). A farm host MUST report success only when its new server holds port 5160.
+
+*MVP.* Source: `tools/farm_deploy.py`, `tools/farm_worker.sh`, `tools/collect_deploy.py`.
+
 ## 8. Architectural requirements
 
 AR-01: There MUST be one rules core, with no input or output, no network, and no file access.
@@ -584,6 +704,10 @@ AR-09: The host MUST keep one authoritative state. It MUST calculate a per-playe
 AR-10: The four agent families MUST share the agent interface (FR-43), the trace format (DR-08), and the tournament (FR-63). Then a family can be added or removed without a change to the host or the core.
 
 *v0.4.*
+
+AR-11: The farm hosts and the collector MUST apply rules only through the core. `slfarm` MUST NOT import `slcli`: the command gives the server the function that plays one game.
+
+*MVP.* Source: `CLAUDE.md`, the game farm.
 
 ## 9. Maintainability requirements
 
@@ -657,23 +781,26 @@ TR-12: A fine-tune smoke test MUST run 50 LoRA steps on 10 traces. It MUST asser
 
 *v0.4.*
 
+TR-13: The tests of the 3D window MUST open it offscreen. No test MAY open a window on the desktop of the owner. The tests of the collection MUST use a real collector on the loopback address and real signed uploads.
+
+*MVP.* Source: `tests/window3d/`, `tests/collect/`, and `tasks/lessons.md`.
+
 ## 11. Out of scope for year one
 
 Listed so that they are not argued again. None is rejected. Each has a re-entry point.
 
-- Armor rules 28 to 63 and variation 3B. The tables they use are in `src/sldata/tables/armor.json`, so the block is gone. What is left is the rules: vehicle counters, facing and the covered arc, vehicle movement points, hull down, crew survival, and immobilization. Re-entry: FR-16.
-- Scenarios 4 to 12. Re-entry: FR-20. Each of those cards uses a rule of Game Set II or a subsequent set, so each one waits for the rules it names. Multi-board configurations are done: FR-29 is in `slboards/compose.py`.
-- Hidden Initial Placement is done: FR-10 is in `slcore/rules/r42_hidden.py`. The one part that waits is the blind fire of rule 42.4, which changes the action space of FR-50.
+- Rules 45 to 63 and variation 3B. Rules 28 to 44 are done (`src/slcore/rules/r28_vehicles.py` to `r44_rural.py`). Rules 47 and 51 come first. Re-entry: FR-16.
+- The printed scenarios 4 to 12. The 12 library scenarios replace them (FR-69). No re-entry point.
+- The blind fire of rule 42.4. It changes the action space of FR-50. Hidden placement is done in `slcore/rules/r42_hidden.py`.
 - Play by email. Re-entry: FR-41.
-- Behavior cloning for the learned agent, evolution of scripted agents, prompt evolution. Re-entry: FR-53 to FR-55.
+- Prompt evolution. Re-entry: FR-55. Imitation of the scripted teachers (`sl-cli imitate`) and the evolution of the scripted agents (`sl-cli evolve`) are done.
 - Self-play reinforcement learning on the language model itself. Re-entry: FR-64, after FR-61 shows a result.
-- Design-your-own and the campaign game. Re-entry: FR-17.
 - Gamette overlays (Cross of Iron, Crescendo of Doom, GI: Anvil of Victory). Re-entry: owner decision in year three.
-- Internet play, accounts, matchmaking, a hosted server. No re-entry point.
+- Internet play, accounts, matchmaking, and a hosted game server. No re-entry point. A collector on the Internet, with its own name and TLS, is planned before the public release (SR-13).
 - AlphaZero, MuZero, and search-based training. Re-entry: after PPO results are in.
 - Advanced Squad Leader. No re-entry point.
 - Board images to model agents. Re-entry: when a benchmark shows vision input helps.
-- A public title and a public release. Re-entry: RC.
+- A public release. Re-entry: RC. The public title is Squad Leader Expeditionem.
 
 ## 12. Open questions
 
@@ -692,19 +819,23 @@ Listed so that they are not argued again. None is rejected. Each has a re-entry 
 | Rules core | FR-01 to FR-17 | discovery notes section 6, Vision bet 1 |
 | Scenarios and data | FR-18 to FR-22 | RV-2 sections 3 and 4, RV-4 section 3, consolidated review |
 | Boards and LOS | FR-23 to FR-29 | RV-2 section 1, RV-3 section 5, owner decision, consolidated review |
-| Browser client | FR-30 to FR-36 | discovery notes 6.6, RV-8 signal 2, consolidated review |
+| Clients | FR-30 to FR-36 | discovery notes 6.6, RV-8 signal 2, consolidated review |
 | Play modes | FR-37 to FR-42 | owner decision, RV-8 signal 3 |
 | Agents | FR-43 to FR-55, FR-59 to FR-65 | RV-5, RV-6, RV-8, siblings, consolidated review, owner directive |
 | Runs and tournaments | FR-56 to FR-58 | LocalLLMPerf_AI and SpaceWar_AI siblings |
+| The 3D window | FR-66 to FR-68 | owner directive 2026-10-10, owner notes 2026-10-26 |
+| The scenario library | FR-69 to FR-71 | owner directive 2026-10-16, owner decisions 2026-10-17 |
+| The farm | FR-72 | `src/slfarm/` |
+| Package, launcher, collection | FR-73 to FR-75 | owner decisions 2026-10-27 |
 | Non-functional | NFR-01 to NFR-09 | RV-5 section 5, RV-6 section 6, RV-7, consolidated review |
-| Security | SR-01 to SR-10 | project rules, RV-4, consolidated review |
+| Security | SR-01 to SR-13 | project rules, RV-4, consolidated review |
 | Integration | IR-01 to IR-08 | RV-6 section 3, siblings |
-| Data | DR-01 to DR-08 | RV-1, RV-2, RV-4 |
+| Data | DR-01 to DR-10 | RV-1, RV-2, RV-4 |
 | Observability | OR-01 to OR-04 | siblings |
-| Operational | OP-01 to OP-04 | owner environment |
-| Architectural | AR-01 to AR-10 | Vision bet 2, RV-7, consolidated review |
+| Operational | OP-01 to OP-05 | owner environment |
+| Architectural | AR-01 to AR-11 | Vision bet 2, RV-7, consolidated review |
 | Maintainability | MR-01 to MR-05 | project rules |
-| Testing | TR-01 to TR-12 | project rules, success-claim guardrail, consolidated review |
+| Testing | TR-01 to TR-13 | project rules, success-claim guardrail, consolidated review |
 
 ## Appendix B: the initial goal items to the requirements
 
@@ -719,3 +850,6 @@ Listed so that they are not argued again. None is rejected. Each has a re-entry 
 | EA-7 Learning and evolution | FR-50 to FR-55, FR-61, FR-64 | TC-18, TC-19, BC-06, TC-35 |
 | EA-8 Local and SaaS models | FR-45 to FR-49, FR-65, IR-01 to IR-06 | BC-03, TC-16, TC-20, TC-21 |
 | EA-9 A local model with training on the game as a play family (2026-09-07) | FR-60 to FR-63, IR-08, DR-08, NFR-09, SR-10 | TC-35, TC-36, TC-37 |
+| EA-10 A front end that the owner uses (2026-10-10) | FR-66 to FR-68 | BC-01, TC-46, TC-52 |
+| EA-11 A library of 12 project scenarios (2026-10-16) | FR-69 to FR-71 | TC-47, TC-48 |
+| EA-12 A package for players and a collection of their games (2026-10-27) | FR-73 to FR-75, SR-12, SR-13, DR-09, DR-10 | BC-10, TC-50, TC-51, TC-53 |

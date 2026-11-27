@@ -8,9 +8,13 @@ This project is not affiliated with, sponsored by, or endorsed by Hasbro or Mult
 
 ## Play the game
 
-The game plays in the 3D window. The window has a 3D camera and a flat 2D camera, and
-Ctrl and t changes between them. Install it with one command, and then start a game
-against the computer:
+`docs/PLAYER_GUIDE.md` tells you how to play: the set up, the move, the fire, the victory
+conditions, the keys, and how to continue a saved game. The package for players has it as
+`HOW_TO_PLAY.md`.
+
+A player with no Python uses the package and its launcher (see "The package for players,
+and the collection of played games"). From the source tree, install the game with one
+command, and then start a game against the computer:
 
 ```
 python -m venv .venv
@@ -18,116 +22,25 @@ python -m venv .venv
 # Windows PowerShell: .venv\Scripts\Activate.ps1
 python -m pip install -e ".[play]"
 
-sl-cli window3d --scenario s01_guards_counterattack --agent hard
+sl-cli launch
+sl-cli window3d --scenario lib01_grain_office --agent hard
 ```
 
+- `sl-cli launch` opens the menu of the package: the scenario, the side, the opponent, and
+  the window.
 - `--agent easy`, `normal`, or `hard` sets the computer opponent (agent v5, v6, or v7).
-  `--agent-side german` gives the computer the German side. The default is the second
-  side. With no `--agent` two persons play at one screen. `--agents v7,v6` lets two
-  computer opponents play, and the window shows the game.
-- The scenarios are `s01_guards_counterattack`, `s02_tractor_works`,
-  `s03a_streets_of_stalingrad`, and `s04_armor_probe` (the armor game).
-- On Windows, `play.bat` at the top of the tree starts `lib01_grain_office` against
-  the `normal` opponent. Type `.\play.bat` in PowerShell, with no options.
-- A player with no Python uses the package and its launcher (see "The package for players,
-  and the collection of played games").
-
-The window first shows the scenario card: the situation, the forces of each side, the turn
-record, and the victory conditions. Press Begin, Space, or Enter to start the game.
-`--no-briefing` starts the game with no card.
-
-How to play:
-
-- Set up: a tray at the bottom of the board shows each counter of your side. Click a
-  counter, and the hexes where it can go show in amber. Click one of them to place it.
-  Or drag the counter from the tray, and release it on an amber hex.
-- The amber hex at the pointer shows in green: the counter goes there.
-- When a hex refuses the counter, the line above the tray gives the cause: the set up
-  area of the counter, or the limit of rule 6.1 that the hex would go above. A hex of
-  the set up area that the stacking limit closes shows in dark red.
-- To move a counter that is on the board, click it on the board or in the tray: it goes
-  back to the tray, and you place it again. You can also drag it to a different amber
-  hex. Click Finish set up when you are satisfied.
-  Set up for me puts each counter of your side on the board for you.
-- A machine gun or other support weapon goes with a unit that carries it. Put your
-  squads and leaders on the board first. Then drag the weapon onto a shaded unit. A
-  leader cannot carry an MMG or an HMG, so only squads are shaded for them. On the board,
-  the weapon shows on top of the stack of its unit.
-- A load above the free portage of a unit costs movement factors. Right click the unit
-  to see its movement factors with the load.
-- To move a weapon, move the unit that carries it. The move label names the weapon, for
-  example "move 6-2-8 (with MMG) to C3". A weapon alone on a hex moves only after a unit
-  in that hex picks it up in the Movement Phase.
-- In the set up, right click a counter, on the board or in the tray, to read what each
-  value of the counter means. Escape, a click, or a second right click closes the box.
-- During the game, right click a unit on the board to open its menu. Or click the unit,
-  and then press Ctrl and Space. The menu shows the phase and each command of the unit
-  in this phase, in groups: fire, smoke, close combat, move, weapons and equipment, and
-  rally. Each row of a fire command gives its odds. Click a row to give that command.
-- The menu also has the commands of your side (end the phase, resolve the fire group),
-  About this unit, and Undo. Escape, a click off the menu, or a right click closes it.
-- The kinds of fire are the phases of the turn (rule 4): the Prep Fire Phase, the
-  Defensive Fire Phase, and the Advancing Fire Phase. In each fire phase, the menu shows
-  these commands:
-  - the fire of the unit with its own firepower
-  - the fire of each weapon that the unit carries
-  - the leader that directs a fire group
-  - the special weapons.
-
-  The rules have no different command for suppressive fire.
-- The Undo button is below the status at the top of the panel on the right. It cancels
-  the last command when no die rolled in it and the command showed you nothing new
-  of the other side: a placement, a move, or a unit that you added to a fire group. When
-  it is dim, nothing can be taken back. Ctrl and z does the same.
-- Click a hex to put its top unit in focus. A second click gets the next unit of the
-  stack. The overlay shades where the unit can move and what it can fire at. Click a
-  shaded hex to give that command. When the hex has more than one command, the list on
-  the right shows them.
-  - In the Movement Phase, the hexes of the next step are blue. The pale blue hexes are
-    the hexes that the unit can get to in the remaining part of the phase, with its
-    remaining movement factors. Click a pale blue hex to move the unit there by the
-    path of lowest cost. If a hex on the path stops the move, the unit stays at the
-    last hex it entered, and the window says where. Ctrl and z cancels the full move
-    when no die rolled in it. To select the path, click one blue hex at a time.
-  - A vehicle also shows the hexes it can get to, by its movement points. On the path
-    it faces each next hex, so only its first hex can cost more for the covered arc.
-    When a pivot makes the path cost less, the vehicle uses its one free pivot first. At
-    the end it faces the direction of its last step.
-  - A hex with a different vehicle of your side is not pale blue: a vehicle can go
-    through it, but it cannot stop there (rule 30.8). A move into rough terrain can roll
-    the breakdown die (rule 39.1), and then the move stops.
-  - In a fire phase, the legal targets are red. The orange hexes are in the range of the
-    unit or of a weapon it carries (rule 9.1), with a clear line of sight. The pale orange
-    hexes are in the long range (rule 9.2, half firepower). With strict line of sight
-    the window shows the targets only.
-  - Press Ctrl and o to hide or show these shades.
-- The hexes of the victory conditions are violet on the map. A violet hex that your side
-  controls is green. Click "Victory conditions" in the panel, or press Ctrl and v, to make
-  them strong. A box then gives the condition of the card and where you are at this time, for
-  example "You control 0 of the 5 violet hexes. You need 1 at the end of turn 5." Click
-  the button again, or press Escape, to close the box.
-- The panel on the right shows the turn and the turns that are left, for example "turn 2
-  of 5: 3 more turns after this one". In the last turn it says "the last turn".
-- At the end of the game a box in the middle of the board says "You won." or "You lost.".
-  It also gives the side that wins, the victory condition and its result, and the losses
-  of each side. Escape or a click closes the box. The side names are the names of the
-  card, for example Russian and German.
-- The list on the right has the legal commands. Click a row, or move with Tab and press
-  Enter. Type letters to make the list shorter. Ctrl and a sets up your side for you, and
-  Ctrl and z cancels your last command when it rolled no die.
-- The pointer on a hex shades the line of sight from the unit in focus to that hex. The
-  host gives the answer.
-- Each fire has its animation: tracers in the colours of the army (red for American and
-  British fire, green and sometimes white or yellow for German and Russian fire), the
-  shell of a gun, the flame, the smoke, and the burst. A dim, dark line stays from the
-  firer to the target, and a small burst on the target shows the result.
-- The game has sound for weapons fire, explosions, footsteps, and engines. Ctrl and m
-  turns the sound off or on. `--mute` starts the game with no sound.
-- The panel gives the action log with the rule, the dice, and the modifiers of each
-  result.
-- Drag to move the board, use the wheel to zoom, and right-drag to tilt and turn the 3D
-  camera. Ctrl and r sets the view again, Ctrl and i hides the overlay, and Ctrl and q stops
-  the game.
+  `--agent-side` gives the computer a side by its key in the scenario: `allied` or `axis`
+  in the library scenarios and in s04, and `german` or `russian` in s01 to s03a. The default
+  is the second side. With no `--agent` two persons play at one screen. `--agents v7,v6`
+  lets two computer opponents play, and the window shows the game.
+- The 12 library scenarios are `lib01_grain_office` to `lib12_the_long_front`. The tree
+  also has `s01_guards_counterattack`, `s02_tractor_works`, `s03a_streets_of_stalingrad`,
+  `s04_armor_probe` (the armor game), and three test scenarios (`s00_movement_drill`,
+  `s00b_combined_forces`, `s00c_two_board_advance`).
+- On Windows, `play.bat` at the top of the tree starts `lib01_grain_office` against the
+  `normal` opponent. `resume.bat` continues the newest saved game in `runs/games/`. Type
+  `.\play.bat` or `.\resume.bat` in PowerShell, with no options.
+- `--no-briefing` starts the game with no scenario card.
 
 The game saves after each command to `runs/games/<game_id>.jsonl`. The window gives the
 path when it starts. To continue a game:
@@ -158,7 +71,8 @@ Each terrain is a shape on the ground and not a hexagon of colour. A wood is a m
 crowns. A building is the plan of a structure that can cover more than one hex. A road is a
 ribbon that turns. A hill is a flat brown area with a crest line where the level changes.
 
-`tools/make_docs_images.py` makes these pictures from the generator, the board drawing, and the 3D window. The game pictures need the `view3d` extra.
+`tools/make_docs_images.py` makes these pictures from the generator, the board drawing, and the 3D window. The game pictures have to have the `view3d` extra.
+
 `docs/images/MANIFEST.json` gives the seed of each one, the release audit reads that
 manifest, and `tests/docs/test_documentation_images.py` makes each picture again and
 compares it. So each picture in this repository is the output of the code in it. A scan
@@ -172,7 +86,7 @@ A player sees that player's own units. A concealed enemy is a counter. A hidden 
 
 The boards come from a generator in the 1977 look, and the counters are new art from the 1977 values.
 
-Four play modes: two humans at one screen, or two clients on one LAN with a room code. Also a human against a computer opponent, and two computer opponents in a headless tournament. A client is a browser or the desktop window.
+Four play modes: two humans at one screen, or two clients on one LAN with a room code. Also a human against a computer opponent, and two computer opponents in a headless tournament. A client is the 3D window, the 2D window, or a browser. The 3D window is the primary front end.
 
 Four families of computer opponent, behind one interface:
 
@@ -187,6 +101,7 @@ Four families of computer opponent, behind one interface:
 flowchart LR
     Client[Browser client] --> Host[Local host]
     Window[Desktop window] --> Host
+    Window3D[3D window] --> Host
     Host --> Core[Rules core]
     Trainer[RL trainer] --> Core
     Harness[Model agent harness] --> Core
@@ -202,9 +117,9 @@ The core gets a state and a command and gives a new state, the events with their
 |---|---|
 | Owner workstation | Windows 11, one NVIDIA GPU. Linux also supported. |
 | Core, host, trainer, harness | Python 3.12 or a subsequent version |
-| Client | TypeScript, Vite, a browser. Also a desktop window with pygame-ce, on Windows and on Unix |
+| Client | The 3D window with Panda3D and the 2D window with pygame-ce, on Windows and on Linux. Also a browser client in TypeScript and Vite |
 | Local models | An OpenAI-compatible server (llama-server, Ollama, vLLM, LM Studio) on the LAN |
-| SaaS models | Anthropic in year one. OpenAI, Gemini, xAI, Mistral at the release candidate |
+| SaaS models | Claude, OpenAI, Gemini, xAI, and Mistral (`src/sldata/providers.json`) |
 | Training | PPO in raw torch on one GPU. A LoRA fine-tune of a 7B to 14B model on one GPU |
 
 ## Quick start (development)
@@ -224,6 +139,18 @@ python -m pip install -e ".[train]"
 # For the desktop window, which needs a 2D game library:
 python -m pip install -e ".[desktop]"
 ```
+
+The other extras of `pyproject.toml`: `play` (the two windows), `view3d` (Panda3D only),
+`browser` (Playwright, for `tests/browser/`), `shape` (`sl-cli shape`), `finetune`
+(`sl-cli finetune`), and `package` (PyInstaller, for `tools/package.py`).
+
+The first run of `pytest tests/` has some failures in the tests that compare the windows
+with the browser client (`tests/browser/test_render_constants.py`, `test_play_ui.py`,
+`test_strict_status.py`, `tests/host/test_annotate_coverage.py`, and
+`tests/window/test_road_sides.py`). The browser client in `client/src/` is older than the
+windows, and these tests stay unsatisfactory until the newer client comes in. A test of
+`tests/browser/` also has to have the `browser` extra and `python -m playwright install
+chromium`.
 
 On Ubuntu and on Debian, `python` is not a command. Use `python3`, and install the two
 packages that make a virtual environment:
@@ -290,15 +217,18 @@ So a game of two computer opponents shows the marks of the unit that plays.
 The pointer on a hex shades the line of sight from the focus unit to that hex, from the
 answer of the host. A fire is a thin dashed line in the tone of its phase: the prep fire,
 the defensive fire, or the advancing fire. A small burst on the target shows the result.
-The arrow keys and the wheel move the board and change its dimension. `f` fits the board
-in the window, `s` writes a picture, Escape clears the focus, and `q` stops.
+
+The arrow keys and the wheel move the board and change its dimension. Ctrl and f fits the
+board in the window, Ctrl and s writes a picture, Escape clears the focus, and Ctrl and q
+stops. A person who only watches can use these letters without Ctrl. For a seated person,
+a letter goes to the filter of the list.
 
 When the host sets strict mode, the line of sight answer is for a fire phase only.
 
 `sl-cli window3d --agents v6,v6` shows the same game in a 3D window. It has the same
 overlay, the same click, and the same pointer, and it adds the fire animations and the sound. The `play`
-extra installs it (`pip install -e ".[play]"`). `i` hides the overlay, and `o` hides the
-marks of the focus unit. "Play the game" above gives the options for a person.
+extra installs it (`pip install -e ".[play]"`). Ctrl and i hides the overlay, and Ctrl and o
+hides the options of the focus unit. `docs/PLAYER_GUIDE.md` gives the keys for a person.
 
 `python tools/make_docs_images.py` makes the pictures that this file shows. Run it after a
 change to the board drawing. The test in `tests/docs/` compares what the tool makes with
@@ -332,7 +262,15 @@ python tools/package.py                                   # the collector is tar
 python tools/package.py --collector https://collect.example.org
 ```
 
-The output is `dist/SquadLeaderExpeditionem/` and an archive: `SquadLeaderExpeditionem-<version>-windows-x64.zip` or `...-linux-x64.tar.gz`. The Windows folder is 155 MB. The package does not have torch or numpy, so the menu offers the scripted computer players only. `READ_ME_FIRST.txt` in the folder tells the player how to play and what the game sends (`tools/package_readme.txt`). The build stops if a key file is in the folder.
+The output is `dist/SquadLeaderExpeditionem/` and an archive: `SquadLeaderExpeditionem-<version>-windows-x64.zip` or `...-linux-x64.tar.gz`. The Windows folder is 142 MB, and the archive is 58 MB. `--dist DIR` writes to a different folder, and `--no-archive` makes no archive. The package does not have torch or numpy, so the menu offers the scripted computer players only.
+
+The folder has these texts:
+
+- `READ_ME_FIRST.txt` (`tools/package_readme.txt`): how to start, how to continue a saved game, the player key, and what the game sends.
+- `HOW_TO_PLAY.md` (`docs/PLAYER_GUIDE.md`): how to play.
+- `THIRD_PARTY.txt` (`tools/package_third_party.txt`) and `licenses/`: the licence of each third-party part.
+
+The build removes the files of the libraries that the game does not use (`PRUNED` in `tools/package.py`). The build stops if a key file is in the folder.
 
 Each game saves to the data directory of the player: `%LOCALAPPDATA%\SquadLeaderExpeditionem\games` on Windows and `~/.local/share/squad-leader-expeditionem/games` on Linux. The save file is the full record of the game: the seed, the switches, and each command with its source (`human`, `agent`, `route`, or `forced`). The trainer makes each position and each decision again from it. A game with no command of a person stays on the computer.
 
@@ -343,10 +281,13 @@ When the player agreed and has a player key, the launcher sends the games at its
 - Make a key for each player on the workstation: `sl-cli collect key add <name>`. The store is `collect_keys.key.txt`, and the player file is `collect_players/<name>/collect.key.txt`. Give the player that file. It goes next to the game executable. `sl-cli collect key revoke <name>` stops one key.
 - Install or update the collector on tars: `python tools/collect_deploy.py`. After a new key, `python tools/collect_deploy.py --keys-only` copies the store, and the collector reads it with no restart.
 - The collector listens on port 5170 and keeps the games in `~/squad_leader_collect_data` on the host: `games/` (verified), `unverified/`, and `index.jsonl`. `sl-cli collect status --data <folder>` gives the counts.
+- To run a collector by hand: `sl-cli collect serve --data collected --keys collect_keys.key.txt --bind 0.0.0.0 --port 5170`. These are the default values. `--bind 127.0.0.1` keeps it on the local computer. `sl-cli collect key list` gives the names of the keys.
 - Each request has an HMAC with the player key, a time, and a nonce. The key does not go on the network. The server is plain HTTP. An Internet collector must have TLS in front of it.
 - `sl-cli collect send` sends the saved games of a computer by hand. `sl-cli launch` starts the launcher from the source tree.
 
-A LAN game: the host selects "you are the host". The launcher shows the address of the computer and a room code, and the host window accepts connections on port 8731 (`--lan-port`). The other person selects "join a game" and types the address and the code.
+A LAN game: the host selects "you are the host". The launcher shows the address of the computer and a room code, and the host window accepts connections on port 8731. The other person selects "join a game" and types the address and the code.
+
+From the source tree, the host starts `sl-cli window3d --scenario NAME --lan --lan-port 8731 --room-code CODE`. The other person starts `sl-cli window3d --scenario NAME --connect ws://ADDRESS:8731/ --room-code CODE`. With `--lan` and no `--lan-port`, the host accepts connections from the same computer only.
 
 ## The game farm
 
@@ -399,10 +340,10 @@ A name with no port uses port 5160. The server listens on 127.0.0.1 unless it ge
 
 | Item | State |
 |---|---|
-| Research report with eight appendices | Done |
+| Research report with ten appendices | Done |
 | Vision, Requirements, Success Criteria | Done, after two multi-AI reviews |
-| Architecture | Done, v0.2, after the second multi-AI review |
-| Code | Slices 1 to 6: rules 1 to 21, scenario 1, the conformance corpus, replay, run artifacts, the tournament, the host, the browser client, and the board generator |
+| Architecture | Updated 2026-10-28 to the code as built |
+| Code | Rules 1 to 44, the 12 library scenarios, and scenarios 1 to 4. The conformance corpus, replay, run artifacts, the tournament, and the host. The 3D window, the 2D window, and the browser client. The board generator, the computer players, and the farm. The package and the collection of played games |
 | v0.1 headless rules proof | Complete. A run artifact records each of the gates TC-01, TC-02, TC-04, TC-05, TC-08, TC-09, TC-10, and TC-38 |
 | Throughput | 9,279 environment steps/s at 8 workers on the complete scenario 1 for 10 minutes (2026-09-24, `runs/bench_nfr01_20260924_w8.json`), against a gate of 3,500 |
 | v0.2 browser hot seat | The host, the client, and the browser test are done. BC-01 waits for the owner to play one game |
@@ -428,14 +369,14 @@ A name with no port uses port 5160. The server listens on 127.0.0.1 unless it ge
 | The local model pool | `model:local*` is the pool of the five llama.cpp servers of the owner's network: four desktops and the workstation's RTX 5090, one model each. The seed of a game picks its host and the others are its failover, so `sl-cli gauntlet --workers 4` keeps the four desktops busy. A `request` field of a provider row goes into each request, and the local rows turn the thinking of Qwen3 off. `sl-cli gauntlet --progress` prints one line for each game that ends |
 | Parameter evolution | `sl-cli evolve` runs a (mu + lambda) evolution strategy on the named parameters of v7. Each candidate of a generation plays the same seeds against a fixed panel as each side. The elites play again in each generation, and the artifact names the best as a `v7[...]` text a person can play |
 | The shape study | `sl-cli shape` records the position at the end of each Movement Phase and each Advance Phase of many games. A position is a picture and a set of shape statistics, with the winner. The analysis gives the AUC of each statistic between the winners and the losers. It gives the information of the shape on top of the material in a cross validated model, and a picture net with its occlusion map |
-| The odds | `slagents.scripted.odds` gives the expected result of a fire group at a hex, as counts out of 1,296. It reads the same fire functions as the core. A leader who breaks does not help the next unit in that hex. A chain of hexes uses the rating that helps the firer less (QA-15.2). One test on 1,500 states agrees with the core. v7 and the model prompt read only the enemy units the player can see, and v7 forms a fire group by that loss |
+| The odds | `slagents.scripted.odds` gives the expected result of a fire group at a hex, as counts out of 1,296. It reads the same fire functions as the core. A leader who breaks does not help the next unit in that hex. A chain of hexes uses the rating that helps the firer less (QA-15.2). One test on 1,500 game positions agrees with the core. v7 and the model prompt read only the enemy units the player can see, and v7 forms a fire group by that loss |
 | Rules, 2026-09-23 | The armour kill modifier goes on the attacker dice. A flamethrower, a demolition charge, a panzerfaust, and a bazooka stay out of a fire group. A squad fires at most four panzerfausts in one player turn. Canister fire and machine-gun fire spend an empty hex and stop on a wall. A killed unit drops its weapons, and close combat removes a broken squad first. A leader on a machine gun does not modify morale |
 | Learner, 2026-09-23 | The policy has four heads, and the option list holds 64 commands. The planes and the sneak term omit a hidden or concealed enemy. The load uses `weights_only=True`. A provider redirect is an error, and the key stays on the first host. A factory hex that each side counts pays one time |
 | Host, 2026-09-23 | An unjoined socket gets no frame. An incorrect room code closes the socket. A second join from a connection that holds a seat is refused. The origin check uses the address the server bound. The 3D side panel writes a draw error to the error stream and keeps the last good panel |
 | Training methods | Imitation of the scripted agents with DAgger rounds. Then PPO with a league, an anchor to the start policy, a warm-up of the value head, and Jump-Start RL. `docs/ARCHITECTURE.md` section 9.5 gives each method of the computer players, and what each one gave |
 | The game farm, 2026-10-14 | Four Linux hosts play the games of a gauntlet and an evolution, and hold 120 PPO workers. A gauntlet is 4.2 times faster. A PPO run gives 1,789 steps/s, and 16 local workers give 288.5 |
 | s04, 2026-10-14 | The change of the armor scenario gives a balance: v7 against v7 gives the Axis 832 of 1,600 games |
-| Learned s04 attacker, 2026-10-15 | PPO for 40,000,000 decisions against v7: 5 of 20 attacks against v7 won, and the clone won 0. The other panel agents win 20 of 60. A league of v3, v6, and v7 for 40,000,000 decisions more: the Axis wins 11 of 20 against v6, equal to the panel, but 1 of 20 against v7. A curriculum with gates (v6, then v3, then v7) for 20,000,000 decisions more: gauntlet 58.1 percent. The Axis wins 11 of 20 against v3, 18 of 20 against v6, and 4 of 20 against v7. Two chunks more with v7 in the league (20,000,000 decisions): gauntlet 63.7 percent, second after v7. The Axis wins 10 of 20 against v7, and the panel 20 of 60. Chunk 5 (10,000,000 decisions): gauntlet 66.9 percent, Elo 1743, 9 points below v7. The Axis wins 46 of 100 in the gate against v7 and 11 of 20 in the gauntlet. Chunk 6: gauntlet 60.6 percent, because the Allied side became worse (1 of 20 against v7), so chunk 5 stays the best net. Chunk 7 trains the two sides from chunk 5: gauntlet 67.5 percent, Elo 1757 (v7 1783). In the gate against v7 the Axis wins 56 of 100 and the Allied side 31 of 100. Chunk 8, the two sides again: gauntlet 70.6 percent, Elo 1787, rank 1 above v7 (1738). It is the first learned s04 net above each scripted agent |
+| Learned s04 attacker, 2026-10-16 | PPO from a clone of the scripted agents, then a league and a curriculum (v6, v3, v7), then chunks that train the two sides. After chunk 8 the net is rank 1 of the gauntlet (70.6 percent, Elo 1787, v7 1738). It is the first learned s04 net above each scripted agent. `docs/ARCHITECTURE.md` section 9.5 and `VIBE_HISTORY.md` give each chunk |
 | Attack movement, 2026-10-20 | In the Movement Phase a learned net selects a destination for a unit or a stack, and the agent plays its steps. A move back into a held hex goes last. The reward pays a side for each hex that its squads come nearer to its objective. After three PPO chunks on L02 the net is rank 3 of 5 in the gauntlet (58.1 percent). The first method gave rank 5 (34.4 percent). It attacks better against v3, v5, and v6, but it won 0 of 20 attacks against v7 (`docs/reports/2026-10-20_attack_movement_design.md`) |
 | Review pass, 2026-09-24 | The frame ID is an opaque token for each connection, and no client gets a state hash. A seat token gets a seat back after a drop. The host names each unit, labels each legal command with its hexes and its odds. The undo cancels a command that rolled no die. `sl-cli host --resume FILE` continues a saved game with a hash check at each command. The engine is a table of handlers, and `slcore.api` is the public surface of the core |
 
@@ -444,6 +385,10 @@ What works: `sl-cli play --scenario s01_guards_counterattack` plays scenario 1 h
 `sl-cli boards --write <directory> --count 12` writes three boards of each type and the empty score sheet of TC-14b. `python tools/audit_release.py` runs the release audit.
 
 `sl-cli host --agents v1,v2 --agent-delay 0.3 --open-browser` plays a game between two computer opponents and opens a browser that shows it. `sl-cli window --agents v1,v2` does the same in a window of its own, with no browser.
+
+`sl-cli cards --scenario NAME --out DIR` writes the printable scenario card of a scenario, and `--all` writes a card for each scenario. It has to have the `desktop` extra.
+
+`sl-cli traces --source DIR --out FILE` makes a data set from the trace files of the games (FR-60). `sl-cli finetune --data FILE --out DIR` fine-tunes a local language model on it with LoRA. `--smoke` runs fifty steps, `--full` runs the year-one profile, and `--export` writes the GGUF file. It has to have the `finetune` extra. A trace from a reference-mode board goes into the data set only with `--local-only`, and then the data set stays on this machine (SR-10).
 
 `sl-cli campaign --draw 12` writes twelve random scenarios and plays none of them. `sl-cli campaign --seed 11 --scenarios 6` plays a campaign and writes the personnel file of each scenario. A scenario name of the form `random:500` is a scenario that the seed 500 builds, so `sl-cli play --scenario random:500` plays it.
 
@@ -456,7 +401,9 @@ sl-cli library check --slot L04 --seed 3 --board-seed 2 --agents v3,v6,v7
 sl-cli library search --slot L04 --seed 3 --board-seeds 1-20 --remote tars,case,kipp,plex
 ```
 
-`draw` writes one candidate to `runs/library/<slot>/`. The draw seed sets the forces, the turns, and the victory condition, and the board seed sets the board. `check` plays each agent against itself on the two sides, and each game must end. `search` screens each board seed with 200 games of v7 against v7. Then the 3 candidates nearest to 50 percent play 1,600 more games each (`--confirm-top`), and it says if the first side wins 45 to 55 percent. `--seeds 1-10` screens other draw seeds too, which gives other forces in the bands of the slot. A candidate plays as `file:<path>`, so the farm can play it.
+`draw` writes one candidate to `runs/library/<slot>/`. The draw seed sets the forces, the turns, and the victory condition, and the board seed sets the board. `check` plays each agent against itself on the two sides, and each game must end. `search` screens each board seed with 200 games of v7 against v7. Then the 3 candidates nearest to 50 percent play 1,600 more games each (`--confirm-top`), and it says if the first side wins 45 to 55 percent.
+
+`--seeds 1-10` screens other draw seeds too, which gives other forces in the bands of the slot. A candidate plays as `file:<path>`, so the farm can play it.
 
 What is decided: see `VIBE_HISTORY.md`.
 
@@ -464,11 +411,13 @@ The printed board layouts are not in this repository. Generated mode makes a boa
 
 ## Companion documents
 
+- `docs/PLAYER_GUIDE.md`: how to play the game
+- `docs/ASSET_PROVENANCE.md`: where each picture, colour, and sound comes from
 - `docs/VISION.md`: direction, the five bets, the three-year arc
 - `docs/REQUIREMENTS.md`: the requirements with IDs and tiers
 - `docs/SUCCESS_CRITERIA.md`: the measurable gates and the test plan
 - `docs/ARCHITECTURE.md`: the design with the cause of each decision
-- `docs/2026-09-07_Squad_Leader_Digital_Edition_Research.md`: the evidence, with the eight appendices in `docs/research/`
+- `docs/2026-09-07_Squad_Leader_Digital_Edition_Research.md`: the evidence, with the ten appendices in `docs/research/`
 - `tasks/todo.md`: the slice plan
 - `tasks/lessons.md`: corrections and surprises
 - `VIBE_HISTORY.md`: the session log, newest first

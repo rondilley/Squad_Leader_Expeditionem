@@ -39,6 +39,32 @@ def test_a_key_file_in_the_package_stops_the_build(tmp_path):
         package.check_no_keys(tmp_path)
 
 
+def test_the_build_removes_the_unused_third_party_files(tmp_path):
+    internal = tmp_path / "_internal"
+    for rel in ("pygame/examples/data/a.png", "pygame/tests/t.py", "pygame/docs/d.html", "panda3d/fmodex64.dll",
+                "panda3d/libp3fmod_audio.dll", "panda3d/libpandadx9.dll", "panda3d/d3dx9_43.dll"):
+        (internal / rel).parent.mkdir(parents=True, exist_ok=True)
+        (internal / rel).write_bytes(b"x")
+    kept = ("pygame/freesansbold.ttf", "panda3d/libpandagl.dll", "panda3d/libp3openal_audio.dll", "panda3d/cg.dll")
+    for rel in kept:
+        (internal / rel).write_bytes(b"x")
+    package.prune(tmp_path)
+    left = sorted(p.relative_to(internal).as_posix() for p in internal.rglob("*") if p.is_file())
+    assert left == sorted(kept)
+
+
+def test_the_package_has_the_licence_of_each_third_party_part(tmp_path):
+    package.write_licences(tmp_path)
+    licences = tmp_path / "licenses"
+    assert (licences / "Python-LICENSE.txt").stat().st_size > 1000
+    assert "LESSER GENERAL PUBLIC LICENSE" in (licences / "LGPL-2.1.txt").read_text(encoding="utf-8")
+    for name in package.LICENSED:
+        assert any((licences / name).iterdir()), name
+    notice = (tmp_path / "THIRD_PARTY.txt").read_text(encoding="utf-8")
+    for name in ("licenses/Python-LICENSE.txt", "licenses/LGPL-2.1.txt", *(f"licenses/{n}/" for n in package.LICENSED)):
+        assert name in notice, name
+
+
 def _tree(tmp_path: Path) -> Path:
     (tmp_path / "src" / "pkg").mkdir(parents=True)
     (tmp_path / "src" / "pkg" / "m.py").write_text("x = 1\n", encoding="utf-8")

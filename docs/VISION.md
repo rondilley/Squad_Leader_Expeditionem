@@ -1,23 +1,29 @@
 # Squad_Leader_AI: Vision
 
-Status: Draft v0.3, strategic north star, after the second multi-AI review
+Status: Draft v0.4, strategic north star, after the second multi-AI review and the direction changes of 2026-10
 Author: Ron Dilley
-Last updated: 2026-09-07
+Last updated: 2026-10-28
 Companion documents: `REQUIREMENTS.md` (year-one engineering scope), `SUCCESS_CRITERIA.md` (measurable outcomes), `ARCHITECTURE.md` (year-one design), `2026-09-07_Squad_Leader_Digital_Edition_Research.md` (the evidence)
 
 This document is the strategic north star. It gives the cause for the project, the persons with an interest in it, the three-year arc, the bets, and the anti-goals. Use this document to argue about direction. Use the other documents to argue about the build.
 
-Naming note: the repository is `Squad_Leader_AI`. The game gets a different public title before a release, because the research shows that "Squad Leader" as a brand is a trademark risk (see section 4, bet 5). In this document "the game" means the software this project builds. "Squad Leader" means the 1977 Avalon Hill board game with the rules that the software plays. This project is not affiliated with, sponsored by, or endorsed by Hasbro or Multi-Man Publishing.
+Naming note: the repository is `Squad_Leader_AI`. The public title of the game is "Squad Leader Expeditionem", which the owner named on 2026-09-18. The research shows that "Squad Leader" alone as a brand is a trademark risk (see section 4, bet 5). Each place that shows the title also has the non-affiliation notice.
+
+In this document "the game" means the software this project builds. "Squad Leader" means the 1977 Avalon Hill board game with the rules that the software plays. This project is not affiliated with, sponsored by, or endorsed by Hasbro or Multi-Man Publishing.
 
 ## 1. The vision in one paragraph
 
-By 2027-09 Ron plays the 1977 Squad Leader rules in a browser against a computer opponent. That opponent learned its tactics by self-play. The game shows a log for each action with the rule number, the dice, and the modifiers. The same engine runs three more ways: two humans at one screen, two browsers on the LAN, and computer against computer for training and tournaments.
+By 2027-09 Ron plays the 1977 Squad Leader rules in the 3D window against a computer opponent. That opponent learned its tactics by self-play and from the games that persons played. The game shows a log for each action with the rule number, the dice, and the modifiers. The same engine runs three more ways: two humans at one screen, two windows on the LAN, and computer against computer for training and tournaments.
+
+The 3D window (`sl-cli window3d`) is the front end. The owner uses only it. It has a 2D camera and a 3D camera, and a hill stands up in three dimensions. The 2D window (`sl-cli window`) has the same play input. The browser client is older, and it gets no new features.
 
 Computer opponents come in four families. Scripted agents follow constant tactics with tunable parameters. Learned agents are neural networks that train by self-play on the owner's workstation. They get better from one generation to the next. Prompted model agents use local models or SaaS models through one provider interface, and the engine keeps them legal.
 
 Tuned model agents are local language models, small or large, fine-tuned on this game's own traces. They play through the same harness with constrained decoding. <!-- Owner directive 2026-09-07: tuned local model as a fourth agent family -->
 
-The boards look like the 1977 boards but come from a generator. Thus the project ships no Avalon Hill art. The first year ships Game Set I, the infantry game with scenarios 1 to 3. The subsequent years add the armor game, the design-your-own tools, and the campaign game.
+The boards look like the 1977 boards but come from a generator. Thus the project ships no Avalon Hill art. The scenarios are a library of 12 project scenarios (`lib01_grain_office` to `lib12_the_long_front`). They are not copies of the 1977 cards (owner directive, 2026-10-16). Each one is balanced: v7 against v7 gives the first side 45 to 55 percent in 1,600 games.
+
+A package for players installs the game with no Python. Each game that a person plays can go to a collector, with the consent of the player. Self-play cannot give the decisions of persons, and the training must have them. A game farm of four Ubuntu hosts plays the games of the balance searches, the evolution, and the training.
 
 ## 2. Why a rules engine, not a play surface
 
@@ -39,6 +45,7 @@ The arithmetic is the same as for a platform. Each play mode and each agent fami
 |---|---|---|
 | Ron Dilley | Owner, sole developer, first player | A faithful, playable game. AI opponents that get better. Local and SaaS models work. A build that a future session can continue without re-derivation. |
 | Ron's human opponents | Players at the same screen or on the LAN | Correct rules, a readable board, a simple procedure to connect, and no accounts. |
+| Players of the package | Persons who install the package and play the library scenarios | An install with no Python, a question before the game sends a record, and a key of their own. |
 | The Squad Leader solo community | The BoardGameGeek and SQLA players | An opponent that obeys the printed rules and shows its work. LOS and table lookups automated, with the tabletop feel available as a switch. |
 | Hasbro and Multi-Man Publishing | Rights holders and licensee | Their copyright in the art and the rules text and their trademark in the name. They tolerated VASL and the SQLA rules project for decades, but tolerance is not a license. |
 | Squad Leader Academy and the VASL developers | Prior digital keepers | Credit for the softcopy rules, the scenario scans, and the LOS engine. No copies of their graphics. |
@@ -62,13 +69,13 @@ Mitigation: the engine encodes the official Q and A rulings with their reference
 
 ### Bet 2: One engine, many consumers, with a measured gate
 
-The claim: one rules core with no input or output is the engine for all consumers. The consumers are the browser, the LAN host, the trainer, the model agent harness, and replay. The core is deterministic from a seed and a command log.
+The claim: one rules core with no input or output is the engine for all consumers. The consumers are the two windows, the browser, the LAN host, the trainer, the model agent harness, replay, the farm hosts, and the collector. The core is deterministic from a seed and a command log.
 
 Why it is right: each consumer that a second engine would supply is a source of drift. The research found mature projects that ship one core to a browser and to Python. A conformance battery that each binding runs is the proven test strategy.
 
 Where it breaks: the owner selected a Python core first. CPython is 10 to 200 times slower than Node.js on compute-bound benchmarks. Reinforcement learning at 100 million to 300 million steps must have about 3,500 environment steps/s end to end to complete in 24 hours.
 
-Mitigation: the throughput gate is a year-one milestone. Ron measures it on the training workstation before a long run.
+Mitigation: the throughput gate is a year-one milestone. Ron measures it on the training workstation before a long run. The gate summary of 2026-09-24 (`gates/bench.json`) gives 9,279.2 steps/s at 8 workers for 600 s. Thus the core stays in Python.
 
 If the Python core cannot give the gate, the core moves to Rust with PyO3 and wasm-bindgen bindings before training starts. The core has no input or output and a JSON conformance battery, so the port is bounded and testable. It is its own milestone with its own budget, not a mechanical step. <!-- AI review 20260907-160656: openai -->
 
@@ -96,23 +103,27 @@ Why it is right: the closest paper (arXiv 2502.13918) shows AlphaZero learns a h
 
 Where it breaks: no paper tried a game with dice, morale, rout, and concealment at this scale on one GPU. The policy can learn nothing useful, or learn a passive style that humans do not enjoy.
 
-Mitigation: behavior cloning from human, scripted, and model-agent replays when 200 games are available. Scripted bots tuned by CMA-ES stay as constant opponents and as the fallback opponent. Elo against constant opponents measures the league, not the score against the current self.
+Mitigation: imitation of the scripted teachers (`sl-cli imitate`) gives the start net, and Jump-Start RL and the routes help the attack. The evolution of the scripted agents (`sl-cli evolve`) gives a stronger teacher for each library scenario. The games that persons play come in through the collection, for imitation of human decisions. Elo against constant opponents in the gauntlet measures the result, not the score against the current self.
 
-### Bet 5: New art in the 1977 style, boards from a generator, and a different name keep the project safe
+On 2026-10-26 a learned net of 10 million steps ranked above v7 in the gauntlet on three of the twelve library scenarios (L03, L07, L08). The attack against v7 stays weak on most scenarios.
 
-The claim: the game can look like the board game without one Avalon Hill pixel. Counter values and their positions are functional. The silhouettes, colors, and board art are new. Boards come from a generator that keeps the geomorphic edge rules, the hex geometry, and the 1977 look. The four 1977 layouts stay as private reference data that the project does not ship.
+### Bet 5: New art in the 1977 style, boards from a generator, project scenarios, and a different name keep the project safe
+
+The claim: the game can look like the board game without one Avalon Hill pixel. Counter values and their positions are functional. The silhouettes, colors, and board art are new. Boards come from a generator that keeps the geomorphic edge rules, the hex geometry, and the 1977 look. The four 1977 layouts stay as private reference data that the project does not ship. 
+
+The scenarios are the project's own. A project tool makes the cards, the forces, the turns, and the victory conditions.
 
 Why it is right: four court cases that agree with each other and the Copyright Office give no protection to rules, mechanics, or tables. They give full protection to art and to a fanciful look and feel. Freeciv, OpenTTD, FreeCol, and TripleA survived on that line. Scrabulous did not.
 
-Where it breaks: a board from the generator can miss the owner's taste test, and the 12 printed scenarios use the four 1977 layouts.
+Where it breaks: a board from the generator can miss the owner's taste test. A project scenario can be one-sided, or its card can say a thing that the rules do not do.
 
-Mitigation: the taste test gets a written rubric in year one. The scenarios run on the private reference layouts on the owner's machine. A permission request to MMP or Hasbro is a path if the project ever wants to ship the layouts. Renegade Game Studios has a streamlined Squad Leader in digital playtest, so an official digital product is possible, and the project stays non-commercial.
+Mitigation: the taste test gets a written rubric in year one. Each library scenario has a balance search on the farm and a check of each card sentence against the code. The printed scenarios 1, 2, and 3A stay in the tree for the tests only. A permission request to MMP or Hasbro is a path if the project ever wants to ship the layouts. Renegade Game Studios has a streamlined Squad Leader in digital playtest, so an official digital product is possible, and the project stays non-commercial.
 
 ## 5. The three-year arc
 
 ### 5.1 Year 1 (2026-09 to 2027-09): Foundation
 
-Theme: the infantry game plays correctly in the browser, with all four play modes, and the training loop runs.
+Theme: the game plays correctly in the 3D window, with all four play modes, and the training loop runs.
 
 The work runs in sequence: <!-- AI review 20260907-160656: gemini, xai, openai -->
 
@@ -120,14 +131,18 @@ The work runs in sequence: <!-- AI review 20260907-160656: gemini, xai, openai -
 - v0.2: browser hot seat against a local host
 - v0.3: scenarios 2 and 3A with LAN
 - v0.4: the learning ladder and the model agents
+- the MVP (2026-10-10): a person plays a full game in the 3D window
+- the scenario library (2026-10-16 to 2026-10-18)
+- the package for players and the collection of played games (2026-10-27)
 - then the release candidate
 
 End-of-year state:
 
-- The rules core plays rules 1 to 27 (Game Set I plus sewers) with rule IDs and an action log. A JSON conformance battery covers each rule with a minimum of one case.
-- Scenarios 1, 2, and 3 (with variation 3A) play from data files that follow the scenario card schema.
-- The browser client renders boards from the generator in the 1977 style and new counters. It has pan, zoom, a switchable tabletop mode, and the LOS tool at the times the rules let a player use it.
+- The rules core plays rules 1 to 44 with rule IDs and an action log. Rules 1 to 27 are Game Set I and the sewers. Rules 28 to 41 are the armor game. Rules 42, 43, and 44 are hidden placement, elevation, and the rural terrain. A JSON conformance battery covers each rule with a minimum of one case.
+- The 12 library scenarios play from data files that follow the scenario card schema. Each one is balanced on the farm. The printed scenarios 1, 2, 3A, and the armor scenario 4 stay for the tests.
+- The 3D window renders boards from the generator in the 1977 style and new counters. It has the set up tray and the menu of a unit. It shows the reach and the field of fire of a unit and the victory conditions on the map. The LOS tool is available at the times the rules let a player use it.
 - Hot seat play works against a local host process. LAN play works through the same host with a room code and a per-player view.
+- The package installs the game on Windows and on Linux with no Python. The launcher gets the consent of the player one time. The collector plays each game of a person again through the core, and then it keeps the game.
 - Three scripted opponents play all three scenarios. One prompted model agent plays through the engine-verified harness on a local model and on one SaaS model, with the metrics recorded. One tuned model agent, a local model fine-tuned on the game's traces, plays the same tournament, and the four families are compared on one table.
 - Ron measured the throughput gate. The Python core gives 3,500 steps/s, or the Rust port is complete.
 - The learning ladder ran: 1 million steps for a sanity signal, 10 million for a pilot, then a minimum of 100 million. The learned agent's Elo against versioned scripted bots is recorded with confidence intervals.
@@ -139,11 +154,12 @@ Theme: the armor game, the design-your-own tools, and a league that gets better.
 
 End-of-year state:
 
-- Rules 28 to 63 play, when a readable copy of the second data card page is in hand. Scenarios 4 to 12 play on the private reference layouts.
+- Rules 45 to 63 play. Rules 47 and 51 (halftracks and trucks) come first. A library scenario can use a rule only after the core has it.
 - The design-your-own tools from Game Set IV work: random scenario construction, point values, and the campaign game with a personal leader.
-- The league runs unattended, with snapshots, scripted bots, and model agents as test opponents. Population-based training tunes the scripted bots and the reward weights.
+- The league runs unattended on the farm, with snapshots, scripted bots, and model agents as test opponents. The evolution tunes the scripted bots for each library scenario.
+- A collector on the Internet, with its own name and TLS, gets the games of the players of the public package. The games of persons go into the imitation data.
 - Play by email through the command log works, because the log is the game.
-- The project has its public title and a first public GPL-3 release.
+- The project has a first public GPL-3 release with its public title.
 
 ### 5.3 Year 3 (2028-09 to 2029-09): Scale
 
@@ -161,19 +177,18 @@ Year-one anti-goals:
 
 - No Advanced Squad Leader. Different game, different rulebook.
 - No gamettes. The engine design makes an overlay possible, but Cross of Iron, Crescendo of Doom, and GI: Anvil of Victory are not year-one or year-two work.
-- No accounts, no internet matchmaking, no hosted server. A room code on the LAN is the full identity story, and LAN play is trusted-party convenience with no confidentiality guarantee.
+- No accounts, no internet matchmaking, and no hosted game server. A room code on the LAN is the full identity story, and LAN play is trusted-party convenience with no confidentiality guarantee. The collector is the one server. It gets signed uploads of game records and gives no game to a player.
 - No shipped Avalon Hill art, scans, board layouts, or rulebook text. Reference copies stay on the owner's machine.
 - No use of "Squad Leader" or "Avalon Hill" as the brand.
 - No commercial use. The project stays free and GPL-3.
 - No board images to the model agents. Text state only.
 - No AlphaZero, MuZero, or search-based training in year one. Model-free PPO first.
 - No self-play reinforcement learning on a language model in year one. A LoRA fine-tune on game traces is year-one work, and the self-play step waits for its result.
-- No armor until the armor tables are sourced.
 
 Architecture anti-goals:
 
 - No second rules engine. One core, and each consumer uses it through a binding.
-- No JavaScript rules. The browser gets the core through a binding or through a thin client, not through a port.
+- No JavaScript rules. The browser gets the core through a binding or through a thin client, not through a port. The 3D window and the 2D window are thin clients of the host in the same way.
 - No CRDT for game state. A wargame rejects moves. An authoritative host makes the decision.
 - No dice out of the core. One seeded generator, one command log, one state hash.
 
@@ -189,13 +204,13 @@ Three checkpoints. None is guaranteed.
 
 ### 7.1 At the end of year one
 
-Ron plays scenario 1 in a browser against a scripted opponent, against a prompted model agent, and against a tuned model agent. The action log shows the rule number for each result. A second person plays Ron on the LAN with a room code. The conformance battery gives zero failures for rules 1 to 27.
+Ron plays a library scenario in the 3D window against a scripted opponent, against a learned agent, and against a prompted model agent. The action log shows the rule number for each result. A second person plays Ron on the LAN with a room code. The conformance battery gives zero failures for rules 1 to 44. The collector keeps the games of persons, and the imitation reads them.
 
 The throughput gate has a measured number. A 100 million step training run has an Elo number against the scripted bots. The boards from the generator satisfy the written look rubric.
 
 ### 7.2 At the end of year two
 
-All 12 scenarios play. The learned agent beats each scripted bot in more than half of its games. The league runs unattended for a week without a crash. The project has its public title and a first public release.
+The learned agent beats each scripted bot in more than half of its games on each library scenario. The league runs unattended for a week without a crash. The project has its public title and a first public release.
 
 ### 7.3 At the end of year three
 
@@ -209,12 +224,14 @@ If these checkpoints land, this document survives. If one of them moves late by 
 - The Python throughput scenario. If the Python core cannot give the gate, year one absorbs a Rust port. The conformance battery limits the port, but the port delays training by weeks.
 - The learned-agent-learns-nothing scenario. If PPO learns nothing useful at 300 million steps, year two uses the scripted bots, tuned by evolution, and the model agents as the opponents. That is a playable game, but the "learning and evolution" goal is only half met.
 - The model-agent-is-too-slow scenario. A local model at 40 to 50 seconds for each decision makes a 64-decision game last an hour. If that is too slow to enjoy, model agents become test opponents only.
-- The armor-tables-never-surface scenario is closed. The four tables of rule 33 are graphics on page 13 of the rulebook, and `src/sldata/tables/armor.json` holds them. The armor game waits for its rules and not for its numbers.
+- The armor-tables-never-surface scenario is closed. `src/sldata/tables/armor.json` holds the four tables of rule 33, and rules 28 to 41 are in the core.
+- The no-human-games scenario. If a small number of persons play the package, the imitation has no human data. The scripted teachers and the evolution stay the source of the imitation data.
+- The false-games scenario. A player with a valid key can send games that a script played. The replay check stops a game that the rules do not let occur. The index names the key of each game, so the owner can remove the games of one key and revoke it.
 - The taste-test scenario. If boards from the generator do not satisfy the owner, the owner plays on the private reference layouts. The game ships with boards from the generator that are "good enough". The written rubric is what makes this scenario measurable.
 
 ## 9. How this document stays current
 
 - Owner: Ron Dilley.
 - Refresh cadence: at each year boundary in section 5, after each multi-AI review, and when a bet in section 4 is challenged.
-- Causes of an update: a change to the three-year arc, a change to the principal map, or an anti-goal that moves into scope. Also a takedown request, or the selection of the public title.
+- Causes of an update: a change to the three-year arc, a change to the principal map, or an anti-goal that moves into scope. Also a takedown request, or a change of the front end.
 - Companion documents that must stay in sync: `REQUIREMENTS.md`, `SUCCESS_CRITERIA.md`, `ARCHITECTURE.md`, `../VIBE_HISTORY.md`.

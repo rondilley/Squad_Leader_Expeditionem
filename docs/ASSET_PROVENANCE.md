@@ -2,9 +2,12 @@
 
 Where each thing the player sees comes from, and why none of it is Avalon Hill art.
 
-The game ships no image file. There is no SVG and no font file in the tree, and no image
-goes in the built client. Code draws each shape on the screen at run time, from numbers in
-this repository.
+The code of the project has no image file and no font file. There is no SVG in the tree,
+and no image goes in the built client. Code draws each shape on the screen at run time, from
+numbers in this repository. The one recorded sound is the tank recording of section 3.1.
+
+The package for players also holds the files of the third-party libraries, and some of them
+are fonts and pictures. Section 4.1 gives them and their licences.
 
 The one directory with an image is `docs/images/`, and section 2 says what is in it and what
 holds the rule. The release audit, `tools/audit_release.py`, gives a finding for an image
@@ -73,19 +76,25 @@ two hexes of a hexside make the same picture.
 | Hex grid, centre dots, and labels | `src/slwindow/render.py` `_outline`, `_centre_dot`, and `_label`, and `client/src/board/render.ts` | Thin lines, a pale dot at the centre of each hex, and the hex name above the dot | Rule 3.5 says that each hex has its grid coordinate. Rule 7.1 threads a line of sight from one centre dot to the next, so the dot is a fact of the rules. The position and the weight of the line are the project's own. |
 | Terrain polygons | `src/slboards/polygons.py` | Convex shapes on the integer lattice, one for each hex that blocks or decreases the line of sight | Written for this project, so that a line of sight can miss the trees in a hex. The shape set is small and hand written. |
 | Board layouts | `src/slboards/generator.py` | Each board the game plays on | The generator makes them from a seed. No board in the repository is a transcription of one of the four 1977 boards. The audit gives a finding for a data file named after one (FR-27, TC-29). |
-| Counter faces | `src/slwindow/counters.py` `LAYOUT` and `client/src/counters/draw.ts` `LAYOUT` | The layout of each face. A squad has two men above one line of numbers. A leader has one man at the left with the name and the value up the side. A weapon has its icon at the left and three lines at the right. A vehicle has its plan in the middle and its numbers in the corners | Made for this project from the sentences of RV-10 sections 3, 4, and 7. The table holds fractions of the face and no measurement of a printed piece. The two files hold one table, and `tests/browser/test_render_constants.py` compares them (SR-07). |
+| Counter faces | `src/slwindow/counters.py` `LAYOUT` | The layout of each face. A squad has two men above one line of numbers. A leader has one man at the left with the name and the value up the side. A weapon has its icon at the left and three lines at the right. A vehicle has its plan in the middle and its numbers in the corners | Made for this project from the sentences of RV-10 sections 3, 4, and 7. The table holds fractions of the face and no measurement of a printed piece. The browser client in this tree is older and does not have the table. `tests/browser/test_render_constants.py` compares the two files, and its result is a failure until the newer client comes in (SR-07). |
 | Counter silhouettes | `src/slwindow/silhouettes.py` and `client/src/counters/silhouettes.ts` | Point lists in a unit box. There are five men: at a walk with a rifle, at a run with a submachine gun, on foot, on the ground, and on one knee. There are seven weapon icons, five vehicle plans, and a wreck | The project's own drawings from the sentences of RV-10. A line squad walks, an elite squad and a crew run, a leader stands, and a broken unit shows men down. No point is a measurement of a printed figure. The Russian men face right, so the renderer mirrors one figure for that army. The two files hold one set of lists, and the parity test compares them (SR-07, DR-01). |
 | 3D counter | `src/slwindow3d/counters.py` | The counter as a rounded prism on the top of its hex. It shows a cardboard thickness, and the pale edge follows the rounded top. A stack is a messy pile: each counter leans some degrees and steps a small offset from its id | Made for this project. The top face is the same chit picture the pygame window makes, so the 3D piece and the 2D piece are the same. The lean and the offset come from the unit id and not from a generator, so a stack is the same in each session (SR-07, DR-01). |
 | Counter physical look | `src/slwindow/counters.py` `_chit` and `client/src/counters/draw.ts` `drawChit` | The thickness shadow, the cut cardboard edge, the top-left highlight and the bottom-right shade of the bevel, and the corner wear | A study of the owner's photographs of the 1977 pieces. The photographs are in `background/`, and git does not record them. They show that a piece is a die-cut chit with rounded corners, a thickness, and wear at the corners. Each wear mark comes from the unit id and not from a generator, so a counter is the same in each session (SR-07, DR-01). |
-| Counter stock colours | `src/slwindow/theme.py` `NATIONAL`, `BERSERK`, `MARKER`, `OPEN_TOP` and `client/src/counters/draw.ts` | Grey-blue for German, tan for Russian, yellow-green for American, and red for a berserk squad. White for a marker, a wreck back, and the plan of an open top vehicle. Each one is stronger than the colour of the ground, so a counter is the first thing the eye finds | RV-1 and RV-10 section 2 record the colour families. The values are the project's own. A support weapon is on the stock of its army, as the sheets show. |
+| Counter stock colours | `src/slwindow/theme.py` `NATIONAL`, `BERSERK`, `MARKER`, `OPEN_TOP` and `client/src/counters/draw.ts` `NATIONAL` (the client has no berserk colour) | Grey-blue for German, tan for Russian, yellow-green for American, and red for a berserk squad. White for a marker, a wreck back, and the plan of an open top vehicle. Each one is stronger than the colour of the ground, so a counter is the first thing the eye finds | RV-1 and RV-10 section 2 record the colour families. The values are the project's own. A support weapon is on the stock of its army, as the sheets show. |
 | The turned counter, concealed, smoke, charge marks | `src/slwindow/counters.py` and `client/src/counters/draw.ts` | A broken unit is a counter turned to its back: the same stock, the word, the broken morale, and its men down. A weapon with a malfunction shows its icon below a white cross with R1 and X6. A wreck is a white back with the word, the plan, and the survival number. The concealment token is a question mark on the stock of its army. The smoke and the charge are flat colours and simple shapes | RV-10 section 5 records what the back of each piece shows. The word is the project's own. The marks for rules 12, 18, 25, 24, 23, and 33.9 are the project's own. |
-| State tabs | `src/slwindow/counters.py` `_tabs` and `client/src/counters/draw.ts` `tabs` | Small tabs of the white marker stock at the top right of a counter: PF for a unit that fired in the Prep Fire Phase, M for one that moved, DM for desperation morale, R for a passenger | The 1977 game puts a white marker on the stack. The screen puts a tab on the counter in place of a second counter. The tabs are the project's own. |
-| Typeface | `client/src/style.css` and the canvas fonts | Trebuchet MS, then Segoe UI, then the system sans-serif | A stack of fonts that are on the reader's machine. The project supplies no font file, so it gives out no typeface and no font licence is necessary. |
+| State tabs | `src/slwindow/counters.py` `_tabs` (the browser client has no tabs) | Small tabs of the white marker stock at the top right of a counter: PF for a unit that fired in the Prep Fire Phase, M for one that moved, DM for desperation morale, R for a passenger | The 1977 game puts a white marker on the stack. The screen puts a tab on the counter in place of a second counter. The tabs are the project's own. |
+| Typeface of the browser | `client/src/style.css` and the canvas fonts | Trebuchet MS, then Segoe UI, then the system sans-serif | A stack of fonts that are on the reader's machine. The project supplies no font file for the browser. |
+| Typeface of the windows | `src/slwindow/counters.py` `FACE_FONT` and `system_font`, the `SysFont` names of `src/slwindow3d/app.py` and `counters.py`, and `pygame.font.Font(None)` in `src/slwindow/launcher.py` and `boxes.py` | A system font by its names (Arial Narrow, DejaVu Sans Condensed, Liberation Sans Narrow, Arial, DejaVu Sans, and monospace fonts for the panel). The launcher, the end-of-game box, and the documentation pictures use the default font of pygame-ce | A system font is on the player's machine. The default font of pygame-ce is `freesansbold.ttf` from GNU FreeFont (GPL-3.0-or-later with the font exception), and it is in the package (section 4.1). The project made no font. |
 | Counter values, morale, range | `src/sldata/counters/*.json` | The numbers on each counter | RV-1 sections 2 to 6, with a provenance note in each file (DR-02). |
 | Fire, close combat, terrain tables | `src/sldata/tables/*.json` | The numbers of the rules tables | Transcribed from the data card as RV-1 records, with a provenance note in each file (DR-01). A table of numbers that a rule uses is not art. |
 | Scenario card | `src/slcards/card.py` and `src/slwindow/theme.py` `CARD_*` | A printable card for one scenario. It holds a title, a scenario number, the notes text, a board diagram, a turn record chart, and the victory conditions. It holds an order of battle area for each side | The layout is the project's own. A person looked at the 1977 scenario card and wrote down where each part sits. Every word on the card comes from the scenario JSON, the project's own text (FR-22). The mini-counters come from `slwindow.counters`. The side marks are simple project shapes. No card text and no card art of the 1977 game is in the module or in its output (SR-07, DR-01). |
 | Card palette | `src/slwindow/theme.py` `CARD_PAPER`, `CARD_INK`, `CARD_RED`, `CARD_RULE`, `CARD_SHADE` | A cream paper, a dark ink, a red accent, a rule line, and a diagram fill | A scenario card is a paper document and not the green board. A person saw that the 1977 card is cream stock with black text and a red accent. The five values are the project's own. |
 | 3D board view | `src/slwindow3d/mesh.py` and `src/slwindow3d/app.py` | The board as a set of hex prisms. The elevation of a hex lifts its prism a small step, so a hill stands up. The top of each prism shows the same 2D board picture the pygame window makes, and a light from above shades each side | Made for this project. The height comes from the elevation number of the hex. The top face reads the 2D board art of `slwindow.render` as a texture. So the woods, the buildings, and the roads are one drawing and not two. The counter cards use the same chit art. No scan and no printed board is the source of the shape. |
+| Set up tray | `src/slwindow/traydraw.py` and `src/slwindow/theme.py` `SHADE` (`setup`, `drop`, `full`) | A strip at the bottom of the board with a tile for each counter of the side. It has the Finish set up and Set up for me buttons, and a line for the refusal of a hex. The hexes of the counter in hand are amber, the hex at the pointer is green, and a full hex is dark red (2026-10-26) | The owner gave the instruction for a tray (2026-10-26). The layout and the tones are the project's own. The tiles are the counter faces of `slwindow.counters`. |
+| Unit menu, about box, end-of-game box | `src/slwindow/boxes.py` and `src/slwindow/unitmenu.py`, `unitinfo.py`, `endgame.py` | Dark boxes with light text. The menu gives the commands of a unit in groups. The about box names each value of a counter. The end box says who won (2026-10-26) | The layout and the tones are the project's own. Each word comes from the view of the host and from the project's own text. |
+| Victory condition tones | `src/slwindow/theme.py` `SHADE` (`objective`, `objective_held`, and the `_on` tones), `OBJECTIVES_OFF`, `OBJECTIVES_ON` | Violet for a hex of a victory condition, and green for one that the side of the person controls. The button of the panel uses the same violet (2026-10-26) | Violet is not a tone of the set up or of the fire overlay, so the eye does not mix them. The values are the project's own. |
+| Scenario card of the 3D window | `src/slwindow3d/briefing.py` | The card before a game: the situation, the forces, the turn record, and the victory conditions | Each word comes from the scenario JSON, the project's own text. The layout and the tones are the project's own. |
+| Launcher | `src/slwindow/launcher.py` (`BACK`, `PANEL`, `TEXT`, `ACCENT`) | The menu of the package: the consent question, the scenario, the side, the opponent, the view, and the LAN fields (2026-10-27) | The layout and the tones are the project's own. |
 | Fire animations | `src/slwindow3d/effects.py` and `src/slwindow3d/firekinds.py` | A thin tracer line with a fading tail for each round of rifle, submachine gun, and machine gun fire. A gun fires a thin shell, and there is a flame, a rocket trail, a burst, smoke, and grenades. The tracer colour follows the army. It is red for American and British fire and green for German and Russian fire. One round in five of the green fire is white or yellow | The tracer colours of each army in the Second World War, as the owner gave them (2026-10-10). The shapes are the project's own and are not a copy of a picture. |
 
 ## 2. The pictures in this repository
@@ -163,13 +172,32 @@ mono at 22,050 Hz: a three-tap low-pass filter, then a linear resample. The tool
 - No scan, photograph, or screenshot of a 1977 component is in the repository, in a
   fixture, in a test, or in a run artifact.
 - No board data file holds a layout read off one of the four printed boards.
-- No font file is in the repository. The only sound file is the tank recording of section
-  3.1. The only image files are the pictures of section 2, which this project's own code
+- No font file is in the repository. The package has the fonts of section 4.1, which are
+  third-party files with their own licences. The only sound file is the tank recording of
+  section 3.1. The only image files are the pictures of section 2, which this project's own code
   makes. The only video is the screen recording of the 3D window in section 2.
 - The owner's own reference material is in `background/`, and `.gitignore` covers all of
   that directory. No file there goes into a commit, a build, or an artifact. The
   photographs of the owner's boards are in that directory, and the code holds no pixel of
   them.
+
+### 4.1 The third-party files in the package
+
+`tools/package.py` builds the package for players with PyInstaller. The package holds the
+Python interpreter and the libraries that the game uses, and those libraries have their own
+files:
+
+- pygame-ce has its default font `freesansbold.ttf` (GNU FreeFont) and its window icon
+  `pygame_icon.bmp`.
+- Panda3D has its default models, textures, and two sound files in `panda3d/models`.
+
+The game shows only the default font of pygame-ce. The build removes the examples, the
+tests, and the documents of pygame-ce. They hold more third-party pictures and fonts, and
+the game does not use them.
+
+`THIRD_PARTY.txt` in the package (from `tools/package_third_party.txt`) names each
+third-party part and its licence. The folder `licenses/` of the package has the licence
+texts. None of these files is Avalon Hill material.
 
 ## 5. Where the reference material is
 

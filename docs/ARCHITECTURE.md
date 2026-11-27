@@ -1,8 +1,8 @@
 # Squad_Leader_AI: Architecture
 
 Author: Ron Dilley, with design work by Claude Fable 5.1
-Date: 2026-09-07, updated 2026-10-15
-Status: v0.3, the design of the tree as built. Section 9.5 gives the methods of the computer players (2026-10-15, the choice rule 2026-10-27)
+Date: 2026-09-07, last updated 2026-10-28
+Status: v0.4, the design of the tree as built on 2026-10-28
 Companion documents: `VISION.md` (direction), `REQUIREMENTS.md` (the requirements with IDs), `SUCCESS_CRITERIA.md` (the gates), `2026-09-07_Squad_Leader_Digital_Edition_Research.md` (the evidence), `../tasks/todo.md` (the build slices)
 
 <!-- AI review 20260907-163721 (gemini, xai, openai). The changes: the decision frame, the exact lattice, the two-part LOS, and the command list for rules 1 to 21. Also the sub-step table, the SR-10 control, the throughput gate after slice 3, and Appendix B. Each changed section has its own note. -->
@@ -13,9 +13,16 @@ Each section states one decision, the alternative, the cause, where the decision
 
 ## 1. The shape of the system
 
-Five consumers use the rules engine, and no human is in most of them. That is what makes this system different from a generic digital board game.
+Six consumers use the rules engine, and no human is in most of them. That is what makes this system different from a generic digital board game.
 
-A browser client shows a human a view. A local host owns the game and applies commands. A trainer plays millions of headless games. A model agent harness turns a game view into text and a text answer into a command. A replay tool runs a command log again and compares hashes.
+- The browser client shows a human a view.
+- The desktop windows show a human a view. The 2D window (`slwindow`) and the 3D window (`slwindow3d`) are two front ends of one consumer. The 3D window is the front end that the owner uses.
+- The local host owns the game and applies commands.
+- The trainer plays millions of headless games.
+- The model agent harness turns a game view into text and a text answer into a command.
+- The replay tool runs a command log again and compares hashes.
+
+Three more parts carry games and do not add a consumer. The game farm (`slfarm`, section 8.3) plays scripted games and PPO environments on four Linux hosts. The collector (`slcollect`, section 8.1) gets the save files of played games and plays each one again through the core. The launcher of the package starts a window and a host.
 
 Each consumer would drift from the others if it had its own copy of a rule. So there is one core, and each consumer applies a rule only through it.
 
@@ -24,33 +31,50 @@ The second thing that shapes the system is that the core must be fast for reinfo
 ```mermaid
 flowchart TB
     Client[Browser client]
+    Window2D[2D window]
+    Window3D[3D window]
+    Launcher[Launcher]
     Host[Local host]
     Core[Rules core]
     Data[Rules data and scenarios]
     Trainer[RL trainer]
+    Farm[Game farm]
     Harness[Model agent harness]
     Replay[Replay tool]
+    Collector[Collector]
     Provider[Model providers local and SaaS]
     Runs[Run artifacts]
+    Launcher --> Window3D
+    Launcher --> Window2D
     Client --> Host
+    Window2D --> Host
+    Window3D --> Host
     Host --> Core
     Core --> Data
     Trainer --> Core
+    Trainer --> Farm
+    Farm --> Core
     Harness --> Core
     Harness --> Provider
     Replay --> Core
+    Launcher --> Collector
+    Collector --> Core
     Host --> Runs
     Trainer --> Runs
     Harness --> Runs
 ```
 
-The core is a Python package with no input, no output, no network, and no file access. It gets a state and a command. It gives a new state, a list of events, and a hash. It also gives the legal command list for a state, as a decision frame (section 3.4).
+The core is a Python package with no input, no output, no network, and no file access. It gets a state and a command. It gives a new state and a list of events, and a second call gives the hash. It also gives the legal command list for a state, as a decision frame (section 3.4).
 
-The host, the trainer, the harness, and the replay tool are Python packages that import the core. The client is TypeScript in the browser, and it communicates with the host on a WebSocket. The providers are HTTP endpoints.
+The host, the trainer, the harness, the replay tool, the farm, and the collector are Python packages that import the core. The browser client is TypeScript, and it communicates with the host on a WebSocket. The two windows are Python, and they use the same WebSocket protocol. The providers are HTTP endpoints.
 
 ## 2. One core with no input or output
 
-The decision: the rules live in one Python package, `slcore`, that has no side effects. It does not read files, roll dice from the system clock, open sockets, or print. It has three public functions: `legal_commands(state)`, `apply(state, command)`, and `hash_state(state)`.
+The decision: the rules live in one Python package, `slcore`, that has no side effects. It does not read files, roll dice from the system clock, open sockets, or print. It has three public functions: `legal_commands(state)`, `apply(state, command, frame)`, and `hash_state(state)`.
+
+The three functions are methods of the class `Engine` in `slcore/engine.py`. An engine holds one scenario, its board, its tables, and its line of sight table, so the three calls do not load these again. `Engine.new_game(seed, switches)` gives the first state, and `Engine.replay` applies a payload list and gives the hash after each command.
+
+`slcore/api.py` is the public surface of the core. Its table `SURFACE` names each submodule and each name that a consumer may read: the engine, the data types, the per-player view, the seeded generator, the lattice, and the rule helpers that the odds read. `tests/arch/test_core_api.py` holds each import of `slcore` outside the core to that table. A Rust port must give each name of the table with the same behaviour (AR-05).
 
 The alternative: a rules engine in the browser (boardgame.io or a TypeScript port) and a second engine in Python for training. The research rejected this (RV-3 section 4.3). Two engines drift. Also, boardgame.io keeps its state and random generator in JavaScript, so Python cannot share them.
 
@@ -76,17 +100,17 @@ The internal shape of the list is a tree: action, then unit or units, then targe
 
 <!-- AI review 20260907-163721: gemini and openai, portage. openai, set up, the two-player windows, predesignation, the track return, and the close combat allocation. -->
 
-The list below covers rules 1 to 27, which is scenario 1 (v0.1) and scenarios 2 and 3A (v0.3). Commands for the rules that are not in scope are named where they land, with their tier.
+The list below covers rules 1 to 27, which is scenario 1 (v0.1) and scenarios 2 and 3A (v0.3). The last item gives the commands of the armor rules 28 to 41. `slcore/commands.py` holds the full list of actions (`ACTIONS`), and `slcore/actions.py` holds one handler for each action.
 
 - Set Up Phase (rule 21.2): `place(unit, hex)` for each unit in the side's set up area, in the sequence the scenario gives. `place_weapon(weapon, unit)` gives a support weapon to a unit in the same hex. `end_setup`. The scenario file says which side sets up first.
 - Rally Phase (rule 4.1): the two players have a command window. The phasing player goes first, then the defender. This sequence is a project ruling, because rule 4.1 gives no sequence. It is recorded in the project rulings data (section 6).
 - Rally Phase commands: `repair(weapon)` (rule 18.2), `rally(unit)` (rule 14.1), `end_phase`. The dice results are events. The core removes DM counters (rule 14.6) as an automatic step.
 - Prep Fire Phase (rule 4.2): fire is a short sequence of commands. `group_add(unit, target_hex)` adds a unit to the fire group that aims at a target hex. `group_add_weapon(unit, weapon, target_hex)` adds a support weapon. `group_leader(leader)` adds or removes the leader modifier for the group, because the Q and A for rule 15.1 gives the player that choice for fire groups.
 - Prep Fire Phase, resolution: `group_fire()` resolves the group on the Infantry Fire Table and emits the events. `end_phase` closes the phase. A fire group is open only while its members are in the same or adjacent hexes (rule 8.6). Smoke placement (rule 24.3) is a v0.3 command.
-- Predesignation (rule 8.7): the scenario switch selects the method. With the basic method, `group_fire()` resolves one group and the player then forms the next group. With the optional method, the player forms each group with `group_add` and closes each with `group_close()`. Then `fire_all()` resolves each group in sequence, and no new group is legal after it.
+- Predesignation (rule 8.7): the core has the basic method only. `group_fire()` resolves one group, and the player then forms the next group. The optional method of rule 8.7, where the player forms all groups before the first one fires, has no command at this time.
 - Movement Phase (rule 4.3): `move(unit, hex)` moves one hex and spends movement factors. `stack_move(leader, units, hex)` moves a leader with squads for the leader bonus (rule 5.44). `end_phase` closes the phase.
 - Movement Phase, portage: `pickup(unit, weapon)` and `drop(unit, weapon)` are legal at each point of a move, with the portage cost of the Support Weapons Chart (rules 5.7 to 5.72). The core records the track of each moved unit: the sequence of hexes where it spent movement factors (rule 16.4).
-- Movement Phase, rules 23 and 27: `place_demo(unit, weapon, hex)` puts a demolition charge on a hex next to the unit (rule 23.3). `sewer_move(units, entrance)` moves a stack down one sewer entrance and up at a second one in three hexes (rule 27.2). `sewer_return(hex)` is the window of the opposing player for a stack that was lost (rule 27.22). `board(unit, vehicle)` waits for the armor rules.
+- Movement Phase, rules 23 and 27: `place_demo(unit, weapon, hex)` puts a demolition charge on a hex next to the unit (rule 23.3). `sewer_move(units, entrance)` moves a stack down one sewer entrance and up at a second one in three hexes (rule 27.2). `sewer_return(hex)` is the window of the opposing player for a stack that was lost (rule 27.22).
 - Prep Fire Phase, rule 24: `place_smoke(unit, hex)` puts one smoke counter in or next to the hex of an assault engineer squad, as the first action of the phase (rule 24.3).
 - Fire phases, rule 22: `ft_fire(unit, weapon, target_hex)` is one flamethrower attack. It is its own command and not a fire group, because rule 22.3 says a flamethrower does not fire with other units.
 - Advancing Fire Phase, rule 23: `explode_demo(charge)` explodes one operable charge when the owner selects it (rule 23.4).
@@ -98,6 +122,13 @@ The list below covers rules 1 to 27, which is scenario 1 (v0.1) and scenarios 2 
 - Advance Phase (rule 4.7): `advance(unit, hex)` one hex, with the portage limit of rule 5.73. `end_phase`.
 - Close Combat Phase (rule 4.8): the two players have a declaration window, the phasing player first, then the defender. `cc_attack(attacking_units, defending_units, leader)` declares one attack. Each unit attacks one time in the phase (rule 20.4). The leader modifier applies to one declared attack for each leader (rule 20.6). `end_phase` closes the window.
 - Close Combat Phase, resolution: when the two windows close, the core resolves each attack in the declared sequence, and the effects apply at the same time (rule 20.2). The declaration sequence between the players is a project ruling.
+- Rules 28 to 41, the armor game (`r28_vehicles.py` to `r38_fate.py`): `vehicle_move`, `vehicle_pivot`, `afv_fire`, `afv_mg`, `at_fire`, `afv_attack`, `cc_afv`, `afv_repair`, `push_wreck`, `afv_smoke`, and `afv_dischargers`. `board` puts a unit on a vehicle, and `debark` removes it (rule 31). A unit boards or debarks one time in each Movement Phase (PR-55). `push_out` moves the infantry below an enemy vehicle to one side (rule 35.8, PR-51).
+
+Three state fields of the armor game are in the state document only when they are set. Thus the hash of a game that does not use them stays the same:
+
+- An overrun (rule 35) is declared when the vehicle enters the hex, and it resolves at the end of the Defensive Fire Phase that follows (PR-54). The vehicle field `overrun_hex` holds the declaration. The automatic step `resolve_overruns` resolves it before the push out of PR-51.
+- A passenger debarks only when its vehicle has the two movement points of rule 31.3 left. The unit field `rode` holds the board or the debark until the end of the player turn (PR-55).
+- Portage is in half points, because rule 37.35 gives the panzerfaust half the cost of a machine gun. `UnitType.portage_squad_halves` and `free_portage_halves` are the fields to read. `r06_stacking.hex_load` gives full points, because rule 6.1 gives its limit in full points, and it rounds up.
 
 The alternative: a free-form action description that the engine parses. That is what makes language model agents give invalid moves (RV-6 section 1.5). With a closed list, a model agent selects an ID, and an invalid answer is not possible by construction.
 
@@ -166,7 +197,21 @@ Optional rule 16 is a sub-state of the Movement Phase. After each moved stack en
 
 ### 3.3 Rule IDs in code
 
-Each rule is a function or a data row with the rule ID in its name and in its docstring, for example `rule_9_1_point_blank(...)`. Each event that the core emits has the rule IDs that produced it. The action log (FR-06) is the event list with the dice and the modifiers. A player reads "KIA, rule 10.6, IFT column 16, roll 4, modifiers +3 stone building (11.1), -2 leader (15.2)" and finds each number in the rulebook. This is the community signal from RV-8 as a data structure.
+The decision: the rule ID is in the module name, in a constant, in the docstring, and in each event. The code uses these conventions:
+
+- One module for each rule section, with the section number in its name: `rules/r08_fire.py` holds rules 8 and 9, and `rules/r35_overrun.py` holds rule 35.
+- Each rule ID is a module constant, for example `RULE_9_1 = "9.1"` in `r08_fire.py`. A function has a plain name, such as `group_firepower`, and its docstring names the rules it applies.
+- The first field of each `Event` is the rule ID that produced it. A data row and a project ruling also hold the rule ID they extend.
+
+Each event that the core emits has the rule IDs that produced it. The action log (FR-06) is the event list with the dice and the modifiers. A player reads "KIA, rule 10.6, IFT column 16, roll 4, modifiers +3 stone building (11.1), -2 leader (15.2)" and finds each number in the rulebook. This is the community signal from RV-8 as a data structure.
+
+Why: a player who is not sure of a result must find the rule. A test that does not pass must name the rule it tests. The conformance corpus (TR-01) and the action log read the same rule IDs.
+
+The alternative: the rule ID in the function name, as `rule_9_1_point_blank`. The first design proposed it. One function frequently applies more than one rule, and a rule frequently has more than one function. A name with one rule ID is then incorrect or too long.
+
+Where it breaks: nothing stops a function that applies a rule with no constant and no event. A rule with no event is not in the log.
+
+Mitigation: the conformance corpus has cases for each rule family, and each case names the rule. A case can name an event of a rule ID that must occur, or one that must not occur (`tests/conformance/test_conformance.py`). `tests/core/test_action_table.py` holds the table of handlers to the list of actions.
 
 ### 3.4 The decision frame and the command identity
 
@@ -174,11 +219,15 @@ Each rule is a function or a data row with the rule ID in its name and in its do
 
 The decision: the core gives the legal commands as a decision frame. A frame has the frame ID, the active player, the phase and sub-step, and the list of legal commands. Each legal command has a canonical payload and a command ID. The payload is a small record: the action name, the unit IDs in sorted sequence, the target hex, the weapon ID, and the other fields of that action.
 
-The command ID is the first 64 bits of the SHA-256 hash of the payload in its canonical byte form (JSON with sorted keys and no white space). The frame ID is the state hash of the state that the frame was built from.
+The command ID is the first 64 bits of the SHA-256 hash of the payload in its canonical byte form (JSON with sorted keys and no white space).
+
+The frame ID has two layers. In the core, the frame ID is the state hash of the state that the frame came from (`Engine._build_frame`). `Engine.apply` compares the frame ID with the hash of the state, and it refuses a stale frame. The trainer, the agents, and the replay use this layer.
+
+In the host, the frame ID is an opaque token of 32 hex digits (`secrets.token_hex` in `slhost/server.py`). The host makes a new token for each connection when the state hash changes, and it keeps the state hash next to the token. A client does not see the state hash (DR-04, section 8).
 
 Unit IDs are stable for the game. Each counter gets its ID from its position in the scenario force list, not from a list position at run time. Hex IDs are the grid labels (for example `K5`) with a board prefix in a composition (section 7).
 
-The command log stores the payload (DR-04). A replay reads each payload, builds the frame for the current state, and finds the command by ID. The trace record stores the payload, the ID, and the legal IDs (DR-08). The trainer's mask maps each head choice to a payload and then to an ID. The client sends the frame ID and the command ID (section 8). No consumer stores a position in the flat list.
+The command log stores the payload (DR-04). A replay reads each payload, builds the frame for the current state, and finds the command by ID. The trace record stores the payload, the ID, and the legal IDs (DR-08). The trainer's mask maps each head choice to a payload and then to an ID. The client sends the token of its frame and the command ID (section 8). No consumer stores a position in the flat list.
 
 The alternative: the command ID is an index into the legal list the host sent, as the v0.1 design said. That is one integer, and it is cheap. It breaks when the list sequence changes.
 
@@ -274,6 +323,14 @@ Second cause: the conformance corpus cites the rule text for each case. A case t
 
 The victory evaluator (FR-14) is a rule function with a data contract. A scenario file lists its victory conditions as typed records: control of named buildings or zones, units exited from an edge, casualties as a fraction, and a turn limit. The core tests the conditions at the end of the last player turn, and it tests a sudden-death condition at the end of each phase. The result is an event with the winner or a draw, and one line for each condition with its count and its threshold. The action log shows that event as the cause of the result.
 
+Why the evaluator is a typed record: a scenario names a building by its group, not by a hex. The evaluator maps a group to the building of its set up area (slice 3). Thus one scenario file works on each board that the generator makes. The host reads the same records for the objectives of each frame (`slhost/objectives.py`).
+
+The alternative: a victory function in code for each scenario. Each new scenario is then code, and the library of 12 generated scenarios (section 7.3) is not possible.
+
+Where it breaks: a card can say a sentence that the record does not say. The L03 card said "each wants the other end", but only the German side won by a building (2026-10-17).
+
+Mitigation: the card text comes from the same record (`slcards`, section 7.4). The owner's rule is that each sentence of a card agrees with the rules of the scenario. Each sentence gets a check against the code before a scenario goes into the library.
+
 <!-- AI review 20260907-163721: openai, the victory evaluator contract -->
 
 The rule-by-scenario matrix, from the "Rules Introduced" line of each card (RV-2 section 3):
@@ -283,11 +340,13 @@ The rule-by-scenario matrix, from the "Rules Introduced" line of each card (RV-2
 | 1, The Guards Counterattack | 1 to 21 | IFT, Close Combat, Support Weapons, movement costs, terrain modifiers | squads, leaders, LMG, MMG, HMG, markers | v0.1 |
 | 2, The Tractor Works | 22 to 26 added | the same, plus flamethrower and demolition charge rows, smoke | plus flamethrower, demolition charge, smoke, concealment | v0.3 |
 | 3A, The Streets of Stalingrad with sewers | 27 added | the same, plus the sewer roll | plus the sewer entrance flags | v0.3 |
-| 3B, with armor | 28 to 41 added | To Hit, AFV Kill, hit modifiers, vehicle movement, immobilize numbers | vehicles, crews, wrecks, malfunction markers | Scale, after the armor tables are sourced |
+| 3B, with armor | 28 to 41 added | To Hit, AFV Kill, hit modifiers, vehicle movement, immobilize numbers | vehicles, crews, wrecks, malfunction markers | Built for rules 28 to 41. The project scenario `s04_armor_probe` plays them, and no 3B file is in the tree |
 
-Where it breaks: the armor tables are not sourced (RV-1 section 7.6).
+The armor rules are built (slice 18). `sldata/tables/armor.json` holds the four tables of rule 33, and `vehicle_movement.json` holds the vehicle movement chart. An earlier note said that the armor tables were not available. That was incorrect: the tables are graphics on page 13 of the rulebook, and a search of the text layer did not find them (slice 17).
 
-Mitigation: the data format has rows for them, and the rule functions for 28 to 41 wait. A scenario file lists its rule IDs (FR-19). The core refuses a scenario that uses a rule that is not in the build, with a message that names the rule.
+Where it breaks: a table that is a graphic in the source has no text to compare with. A transcription with an incorrect digit is a defect that no text search finds.
+
+Mitigation: `tests/conformance/test_armor_tables.py` gives each row of each table a second time, so an incorrect cell stops one test. The 82 cases of `rules_28_41.json` test the rules that read the tables. A scenario file lists its rule IDs (FR-19). The core refuses a scenario that uses a rule that is not in the build, with a message that names the rule.
 
 ## 7. Boards, the generator, and the two modes
 
@@ -299,7 +358,7 @@ The generator pipeline has five passes:
 2. Structure pass: place the type's large features. A city gets a road grid and building blocks. A hills board gets one or two hill masses in three terraced levels. A village gets a cluster of stone buildings around a road junction and one low hill. A rural board gets grain fields and hedgerows.
 3. Fill pass: Wave Function Collapse with adjacency rules from a small set of hand-written tiles (RV-7 section 6.1), constrained by passes 1 and 2.
 4. Polygon pass: give each hex its terrain polygons, with the vertices on the lattice. Buildings get their footprint shapes (long, L, T, plus). Woods get an irregular blob. Hills get a contour polygon for each level.
-5. Style pass: the client renders the polygons with flat fills, hachure for woods and hill shade (rough.js), ink lines, and a paper grain.
+5. Style pass: the renderers make the polygons with flat fills, ink lines, and the shapes of each terrain. This pass is not in the generator. `slwindow/render.py` makes the board picture for the two windows. `client/src/board/render.ts` makes it in the browser with the canvas API and no other library.
 
 The style record of FR-26 gives the density of each feature, and `STYLE_DEFAULTS` holds the default style of each type.
 
@@ -317,11 +376,25 @@ Orchards and landmarks (2026-10-17) come after the polygon pass, and only when t
 
 A record can also have `landmarks`. A mill goes on a stone building, and a windmill goes on a wooden building. Each goes on the building of its rank in its band, in the order that a `stone_building` set up area uses. The default of `orchards` is 0, and a record with no `landmarks` writes no key. Thus each record from before builds the same board, and the generator version stays 8.
 
+The two passes are `slboards.generator.orchard_pass` and `landmark_pass`.
+
 The rules come from two project rulings. PR-56: an orchard has the effects of a wheatfield of rule 44.2 in each season. PR-57: a mill is a stone building and a windmill is a wooden building. Thus a landmark changes only the picture and the name on the card.
+
+Why: on 2026-10-17 the owner told the project to put orchards, mills, and windmills on the boards. The causes were the library slot L05 (an orchard village), and a card that can name a landmark. The printed boards have orchards, and rules 1 to 44 give them no rule.
+
+The core has the wheatfield effects at this time, so PR-56 uses them. A mill with rules of its own would change the play that the balance of each scenario measured. Thus PR-57 gives a mill the rules of its building.
+
+The alternative: an orchard as woods. Its trees stand in rows with space between them, so they hide a unit and give no cover that a woods hex gives (PR-56).
 
 Where it breaks: an orchard is a new terrain type, so each consumer that lists the terrain types must have it. The learned agent puts an orchard in the plane of the wheatfield, because the two have the same rules. Thus each net from before keeps the shape of its input.
 
-Generator version 4 adds the four board types, the style record, the hill levels, and the wall and hedge hexsides. An older record with a `building_density` field continues to build its board, because that field is the `buildings` style. Version 5 sets each seam hex of FR-24, and version 6 adds the cliff hexsides of rule 44.1. A run artifact stores the record. A future session regenerates the board from the record and gets the same board. A change to the generator changes its version, and an earlier record names the earlier version.
+Generator version 4 adds the four board types, the style record, the hill levels, and the wall and hedge hexsides. An older record with a `building_density` field continues to build its board, because that field is the `buildings` style. Version 5 sets each seam hex of FR-24, and version 6 adds the cliff hexsides of rule 44.1.
+
+Version 7 (slice 19) gives the east to west road one row index for each column, and `connect_roads` attaches each road entry of FR-24 to the road network. Version 8 adds the road hexsides of PR-50. A board document lists the directions of the road out of each road hex (`road_sides`). A vehicle pays the road rate only across such a hexside.
+
+Version 8 changes no terrain. It seeds the random state as version 7 does (`SEED_VERSION`), so each seed that a scenario names builds the same hexes. A record of version 7 builds its board again with no road hexsides.
+
+A run artifact stores the record. A future session regenerates the board from the record and gets the same board. A change to the generator changes its version, and an earlier record names the earlier version.
 
 <!-- AI review 20260907-163721: openai, the generator parameter record -->
 
@@ -336,19 +409,7 @@ project cannot transcribe it the way it transcribed the Infantry Fire Table. Ope
 gives that task to the owner. Until then the scale is the project's own, built from the
 counter values, and it says so.
 
-`library.py` (2026-10-16) makes the 12 scenarios of the library from the slots of `sldata/library/slots.json`. The decision of the owner: the project does not copy the 1977 scenarios. Each slot gives its board types, its armies, its rule level, and the bands of its points and turns. Two seeds give the rest.
-
-The draw seed sets the forces, the turns, and the victory condition. The board seed sets the board, so a search of the board seeds keeps the forces the same. That is the balance method of the owner: the board seed first. The forces change only when no seed gives 45 to 55 percent for the first side, with v7 against v7 in 1,600 games.
-
-A slot of two or more boards stacks them from north to south. Thus the front gets wider with the force, and the depth of the fight stays one board. Each side has a group on each board, and the defender holds one stone building on each board.
-
-Where it breaks: the point scale is the project's own, so two forces of equal points are possibly not equal in play. The seed search finds a board that corrects a small difference only. When the forces of a slot are far apart, a change of the slot bands is necessary.
-
-A two-sided slot (L03) gives each side a building at its own end, and a die roll decides which side moves first. It uses the same attack share as the other slots. The first L03 search gave the two sides equal points and the condition `building_swing`, and the best of 1,600 games was 19.1 percent for the German side: when nothing occurs, the Russians win. With the attack share and `hex_control` of the Russian building, draw seed 8 and board seed 10 gave 50.1 percent (2026-10-17).
-
-A support weapon goes to a group only with a squad or a leader. A weapon with no group stays with the units in the building. The second L03 search found a group of one MMG, which no player would set up.
-
-The card text comes from the slot and the draw, and each sentence must agree with the rules of the scenario (owner, 2026-10-17). Nothing on the board marks a building. Thus the card names a victory building by its rank and its band of columns, as the set up area does. The rank of a building applies in its band, so the set up label of the card names the band too. Without the band, the two sides of L03 each read "the largest stone building" for two buildings.
+The scenario library (`library.py`) is in section 7.3.
 
 `generator.py` is the random scenario construction. The printed method uses playing cards.
 This project uses the seeded generator of the core. A game is its seed, and a scenario that
@@ -370,14 +431,32 @@ a squad, and from a close combat that emptied a hex of its enemy units.
 
 Cowardice points come from a break. They also come from a break that broke a squad in the
 same hex, and from a weapon of the leader that malfunctioned. A rally roll of twelve costs
-the most. Two Elan items are for an armoured fighting vehicle, and the campaign table
-records that they wait for the armor game.
+the most. Two Elan items are for an armoured fighting vehicle. The campaign table marks them
+with an `awaits` field, and the scorer does not award them. The armor rules are in the core
+at this time, so this mark is older than the core.
 
 `ladder.py` is how the record chooses the next scenario. It is the project's own rule and
 not a printed one. A win makes the next defence stronger and a loss makes it weaker. A floor
 and a ceiling hold the result. The seed of the next scenario mixes the wins, the losses, and the
 points on the personnel file. So two campaigns from one seed that go differently do not
 play the same scenarios.
+
+`run.py` plays a campaign: a sequence of scenarios from one seed, with the leader of the
+personnel file in the force of the player.
+
+Why the scenario construction uses the seeded generator: a scenario that a seed cannot build
+again is not reproducible (NFR-04). A game is its seed, its switches, and its command log,
+and a random scenario adds only its seed to that record.
+
+The alternative: the printed method with a deck of playing cards. A deck is a random source
+that is not in the core, so a replay cannot build the same scenario.
+
+Where it breaks: the point scale is the project's own (O-08), so a random draw can give two
+forces that are not equal in play. A random scenario also has no scenario file, so it has no
+card and no briefing in the 3D window.
+
+Mitigation: the library (section 7.3) uses the same draw with a balance search, and only a
+balanced draw goes into the library.
 
 Board composition (FR-29): a scenario puts two to four boards along long edges or short edges, and a board can turn 180 degrees. `slboards/compose.py` holds it.
 
@@ -393,6 +472,14 @@ The composition is one `Board`, so the static LOS table of section 5 covers each
 
 A seam works only when the two boards agree on it. So the edge constants of FR-24 set each hex that a seam can touch. Those hexes are the odd columns at row 0 and at the last row, and the first and the last column. A woods half hex and a road entry keep their own type, and each other seam hex is open ground. Generator version 5 is the first one that holds them.
 
+Why: FR-29 gives the scenarios of more than one board, and the library slots L08 to L12 have two to four boards. One `Board` keeps one core, one LOS table, and one hex address for each consumer.
+
+The alternative: a set of boards with a seam rule in the core. Each rule that reads a neighbour, a path, or a thread then must have a case for the seam.
+
+Where it breaks: a composition of four boards has a large LOS table. The farm workers ran out of memory on two boards (2026-10-17), and a game of four boards holds about 2 GB.
+
+Mitigation: the LOS table has a limit, and a game worker clears it above `LOS_ENTRY_LIMIT` (section 8.3). `--remote-slots` limits the games of one host at a time.
+
 Computer against computer, the fourth play mode. `sl-cli host --agents v1,v2` gives each seat to a computer opponent. The host then plays the game itself, one command at a time. It sends the new frame to each browser after each command. `--agent-delay` is the wait between two commands: zero for a test, and a fraction of a second for a person at a screen.
 
 A person at a screen in that game sees each unit of each side. `Game.spectator_view` builds that document, and its argument is the guard. It gives an error unless a computer opponent holds each of the two seats. A game with a person in a seat does not build it, because a full view in that game breaks AR-09. Three tests hold that guard, one for each shape of game.
@@ -402,6 +489,10 @@ A person at a screen in that game sees each unit of each side. `Game.spectator_v
 It checks five things. The client and the host agree on the turn and the phase. Each entry of the action log names a rule. The game moves through its turns and through the phases of rule 4. The console gets no error. The game ends with a result.
 
 The harness writes a picture of each turn and a video of the game. They go to a directory that is not in the repository, because SR-07 keeps images out of the tree.
+
+Why: the owner told the project to show the game when the computers fight (slice 17). The owner also told the project to add a harness that plays a full game in a browser. The alternative was a headless game and a log. A log does not show a defect of the client.
+
+Where it breaks: a spectator view discloses each unit, so a guard error is a leak of hidden units (AR-09). Mitigation: the guard has its own three tests, and the host builds the view only when no person holds a seat. The two windows also accept `--agents`, with the same host path.
 
 Rural terrain (rule 44): `slcore/rules/r44_rural.py`. Game Set II gives an effect to three terrain types that the city board does not use.
 
@@ -415,6 +506,10 @@ A cliff hexside is impassable. The hexside table gave that to the movement rule 
 
 The generator puts a cliff on a hexside where the level changes. It drops a cliff that would cut the board in two. A board in two pieces is a board that no scenario can use.
 
+Why: the hills, village, and rural board types of FR-23 have these terrain types, and rule 44 gives them their effects. The rules go in the core with the rule ID, as each other rule does. No alternative design is recorded.
+
+Where it breaks: a scenario with no `wheat_season` switch must have a season. With no switch the crop stands (`r44_rural.py`). Mitigation: the switch value is in the hash (section 3.2), so a replay with a different value stops at the first command.
+
 Hidden Initial Placement (rule 42, FR-10): `slcore/rules/r42_hidden.py`. A scenario names one side. A unit of that side can set up in a woods hex or a building hex. Such a unit goes on the record of its owner and not on the board.
 
 The view of the other player does not name that unit at all. A concealment counter tells you where a unit is not. A hidden unit tells you nothing.
@@ -422,6 +517,12 @@ The view of the other player does not name that unit at all. A concealment count
 The unit comes on the board on five occasions. It moves, it fires, or it makes smoke. It stands next to an enemy at the end of a Defensive Fire Phase or an Advance Phase. An attack on its hex has an effect. A unit that walks into its hex stops and ends its movement in the hex it came from. It learns of the hidden unit at that moment and not before.
 
 The first half of rule 42.4 lets a player fire into a hex where no enemy is known to be. It waits for its own tier. It would change the legal list of each fire window into each hex in the line of sight. The environment of FR-50 reads that list as its action space.
+
+Why: FR-10 gives rule 42, and the per-player view of section 4 removes each unit that a player cannot see. A hidden unit is a unit that the other view does not hold, so no new path of disclosure is necessary.
+
+The alternative: a concealment counter on the hex. A counter tells the other player that a unit can be in the hex, and a hidden unit must tell the other player nothing.
+
+Where it breaks: the log, the trace, and the prompt are three more paths that can name a hidden unit. Mitigation: each one reads the per-player view, and `tests/secrecy/` and `tests/core/test_hidden_contact.py` hold the paths.
 
 <!-- AI review 20260907-163721: openai, board composition -->
 
@@ -471,7 +572,52 @@ The starts of a zone that a `near` zone anchors on stay in the distance of that 
 
 The measure after the correction: on 200 seeds, 172 satisfy the zones at the first try. On each of 60 seeds, each Russian group is five hexes or less from a German group. The v6 Russian wins 8 of 20 against the v1 German, from 1 to 5 before, and 19 of 20 against a random German.
 
-## 8. Topology: host, client, and LAN
+### 7.3 The scenario library
+
+The decision: the library is 12 project scenarios, `lib01_grain_office.json` to `lib12_the_long_front.json` in `sldata/scenarios/`. The project does not copy the 1977 scenarios (owner, 2026-10-16). `sldata/library/slots.json` holds the 12 slots, L01 to L12. Each slot gives its board types, its armies, its rule level, its weapons, and the bands of its points and turns. Its field `required` gives the counters that a side always gets, so that the card can name them.
+
+`slcampaign/library.py` makes a candidate of a slot from two seeds:
+
+- The draw seed sets the point total, the turns, the victory condition, the attack share, and the two forces. It reads the seeded generator of the core, as the random construction of Game Set IV does.
+- The board seed sets the board. A new board seed does not change the forces.
+
+A slot names its rule level, and the draw takes only the counters and the features of that level. A slot of rule 21 has no smoke, no concealment, no engineers, and no vehicles. A slot of rule 41 or more has the armor. Halftracks, trucks, and jeeps wait for rules 47, 51, and 52 (PR-20), so the vehicle list of the slot file holds tanks and guns only.
+
+A slot of two or more boards stacks them from north to south (`slboards.compose`). Thus the front gets wider with the force, and the depth of the fight stays one board. Each side has a group on each board, and the defender holds one stone building on each board. A `columns` set up area can have `min_row` and `max_row` (`slcore.scenario.resolve_columns`), so each group sets up on the rows of its own board.
+
+A slot field `orchards` gives each board orchards, and `landmark` (for example `{"defender": "mill"}`) puts a mill on the building that the defender holds (section 7).
+
+`sl-cli library` (`slcli/library_cmd.py`) has four actions. `slots` lists the slots. `draw` writes one candidate to `runs/library/<slot>/`. `check` plays the gate games on the two sides. `search` runs the seed search on the farm.
+
+The balance method of the owner is the board seed first. The forces change only when no board seed gives 45 to 55 percent for the first side, with v7 against v7 in 1,600 games. A balanced candidate with a card that has no fault goes into the library with no review step (owner, 2026-10-17). Its seeds and its balance result go in the notes of the file.
+
+Why two seeds: the owner's balance method searches the board seeds first, with the forces fixed (2026-10-16). With one seed for the two, each new board also gives new forces.
+
+The alternative: copies of the 1977 cards, as `s01` to `s03a` are. The owner selected no copies for the library. A hand-made scenario for each slot was the second alternative, and it has no seed to search.
+
+Where it breaks: the point scale is the project's own (O-08), so two forces of equal points are possibly not equal in play. The seed search finds a board that corrects a small difference only. When the forces of a slot are far apart, a change of the slot bands is necessary.
+
+Mitigation: the search plays thousands of games on the farm, so a slot that does not balance shows in hours. Three corrections came from the searches:
+
+- A two-sided slot (L03) gives each side a building at its own end, and a die roll decides which side moves first. The first L03 search gave the two sides equal points and the condition `building_swing`. The best of 1,600 games was 19.1 percent for the German side, because the Russians win when nothing occurs. With the attack share and `hex_control` of the Russian building, draw seed 8 and board seed 10 gave 50.1 percent (2026-10-17).
+- A support weapon goes to a group only with a squad or a leader. A weapon with no group stays with the units in the building. The second L03 search found a group of one MMG, which no player sets up.
+- Nothing on the board marks a building. Thus the card names a victory building by its rank and its band of columns, as the set up area does. Without the band, the two sides of L03 each read "the largest stone building" for two buildings.
+
+### 7.4 The scenario cards
+
+The decision: `slcards/card.py` makes a printable card of a scenario, and `sl-cli cards` (`slcli/cards_cmd.py`) writes it as a PNG file. The layout follows the 1977 card. It has a title, a red scenario number, a situation text, a board diagram, and a turn record chart. Then it has an order of battle for each side, the victory conditions, and the special rules. The 3D window shows the same card before the game (`slwindow3d/briefing.py`, `slcards.render_card`).
+
+Each word comes from the scenario file, which is the project's own text (FR-22). Each shape is the project's own drawing (SR-07, DR-01). The mini-counters come from `slwindow.counters`, the code of the windows. Thus a counter on the card and a counter on the board are one drawing. The renderer sets the dummy SDL video driver before it imports pygame, so a display is not necessary.
+
+Why: the owner told the project to make a card in the style of the 1977 card (2026-09-10). A person must read the forces, the set up areas, and the victory conditions before the first command.
+
+The alternative: the text of the 1977 cards. The legal research forbids card text in the tree (SR-07). The set up areas are in words, because the printed board layout is not in the repository.
+
+Where it breaks: a card sentence can disagree with the rules of the scenario. The L03 card said "the marked building", and nothing on the board marks a building (2026-10-17). The `notes` field of a scenario is the record of its provenance, and the first briefing showed it to the player.
+
+Mitigation: the owner's rule is that each sentence of a card agrees with the rules of the scenario. The project does a check of each sentence against the code before a scenario goes into the library. Each playable scenario has a `situation` field for the players, and `notes` stays the provenance record. `tests/cards/` holds the card layout, and a test in `tests/library/test_library.py` makes sure that no card says "marked".
+
+## 8. Topology: the host, the clients, the package, and the farm
 
 The decision: a local Python host owns the game. The browser client connects to it on a WebSocket. Hot seat is one client on the owner's machine with the host on localhost. LAN is two clients on two machines with the host on one of them, and a room code as the join credential. The client has no rule logic (AR-06).
 
@@ -521,6 +667,15 @@ Mitigation: the host uses `websockets` with the selector loop policy on Windows,
 
 The decision: the package is a PyInstaller folder for each system (`tools/package.py`), with the launcher as its entry (`slcli.frozen_main`, `slwindow.launcher`). The packaged game sends each game that a person played to a collector (`slcollect`, `sl-cli collect serve`). It sends only when the player agreed at the first start and has a player key. The first collector is `tars.uberadmin.com:5170` (owner, 2026-10-27). An Internet collector with its own name comes when the game is published.
 
+The launcher (`slwindow/launcher.py`) is `sl-cli launch`, and it is the entry of the package when the program gets no arguments (`slcli/frozen_main.py`). With arguments, the same program is `sl-cli`. The launcher shows the consent question one time, and then it shows a menu:
+
+- The scenario: the 12 library scenarios (section 7.3), each with its two sides in the order of play.
+- The side of the person.
+- The opponent: `easy`, `normal`, or `hard` (v5, v6, and v7, `slcli.window_cmd.DIFFICULTY`), a person at the same computer (hot seat), a LAN host, or a LAN join with an address and a room code.
+- The window: the 3D window (the default) or the 2D window.
+
+Play starts the game window as a second process of the same program (`launcher.game_argv`), so each game has a new window and a new Panda3D. A LAN host window binds all addresses on port 8731 (`--lan-port`, `launcher.LAN_PORT`). After the game, the launcher sends the saved games on a thread of its own (`slcollect.client.send_pending`). The package has no torch and no numpy, so the `learned:` agents are not in it.
+
 The record is the save file of the host (`slhost.savegame`). A game is its seed, its switches, and its command log, and each command line has its source. Thus the save file is sufficient for the training: the trainer makes each position, each legal list, and each decision of a person again through the core. The collector does not keep a second format.
 
 The wire is HTTP. Each `POST /v1/games` has the key name, a time, a nonce, and an HMAC-SHA256 (`slcollect.wire`). The HMAC covers the method, the path, the time, the nonce, and the hash of the body. The collector refuses a time more than 600 s from its clock and a nonce that it saw. Each player has a key of their own (`slcollect.keys`), so the owner can revoke one key.
@@ -551,6 +706,85 @@ The mitigation:
 
 Privacy: the launcher shows the question one time before it sends (`slcollect.settings`, `consent`). A sent game has the scenario, the seed, the commands, the key name, and the package version. The collector also records the network address. The game saves each game on the disk of the player in all cases.
 
+The files of the collection:
+
+- The key store of the collector is `collect_keys.key.txt`. `sl-cli collect key add NAME` writes a key to it and the player file `collect_players/NAME/collect.key.txt`.
+- `slcollect.settings` gives the data directory of the player: `%LOCALAPPDATA%\SquadLeaderExpeditionem` on Windows and `~/.local/share/squad-leader-expeditionem` on Linux. The tests set it with `SL_DATA_DIR`.
+- `slhost.savegame.check_lines` reads the parsed lines of a save file. The host uses it for `--resume`, and the collector uses it before the replay.
+
+### 8.2 The desktop windows
+
+The decision: the two desktop windows are consumers of the host protocol, with no rule logic (AR-06). `sl-cli window` opens the 2D window (`slwindow`, pygame-ce, the `desktop` extra). `sl-cli window3d` opens the 3D window (`slwindow3d`, Panda3D, the `view3d` extra). With no `--connect` address, the command starts a host in the same process (`slwindow/embedded.py`) and connects the window to it on the loopback address. That is the path that the browser client takes.
+
+The 3D window is the MVP front end, and the owner uses only this window. It puts each hex on a prism that its elevation lifts, so a hill stands up. It has a top-down camera mode and a tilted camera mode. The 2D window stays, and the two windows share most of their code.
+
+What the windows share in `slwindow`:
+
+- `client.py`, the protocol client, and `choice.py`, the command list (`Chooser`).
+- `overlay.py`, the shades of the board, and `logtext.py`, the text of a log line.
+- `setup.py`, `traydraw.py`, and `traycontrol.py`, the set up tray. `SetupTrayControl` is a mixin of the 2D `Window` and the 3D `Board3DApp`.
+- `unitinfo.py`, `unitmenu.py`, and `boxes.py`, the "about this unit" box and the menu of a unit.
+- `victorytext.py`, `endgame.py`, and `panel.py`, the victory box, the end box, the turn line, and the panel.
+
+The set up tray shows each counter of the side that sets up. A click on a counter shades its hexes of the legal list, and a click on one of them puts the counter there. A drag from the tray or the board to a shaded hex also puts it there. A support weapon goes onto a unit that can carry it (`setup.weapon_step`). A click on a placed counter sends `setup_lift`, and the host plays the game again through the core without the place command of that unit (`Game.lift`). The host does not apply `end_setup` for the person, and the Finish set up button sends it.
+
+The options of a unit come from the host (section 8). The window sends `options_request` for the selected counter. In the set up, the answer gives the set up area and the cause of each refused hex. In the Movement Phase it gives the reach of the unit, and in a fire phase the field of fire. The tray shows the cause after a refused click or drop (`App.refusal_text`, `overlay.setup_refusal`).
+
+A click on a reach hex sends `move_to`, and the host plays the path one legal step at a time (section 8). A right click on a unit, or Ctrl and Space, opens the menu of the unit: its commands in groups, the commands of the side, About this unit, and Undo. The panel has an Undo button that is bright when the frame has `can_undo`. The victory conditions come with each frame (`objectives`). The overlay shades their hexes, and the "Victory conditions" button or Ctrl and v opens their box.
+
+The end of a game is a box in the middle of the board. `endgame.summary` gives "You won." or "You lost." to the one side that a person holds, and the winning side to a watcher. `annotate.side_names` gives a side with a generic key (`allied`, `axis`) the name of its army.
+
+Three more details of the windows:
+
+- The windows show a carried weapon in the stack after its carrier (`overlay.with_carried`). The view gives each weapon its portage, and it gives the owner the movement factors of a unit with a load (`view._add_portage`).
+- `endgame.turn_text` gives the turn line of the panel, for example "turn 2 of 5: 3 more turns after this one".
+- The Undo button is the row `panel.UNDO_ROW` of the panel (`panel.draw_panel(undo_button=True)`).
+
+The 3D window has three more parts:
+
+- The briefing (`briefing.py`): the scenario card covers the board until the person selects Begin. The window connects to the host only then, so no game starts behind the card. `--no-briefing` skips it.
+- The fire effects: `firekinds.py` sorts the log lines into kinds of fire, and `effects.py` animates each kind with the tracer colour of each army. `firekinds.py` reads facts of the event and of the view only, and it calculates no result.
+- The sound: `sounds.py` makes each sound in code. The one exception is the vehicle, which is a part of the owner's tank recording (`assets/tank_drive.wav`). `audio.py` plays the sounds of the new events from a Panda3D ramdisk. Ctrl and m mutes, and `--mute` loads no audio library.
+
+Why: the owner told the project to open a window of its own on Windows and on Unix, and not a browser (slice 18). Then the owner told the project to make a board that turns, tilts, and zooms, with the height of the ground (2026-09-10). A window that speaks the host protocol keeps one host, one per-player view, and one secrecy test for each front end.
+
+The alternative: a window that imports the core and applies the rules itself. That window would be a second rules path, and AR-06 forbids it. The second alternative: the browser client only. The owner told the project to make a window that is not a browser.
+
+Where it breaks: three front ends (the browser client, the 2D window, and the 3D window) must show the same game. The tree has an older browser client, and 28 tests of the client tables fail until the newer client comes in. A window also must show facts that the legal list does not give, for example the reach of a unit across more than one hex.
+
+Mitigation: the two windows share the modules above, and `tests/window/` and `tests/window3d/` test the two with real pixels. The 3D tests run offscreen, and `tests/window3d/conftest.py` stops them while a live `sl-cli window3d` runs. The host calculates the reach, the field of fire, and the refusals (`slhost/options.py`), so the window shows a fact of the core and calculates none.
+
+### 8.3 The game farm
+
+The decision: the game farm (`slfarm`) plays games on four Ubuntu hosts: `tars`, `case`, `kipp`, and `plex`, each an AMD Ryzen AI Max+ 395. Each host runs `sl-cli farm serve`, a server with a pool of worker processes (`slfarm/server.py`). `sl-cli gauntlet`, `sl-cli evolve`, the library search, and `sl-cli train` send it work with `--remote tars,case,kipp,plex` and the key file `--remote-key farm.key.txt`.
+
+The protocol (`slfarm/protocol.py`) is one JSON object on each line of a TCP stream, on port 5160 by default:
+
+- The server sends a challenge with a nonce, the protocol version, the hash of its source tree, and its slots.
+- The client answers with an HMAC-SHA256 of the nonce with the key. The key does not go on the wire.
+- The client compares the hash of the source tree with its own, and it refuses a host with other code. A game is its seed only on the same code.
+- A job is a scenario (a name or a document), a seed, and two scripted agent names. The server checks each field. It refuses a learned agent, because it reads a file, and a model agent, because it uses the network.
+
+`python tools/farm_deploy.py [host]` copies the code, the key, and `tools/farm_worker.sh` to each host with one ssh connection, and that script installs and starts the worker. Run it after each change to `src/`, or the hash compare refuses the host.
+
+`_play_all` of `slcli/gauntlet.py` gives the jobs to the farm, and the results come back in the order of the jobs. Thus the artifact is the one that a single machine writes. A game worker keeps the engine of its last scenario only (`ENGINE_LIMIT` is 1). After each game it clears the line of sight table when the table holds more than `LOS_ENTRY_LIMIT` (250,000) results. The table of three boards grew by hundreds of MB with each game. `--remote-slots N` sends at most N games at a time to each host (`Farm.slots_per_host`), because a game of four boards holds about 2 GB.
+
+PPO workers on the farm (2026-10-14): `sl-cli train --remote ... --opponents v7` opens `--remote-envs` environments on each host. The default is the slots of the host. A host runs the loop of `slagents.learned.workers.worker_main` in a process for each environment. A bridge process for each host on the workstation (`slfarm.client.host_bridge_main`) gives the trainer a pipe end to each environment, so `ppo.collect_parallel` does not change.
+
+- The bridges are processes. 44 bridge threads in the trainer took its interpreter lock, and the run gave 244 steps/s, less than with 16 local workers.
+- `ppo.wait_any` waits on more than 63 pipes, which is the limit of one wait on Windows. It looks at groups of pipes in turn.
+- The commands and the decisions go as JSON that each side examines (`slfarm/envwire.py`). The arrays go as base64 with a dtype and a shape, and not as pickle, because pickle runs code.
+- The farm refuses a snapshot opponent, because a snapshot is a file of the workstation.
+- A remote worker that stops goes out of the pool (`WorkerPool.drop`). The run continues while `MIN_LIVE_SHARE` (0.5) of the workers at the start are live. A local worker that stops also stops the run, because the cause is in the code of the workstation. The run artifact lists the dropped workers in `dropped_workers`.
+
+Why: the cost of a gauntlet, an evolution, or a training run is the game simulation on the processor. The four hosts run the local language models, and each host has 16 cores that llama-server does not use (2026-10-14). The owner told the project to make a Linux server that plays games on each host, with control from the workstation through a TCP socket.
+
+The alternative: the OpenAI API of the language model servers on those hosts. That API gives text and cannot play a game step. A general job system for clusters was not examined, and no record gives a cause against one.
+
+Where it breaks: the farm runs code that the workstation copied, so a host with expired code gives different games. A host that stops removes the games in flight. A PPO run on the farm has 136 workers, and the one trainer process becomes the limit. In L11 the speed fell from about 355 to 245 steps/s when v7 became a member of the league.
+
+Mitigation: the hash compare refuses a host with other code. The client puts the games of a stopped host back on the queue, and a game is its seed, so the result is the same. A worker that dies gives a `refused` answer, and the server makes a new pool. The trainer timers (`ppo.CollectTiming`, section 9.5) show where the time of a run goes. With `--rollout 4096 --minibatch 1024`, a run of 40,000,000 decisions gave 1,789 steps/s on s04.
+
 ## 9. The four agent families
 
 The decision: all four families use one interface: observe a view, get the decision frame, select one command ID. They share the trace format and the tournament (AR-10). Each family is a Python package that imports the core.
@@ -561,9 +795,9 @@ The prompted family and the tuned family share one harness (section 9.3). The tw
 
 ### 9.1 Scripted agents
 
-A scripted agent is a function from view and frame to a command, with named parameters (aggression, cover preference, fire priority). It is the constant opponent: versioned, cheap, and deterministic for a given seed. Year two tunes the parameters with CMA-ES (FR-54).
+A scripted agent is a function from view and frame to a command, with named parameters (aggression, cover preference, fire priority). It is the constant opponent: versioned, cheap, and deterministic for a given seed. FR-54 names CMA-ES or population-based training for the tuning. The built search is a (mu + lambda) evolution strategy (`slagents/scripted/evolve.py`, section 9.5).
 
-The project ships three of them (FR-44).
+`slagents/registry.py` names nine computer players with no net and no model: `random` and the eight scripted agents v0 to v7 (FR-44). `random` (`slagents/base.py`, `RandomAgent`) selects a legal command at random with the seed of the game. It is the floor of the league and of the first measures. The first three scripted agents are below.
 
 - Agent v0 is the baseline with no parameter. It sets up, it moves in the direction of the objective, and it ends each phase it has no rule for. It is the low mark of the ladder, and it does not change.
 - Agent v1 plays rules 1 to 21. It fires at the best-odds target in range, it moves to cover and to the objective, and it routs to the nearest cover.
@@ -606,7 +840,8 @@ term.
 
 The reward is the shaped reward of `slagents/learned/reward`. A win pays. A loss, a draw,
 and a truncation each cost the same large number. The step terms pay for a find, a shot,
-a break, a kill, cover, a sneak, and progress on a positional victory condition. A factory
+a break, a kill, cover, and a sneak. They also pay for a move nearer to the objective of a positional victory
+condition. A factory
 hex that each side counts pays one time.
 
 A snapshot written before 2026-09-23 does not
@@ -616,6 +851,25 @@ The league of `league.py` keeps three kinds of opponent: the random agent, the v
 scripted agents, and the snapshots of the policy. It samples by loss rate, with a floor so
 that each opponent stays in the set. Its Elo table has the same shape as the tournament
 table, so one number means the same thing in the two places (TC-19).
+
+Section 9.5 gives the details of the trainer and of the agent at play time, in the order
+of the runs that made them necessary. In short:
+
+- `agent.py` gives a snapshot the Agent interface as `learned:<snapshot>`. Its choice rule
+  is the action first, with two exceptions (`JOINT_SCORE_PHASES`, `ACTION_FAMILY`).
+- `routes.py` adds the actions `route` and `stack_route` at the end of `encoding.ACTIONS`.
+  They are not commands of the core. The agent or the environment plays their single steps.
+- `reward.py` holds the shaped reward, with the approach term `reward.Approach`.
+- `jumpstart.py` is Jump-Start RL, and `--value-warmup` trains the value head alone first.
+- `workers.py` holds the worker processes, local and on the farm (section 8.3), and
+  `ppo.CollectTiming` measures where the time of a run goes.
+
+Some details of the trainer:
+
+- The update divides the reward by `reward_scale`.
+- Each row of the TC-18 table has five counts: `won`, `lost`, `drawn`, `truncated`, and `repeated`. `by_side` has the same counts for each side.
+- The option of a stack route is the bit mask of its squads by unit ID (`routes.stack_option`). A snapshot with fewer actions than `stack_route` needs has no routes (`routes.uses_routes`), and `make_env(..., use_routes=False)` gives its environment.
+- In the imitation, a run of moves of the teacher in a phase is one route row, to the last hex of the run (`imitate._label_of`).
 
 ### 9.3 Prompted model agents
 
@@ -633,9 +887,16 @@ Two things keep the local model in the budget. The prompt has a stable prefix (t
 
 <!-- AI review 20260907-163721: gemini, the local latency -->
 
-Slice 10 built the family. `providers/base.py` has the interface and the allowlist,
-`providers/openai_compatible.py` covers the local endpoint and three of the SaaS
-providers, and `providers/anthropic.py` covers the fourth. `keys.py` reads a key from
+Slice 10 built the family. `providers/base.py` has the interface and the allowlist.
+
+`sldata/providers.json` holds the allowlist and ten provider rows: five local rows (`local`
+to `local5`) and five SaaS rows (`claude`, `openai`, `mistral`, `xai`, and `gemini`). Three
+adapters serve them. `providers/openai_compatible.py` covers the local rows, `openai`,
+`mistral`, and `xai`. `providers/anthropic.py` covers `claude`. `providers/gemini.py` covers
+`gemini`, because its API has a shape of its own and accepts a subset of JSON
+Schema.
+
+`keys.py` reads a key from
 `<provider>.key.txt` at the project root or from an environment variable, and it does not
 put a key in a message. `router.py` is the failover sequence with a breaker for each
 provider. `harness.py` builds the text, sends it, reads the answer, and counts the four
@@ -757,16 +1018,17 @@ the two invalid rates is what the constraint is worth.
 
 ### 9.5 The methods of the computer players
 
-Sections 9.1 to 9.4 give the four families. This section gives the methods that make and measure a player in each family. It also gives how the methods supply each other, and the result of each method on 2026-10-15. The record of each run is in `VIBE_HISTORY.md`.
+Sections 9.1 to 9.4 give the four families. This section gives the methods that make and measure a player in each family. It also gives how the methods supply each other, and the result of each method to 2026-10-27. The record of each run is in `VIBE_HISTORY.md`.
 
 | Method | Family | What it learns from | Code | Command |
 |---|---|---|---|---|
+| A random legal command | Scripted (the floor) | Nothing | `slagents/base.py` (`RandomAgent`) | `--agent random` |
 | Doctrine by hand | Scripted | The rules, RV-9 doctrine, and the probe of the games that it did not win | `slagents/scripted/v0.py` to `v7.py`, `armor.py` | `--agent v7` |
 | The odds function | Scripted, prompted | The tables of the core, with no die | `slagents/scripted/odds.py` | (a library) |
 | Parameter evolution | Scripted | The results of games against a fixed panel | `slagents/scripted/evolve.py` | `sl-cli evolve` |
 | The shape study | Scripted (an input) | The positions of many games, with the winner | `slshape/` | `sl-cli shape` |
 | Imitation and DAgger | Learned | The decisions of the scripted teachers | `slagents/learned/imitate.py` | `sl-cli imitate` |
-| PPO with a league | Learned | Its own games, with the shaped reward | `slagents/learned/ppo.py`, `league.py`, `reward.py`, `jumpstart.py` | `sl-cli train` |
+| PPO with a league | Learned | Its own games, with the shaped reward | `slagents/learned/ppo.py`, `league.py`, `reward.py`, `routes.py`, `jumpstart.py`, `workers.py`, `agent.py` | `sl-cli train` |
 | Prompted model | Prompted | Nothing: a text view with the odds | `slagents/prompted/` | `model:local*` |
 | LoRA fine-tune | Tuned | The traces of the game | `slagents/tuned/` | `sl-cli finetune` |
 | The gauntlet | All | (the measure, not a method of play) | `slcli/gauntlet.py`, `slruns/elo.py` | `sl-cli gauntlet` |
@@ -803,6 +1065,10 @@ The decision: each scripted agent is a policy in code with named parameters (FR-
 - v7 trades on the odds (`odds.py`). It forms a fire group at the target with the highest possible loss and stops before overkill. It fires on a leader first, moves by the possible loss of each hex, and puts smoke by the same odds. A nation record selects the parameters of the role of each side.
 - `armor.py` gives v3, v6, and v7 one vehicle policy. A tank drives on a route to a firing position out of panzerfaust range, it holds and fires, and it overruns only a weak target. The tanks stay near their infantry, and the squads escort a tank in contact.
 
+The combined-arms pass (2026-10-11, v3.2, v6.3, v7.1) puts RV-9 P4, P6, P7, and P13 in that policy. A firing position pays for its distance from the own infantry, and a screened tank can stand nearer the enemy. The section bounds by halves, with one tank on watch, and the tanks fire as a section. A tank prefers a side or rear shot, and it turns its front to the largest threat.
+
+The squads of the attacker escort a tank in contact (`escort_bonus`). The `tank_*` parameters of v7 map to `armor.ArmorParameters`, and `sl-cli evolve --only` can search them. A search of them must play scenario 4, because the other scenarios have no vehicle.
+
 Why: an agent in code is constant, fast, and deterministic for a seed. Thus it is the opponent of each other method and the teacher of the learned family. The alternative was a learned opponent from the start. A learned opponent changes with each run, and the scripted ladder shows a defect in one game.
 
 Where it breaks: a person writes each rule, and each rule repairs a defect that a person saw. Four attack plans of v7 (a leader with the stack, a tank base of fire, a covered approach, smoke on the route) gave no change on s04 at 200 games each. They are parameters that are off by default.
@@ -813,7 +1079,13 @@ Mitigation: v7 is the strongest agent of the panel. The other methods start from
 
 `odds.py` gives the possible result of a fire group at a hex as integer counts out of 1,296: the 36 results of the fire dice by the 36 results of the morale dice. It calls the fire, modifier, and morale functions of the core, so a change to a rule changes the odds with it. It reads only the enemy units that the player can see, and a concealed target has no odds (SR-09).
 
-Why: a person reads the odds on the table, and a number is necessary for a fire decision. The prompted family reads the same numbers in its text view (section 9.3). The host labels each legal command with them for a person.
+Why: a person reads the odds on the table, and a number is necessary for a fire decision. The prompted family reads the same numbers in its text view (section 9.3). The host labels each legal command with them for a person (`slhost/annotate.py`).
+
+No record names an alternative. One alternative is a sample of dice rolls through the core. A sample has noise, and it costs a full apply for each roll. The exact count costs one pass through the 1,296 results, and it gives the same number for each run.
+
+Where it breaks: the odds read only the units that the player can see, so they are too high or too low near a concealed or hidden enemy. They read the rule helpers through `slcore.api`, so a rule that has no helper in the surface has no odds.
+
+Mitigation: a concealed target gets no odds, and the text tells a model agent that a missing number is unknown and not zero. A new rule helper goes into `SURFACE` with its cause, and `tests/arch/test_core_api.py` holds the surface.
 
 #### Parameter evolution
 
@@ -830,6 +1102,12 @@ Mitigation: the game farm makes a search four times faster. A search is cheap to
 `sl-cli shape` records the position at the end of each Movement Phase and Advance Phase of many games. A position is a picture of the board and a set of shape statistics, with the winner. The analysis gives the AUC of each statistic between the winners and the losers. It gives the increase that the shape statistics add to the material counts, in a model with cross validation. It also gives a small convolutional net on the pictures, with its occlusion map.
 
 Why: the owner's hypothesis is that a winning position has a shape, as in Go. A shape with information becomes a parameter of the scripted agents or a term of the reward. The study reads the core and the agents, and it has no rule in it.
+
+No record names an alternative. One alternative is a reward term or a parameter for each shape idea, with a training run or a gauntlet to measure each one. That is hours for each idea. The study measures many statistics on one recorded set of games.
+
+Where it breaks: a statistic that separates the winners from the losers is possibly a result of the win and not a cause of it. `slshape` must have numpy, and it has no extra of its own (`docs/reports/2026-09-23_opus_review.md`, B7). No result of the study is recorded in this tree, and no parameter or reward term came from it.
+
+Mitigation: the analysis gives the increase above the material counts with cross validation, so a statistic that only repeats the material count shows no increase. A shape that the study finds goes to a gauntlet before it goes into an agent.
 
 #### Imitation and DAgger
 
@@ -848,13 +1126,18 @@ Where it breaks: a copy is not better than its teacher. The best clone of each s
 `sl-cli train` is PPO in raw torch (FR-50, FR-51). The environment is a PettingZoo AEC environment on the core. The observation is the player view: the board as planes, a row for each unit, a scalar vector, and the masks. The policy has four heads with masks: the unit, the action, the hex, and the option.
 
 - The reward (`reward.py`): a win pays 100, and a loss, a draw, or a truncation costs 100. Each step pays the doctrine terms of RV-9 table A with the national weights of table B.
-- The league (`league.py`): the random agent, the scripted agents, and the snapshots of the learner. It gives each member a share by the loss rate of the learner against it, with a floor. `--opponents v3,v6,v7` makes the named agents the only members.
+- The league (`league.py`): the random agent, the scripted agents, and the snapshots of the learner. It gives each member a share by the loss rate of the learner against it, with a floor. `--opponents v3,v6,v7` makes the named agents the only members, and no snapshot of the learner goes into the league. A scripted member holds one agent for each side and plays the side of the frame.
+- The sides (`--player 0`, `1`, or `both`): with `both`, the learner changes to the other side at each new game.
 - The anchor (`--anchor-kl`): a KL term holds the policy near the frozen start policy, so the update does not cancel the clone.
-- The value warm-up (`--value-warmup`): the value head trains alone in the first decisions, because the value head of a clone has the returns of the teachers' games.
-- Jump-Start RL (`--jump-start v7`, Uchendu and others, 2023): a guide plays the first turns of the learner's side. When the learner wins a sufficient number of games, the guide plays one turn less.
+- The value warm-up (`--value-warmup 100000`): the value head trains alone in the first 100,000 decisions, with the trunk and the policy heads fixed (PIRLNav). The cause: the value head of a clone has the returns of the teachers' games and not of its own games.
+- Jump-Start RL (`--jump-start v7`, Uchendu and others, 2023): a guide plays the learner's side in the first `--jump-start-turns` turns of each game, and not in the last turn. When the learner wins `--jump-start-threshold` of the last `--jump-start-window` games at one horizon, the guide plays one turn less. The guide plays in the worker processes, so `--workers 2` or more is necessary. The run artifact records each change of the horizon.
 - The workers (`workers.py`): each environment is a process, and the trainer selects the decisions of all workers in one batch on the GPU. The game farm adds 120 workers on four Linux hosts (`slfarm`). With `--rollout 4096 --minibatch 1024`, a run of 40,000,000 decisions gave 1,789 steps/s.
 - The loss of a worker: a remote worker that stops goes out of the pool (`WorkerPool.drop`, 2026-10-16), and the run continues while 50 percent or more of its workers are live. Its last step bootstraps on its own value, and its game does not count in the league. Before this, one bad line from one host stopped all 120 workers. A local worker that stops also stops the run, because the cause is in the code of the workstation.
 - The snapshots (`--snapshot-every`): the trainer writes one at each multiple of the interval and one at the last decision of the run. A run shorter than the interval kept no net before 2026-10-16.
+- The timers (`ppo.CollectTiming`, 2026-10-24): the wall time of the parts of the trainer (`choose`, `idle`, `gather`, `receive`, `send`, `tail`, `update`) and the mean batch. For local and remote workers, it divides each round trip into the work in the worker, the transit, and the queue in the trainer. Each `Decision` has `work_seconds`, which the worker measures, and the farm wire carries it. The data is in `timing` in `stats.json`, in each rate report, and in the TensorBoard scalars `timing/*`.
+
+  The cause of the timers: the speed of the two-board slots fell at each chunk, and no measure showed where the time went (2026-10-24). The first data showed that the cost of the v7 opponent in the worker was the cause.
+- The stop: a run that stops at `--hours` has `stopped_because` "the hours limit" in its artifact.
 
 The choice rule at play time (`agent.py`): the learned agent adds the probability of the legal commands of each action and plays the best command of the action with the highest sum. The joint argmax divided a move between many units and hexes, and it stopped each phase with no move (2026-10-13). The training samples the policy. Thus the training win rate and the win rate of the agent are different numbers.
 
@@ -917,33 +1200,74 @@ Where it breaks: the path of a route is the cheapest path, not the teacher's pat
 
 The prompted agent reads a text view with the odds of each legal command and answers with a command identity from the legal list (section 9.3). The cycle guard offers no command that gives a position that the phase had. The `model:local*` pool sends the games to the five llama.cpp hosts. The best measure is 1 of 40 games against the scripted agents with the odds in the text. The tuned agent is the same harness with a LoRA fine-tune on the game traces and a constrained decode (section 9.4).
 
-Why: a language model can explain its choice, and the project tests if that makes a player (Vision bet 3). Where it breaks: a model with 3 billion active parameters does not play the game at the level of v1. The tuned family is the next lever.
+Why: a language model can explain its choice, and the project tests if that makes a player (Vision bet 3).
+
+The alternative: a free text answer that the harness parses. That gives invalid moves (RV-6). The closed list of IDs and the schema make an invalid answer a retry and not a move.
+
+Where it breaks: a model with 3 billion active parameters does not play the game at the level of v1. A local decision uses seconds, so a gauntlet of a model agent is hours long.
+
+Mitigation: the odds in the text, the cycle guard, and the scripted fallback keep each game to a result. The local pool puts one game on each of the five hosts. The tuned family is the next lever, and it waits for its first full fine-tune on the year-one profile.
 
 #### The measure: the gauntlet
 
 `sl-cli gauntlet` plays a candidate against a panel on each side of each scenario. All the games go into one Elo pool, fitted with a Bradley-Terry model (`slruns.elo.settled_ratings`), with a Wilson interval on each rate. For each opponent and each side, the side baseline gives the wins of three players. They are the candidate, the other panel agents, and with `--mirror`, the opponent against itself.
 
-Why: a scenario with one strong side hides the skill of an attacker. A win rate against one opponent did not show that a net won only as the defender. The gauntlet is the measure of each method above. A result has 200 games or more before it is a baseline.
+Why: a scenario with one strong side hides the skill of an attacker. `--anchor-only` plays the candidate against each panel agent only, and not the panel agents against each other. A win rate against one opponent did not show that a net won only as the defender. The gauntlet is the measure of each method above. A result has 200 games or more before it is a baseline.
 
 The mirror also balances a scenario. s04 changed on 2026-10-14 until v7 against v7 gave the Axis 832 of 1,600 games. A net or a result of s04 from before that date is of the scenario before the change.
+
+The alternative: a single win rate against one opponent, as TC-18 gave at first. It ranked a net that won only as the defender above the panel.
+
+Where it breaks: the Elo pool changes with the panel. A new panel gives other numbers, so two gauntlets with other panels do not compare. A gauntlet of 20 games for each side of a pair has a wide interval.
+
+Mitigation: the report gives the Wilson interval of each rate. A baseline has 200 games or more, and a gate has 100 games on the side that it measures. The seeds of each command family are in their own range (`slruns/seeds.py`), so a gauntlet does not play the seeds of the training it measures.
 
 ## 10. Cross-cutting topics
 
 Observability: each component writes JSON logs with a game ID, turn, phase, and player (OR-01). Each game and each training run writes a run artifact in `runs/<ISO8601-Z>-<slug>/` with `manifest.json`, `commands.json`, `log.json`, and `stats.json`. A SQLite index lists the runs (FR-56, FR-57). The trainer writes TensorBoard scalars (IR-07). The pattern comes from the LocalLLMPerf_AI sibling.
 
-Error handling: each boundary crossing (WebSocket, provider HTTP, file read, subprocess) has a typed exception handler with a timeout and a fallback, as in project rule 5. In the core there is no defensive code, because the core has no boundary. A rejected command is a usual result with a rule ID, not an exception.
+Why: a result that has no artifact is not a result (the success-claim guardrail of the project). The four files hold the seed and the command log, so a person can play each game again. The alternative is a database as the record. The SQLite index is a cache only, and `sl-cli runs --rebuild` builds it again from the artifacts.
 
-Security: the threat model and the controls are in `REQUIREMENTS.md` section 3. The architecture has four of the controls. They are the per-player view (section 4) and the frame ID in place of a client hash (section 8). They are also the provider allowlist (SR-05) and the redaction of keys and headers from logs and traces (SR-09).
+Where it breaks: `runs/` becomes larger with each run, and git does not record it.
 
-Release controls: the served page has the GPL-3 section 7 notice and the link to the source (SR-06). It has the non-affiliation notice with the public title (SR-08). The release audit tool scans the tree, the archives, the fixtures, the screenshots, and the public run artifacts. It finds reference-mode data, rulebook text, and card text (SR-07, TC-29).
+Mitigation: the owner deletes runs at will, and the gate reports name the artifact of each gate.
+
+Error handling: each boundary crossing (WebSocket, provider HTTP, farm TCP, collector HTTP, file read, subprocess) has a typed exception handler with a timeout and a fallback, as in project rule 5. In the core there is no defensive code, because the core has no boundary. A rejected command is a usual result with a rule ID, not an exception.
+
+No cause other than the absence of a boundary is recorded. The alternative is a check in each rule function, and that check costs time on each step of the throughput gate. Where it breaks: a defect in the core stops a long training run.
+
+Mitigation: a remote worker that stops goes out of the pool (section 8.3). The invariant test finds a state with no legal command before a run (`tests/determinism/test_invariants.py`).
+
+Security: the threat model and the controls are in `REQUIREMENTS.md` section 3. The architecture has these controls:
+
+- The per-player view (section 4) and the host token in place of a client hash (section 8).
+- The provider allowlist in `sldata/providers.json` (SR-05), and the redaction of keys from logs and traces (`slagents.prompted.keys.redact`, SR-09).
+- The HMAC of a nonce on the farm, and the source hash compare (section 8.3). The farm runs no code from the network, and its wire carries no pickle.
+- The signed upload with a key for each player, the time window, and the nonce check of the collector (section 8.1).
+
+Why: each control stops one path from the threat model, and each one is in the code at the boundary where the path crosses. Where it breaks: the LAN, the farm, and the collector use plain TCP or HTTP. A machine on the same network reads the traffic.
+
+Mitigation: the documents say that the LAN is trusted-party convenience (SR-03). The farm key does not go on the wire, and an Internet collector has TLS in front of it.
+
+Release controls: the served page has the GPL-3 section 7 notice and the link to the source (SR-06). It has the non-affiliation notice with the public title (SR-08). The release audit (`python tools/audit_release.py`) scans the tree, the archives, the fixtures, the screenshots, and the public run artifacts. It finds key files that git does not ignore, reference-mode data, rulebook text, card text, and images that `docs/images/MANIFEST.json` does not name (SR-07, TC-29).
 
 It also finds a local-only mark on model weights (section 9.4). The audit runs before each release.
 
+Why: the legal research (RV-4) puts the risk in the board layouts, the rulebook text, and the card text. A person cannot read each file before each release. Where it breaks: the audit finds only the patterns it knows. A picture of a printed board with a new name is not one of them.
+
+Mitigation: `docs/images/` is the one directory with an image. `tools/make_docs_images.py` makes each picture from code with its seed. `docs/ASSET_PROVENANCE.md` records the one file that the tool does not make.
+
 <!-- AI review 20260907-163721: openai, the release controls -->
 
-Data retention (DR-07): the project holds no personal data. A display name in a LAN game lives in the host's memory for the session and is not written to a run artifact. Run artifacts hold agent names, versions, seeds, and game data. The owner deletes `runs/` at will, and nothing else uses it after the SQLite index is rebuilt.
+Data retention (DR-07): a display name in a LAN game lives in the host's memory for the session and is not written to a run artifact. Run artifacts hold agent names, versions, seeds, and game data. The owner deletes `runs/` at will, and nothing else uses it after the SQLite index is rebuilt.
+
+The collection of played games (section 8.1) adds a record of persons. A sent game has the scenario, the seed, the commands, the key name, and the package version, and the collector also records the network address. Why: the decisions of persons are necessary for the computer players.
+
+Mitigation: the launcher shows the consent question one time before it sends. Each player has a key of their own, and the index lets the owner remove the games of one key.
 
 Cost: model agent cost is recorded for each call (OR-02). The estimate in RV-6 section 7 is 3 cents to 4.48 dollars for each game on SaaS models, and no money on a local model. The tournament reports cost as a column, so the owner can see it.
+
+No cause other than OR-02 is recorded. Where it breaks: the price of a provider changes, and the record holds the price of the day. Mitigation: the pool of the five local hosts (`model:local*`) costs no money.
 
 ## 11. Module layout
 
@@ -975,11 +1299,12 @@ Squad_Leader_AI/
         r08_fire.py                fire groups and firepower modifiers
         r10_resolution.py          the fire table, the modifiers, penetration, breakdown
         r11_terrain.py             the terrain effects modifiers
-        r12_morale.py              morale checks and berserk
+        r12_morale.py              morale checks, and the check that makes a unit berserk
         r13_rout.py                rout routes and elimination
         r14_rally.py               rally and repair
         r15_leadership.py          the leader modifiers
         r16_defensive_fire.py      the track and the return
+        r18_berserk.py             the berserk charge of rule 18.42 and its movement (PR-37)
         r20_close_combat.py        close combat and melee
         r21_setup.py               set up
         r22_flamethrower.py        flamethrowers, which fire alone and with no modifier
@@ -1014,17 +1339,24 @@ Squad_Leader_AI/
       events.py                  Event types with rule IDs
       view.py                    the per-player view and the board document
     sldata/                      data files with provenance notes, and loaders.py (the file boundary)
-      tables/                    terrain.json, ift.json, close_combat.json, and the weapon and movement tables
-      counters/                  german.json, russian.json, american.json, markers.json
-      scenarios/                 s00_movement_drill.json, s01_guards_counterattack.json, and the subsequent cards
+      tables/                    terrain.json, ift.json, close_combat.json, armor.json (rule 33),
+                                 vehicle_movement.json (rule 30), campaign.json (Game Set IV)
+      counters/                  german.json, russian.json, american.json
+      scenarios/                 s00_movement_drill, s00b_combined_forces, s00c_two_board_advance,
+                                 s01_guards_counterattack, s02_tractor_works,
+                                 s03a_streets_of_stalingrad, s04_armor_probe, and the library
+                                 lib01_grain_office to lib12_the_long_front (section 7.3)
+      boards/                    fixture_10x10.json, a small board for the tests
+      library/                   slots.json, the 12 slots of the library
       rulings/                   qa.json (official), project.json (project rulings with causes)
+      providers.json             the provider allowlist and the ten provider rows (section 9.3)
     slboards/                    the generator and the reference loader
       generator.py               the five passes, the parameter record, and the seed retry
       edges.py                   the geomorphic constants, the edge check, and the join check
       wfc.py                     the fill pass
       tiles.py                   the tile set and the adjacency rules of a board type
       polygons.py                the terrain shapes on the exact lattice
-      composition.py             board offsets and turns on the shared lattice
+      compose.py                 board offsets and turns on the shared lattice (FR-29)
       reference.py               loads from background/reference, not from the tree
     slhost/                      the local host
       server.py                  WebSocket host, the static file server, the computer opponent
@@ -1052,10 +1384,14 @@ Squad_Leader_AI/
                                  (PettingZoo AEC), nets.py (the four heads), ppo.py, league.py,
                                  reward.py (the shaped reward), imitate.py (imitation and
                                  DAgger), jumpstart.py (Jump-Start RL), workers.py (the PPO
-                                 worker processes), agent.py (a snapshot as an Agent)
-      prompted/                  harness.py (the text, the guard), oddsview.py (the odds), keys.py, schema.py, router.py, providers/
+                                 worker processes), agent.py (a snapshot as an Agent),
+                                 routes.py (the route actions and the no-return filter)
+      prompted/                  harness.py (the text, the guard), oddsview.py (the odds), keys.py,
+                                 schema.py, router.py, providers/ (base.py, openai_compatible.py,
+                                 anthropic.py, gemini.py)
       tuned/                     traces.py (the trace writer), finetune.py (LoRA), export.py (GGUF)
-    slruns/                      artifact.py (the four files), index.py (the SQLite index), elo.py (ratings and intervals)
+    slruns/                      artifact.py (the four files), index.py (the SQLite index), elo.py
+                                 (ratings and intervals), seeds.py (the seed range of each command family)
     slshape/                     picture.py, features.py, record.py, analyze.py (the shape study of positions)
     slfarm/                      protocol.py (the HMAC challenge, the job check), server.py (the
                                  farm host), client.py (the job sender and the PPO bridges),
@@ -1105,42 +1441,64 @@ Squad_Leader_AI/
       sounds.py                  each sound, made by code; the vehicle is the owner's tank recording
       assets/tank_drive.wav      that recording; tools/make_tank_sound.py makes it from background/
       audio.py                   the sound board: plays the sounds of the new events
-    slcards/                     card.py, the printable scenario cards
+    slcards/                     card.py, the printable scenario card (section 7.4)
     slcampaign/                  the design-your-own tools and the campaign game of Game Set IV
-                                 library.py, the 12 slots of the scenario library
+      points.py                  the force point value of each counter
+      generator.py               the random scenario construction from a seed
+      build.py                   a random scenario on a board
+      campaign.py                the personnel file and the scorer of rule 4
+      ladder.py                  the choice of the next scenario of a campaign
+      run.py                     a campaign: a sequence of scenarios from one seed
+      library.py                 the candidates of the 12 library slots (section 7.3)
     slcli/                       main.py, play.py, bench.py, tournament.py, gauntlet.py, gates.py, host_cmd.py, runs_cmd.py, boards_cmd.py, agents_cmd.py, cards_cmd.py, train.py, imitate_cmd.py, evolve.py, farm_cmd.py, shape_cmd.py, traces_cmd.py, finetune_cmd.py, campaign_cmd.py, library_cmd.py, window_cmd.py, window3d_cmd.py, worker_limit.py, collect_cmd.py, launch_cmd.py, frozen_main.py (the entry of the package)
-  client/                        TypeScript, Vite, PixiJS or Canvas
+  client/                        TypeScript and Vite, with the canvas API and no other library
     src/
-      board/                     render the polygons in the 1977 look, with the base tones of
+      board/                     geometry.ts and render.ts: the polygons, with the base tones of
                                  slwindow/theme.py
-      counters/                  SVG counters from data, atlas
-      views/                     the view model, hit testing, pan, zoom
-      net/                       WebSocket client
-      log/                       the action log panel
+      counters/                  draw.ts and silhouettes.ts: the counters from data
+      views/                     commands.ts: the legal list
+      net/                       protocol.ts, protocol_schema.ts, socket.ts: the WebSocket client
+      log/                       panel.ts and rules.ts: the action log panel
   tests/
-    conformance/                 JSON corpus by rule family
-    determinism/                 replay, and the command identity test
+    conformance/                 JSON corpus by rule family, and the armor tables
+    core/                        the action table, berserk, concealment, hidden contact, and rule fixes
+    engine/                      the engine contract, the frame, the golden vectors, and the scenarios
+    determinism/                 replay, the command identity test, and the invariants
     los/                         property tests
     bench/                       the throughput test
+    perf/                        board documents of each scenario, for the measures of time
     browser/                     Playwright
-    lan/                         host tests
-    secrecy/
+    lan/                         LAN rooms
+    host/                        the annotations, the options, the save file, and the log streams
+    secrecy/                     the per-player view
     providers/                   marked integration
-    agents/
+    agents/                      the scripted, learned, and model agents
     armor/                       the covered arc, and games that play rules 28 to 41
-    window/                      the desktop window, with a pixel check on each test
+    boards/                      the generator, the zones, the composition, and the reference loader
+    window/                      the desktop window and the launcher, with a pixel check
     window3d/                    the 3D window offscreen: the board, the briefing, the effects, the sounds
-    arch/                        the consumers read the core only through slcore.api
-    host/                        the annotations, the save file, and the log streams
-    campaign/
+    arch/                        the consumers read the core only through slcore.api, and the layers
+    artifact/                    the run artifact and the SQLite index
+    campaign/                    Game Set IV
+    library/                     the library slots, the candidates, and the card text
+    cards/                       the scenario card
+    cli/                         the agent registry, the gate seeds, and the worker limit
+    farm/                        the farm server, the jobs, and the PPO environments on the farm
+    collect/                     the signed upload, the keys, and the collector
+    shape/                       the shape study
     docs/                        the pictures of the documentation are made again and compared
+  tools/                         audit_release.py (the release audit), package.py (the package),
+                                 farm_deploy.py and farm_worker.sh (the farm hosts),
+                                 collect_deploy.py and collect_server.sh (the collector),
+                                 make_docs_images.py, make_protocol_schema.py,
+                                 make_tank_sound.py, summarize_gates.py
   docs/images/                   the pictures of the documentation, and a manifest with the
                                  seed of each one. tools/make_docs_images.py writes them
   background/reference/          private, git does not record it
   runs/                          git does not record it
 ```
 
-Module decomposition occurs when a file gets too large to read in one sitting, not before. The tree above is the target, not the first commit. The first commit is slice 1 of `../tasks/todo.md`: `slcore/geometry.py`, `slcore/state.py`, `slcore/rules/r07_los.py`, `slcore/los_cache.py`, the terrain data file, and `tests/los/`.
+Module decomposition occurs when a file gets too large to read in one sitting, not before. The tree above is the tree as built on 2026-10-28. Slice 1 of `../tasks/todo.md` started it with `slcore/geometry.py`, `slcore/state.py`, `slcore/rules/r07_los.py`, `slcore/los_cache.py`, the terrain data file, and `tests/los/`.
 
 ## 12. Data flow: one command in hot seat
 
@@ -1152,14 +1510,17 @@ sequenceDiagram
     participant H as Host
     participant K as Core
     participant R as Runs
-    C->>H: intent with frame id and command id
-    H->>H: compare the frame id with the current state
-    H->>K: apply state and command payload
-    K-->>H: new state and events and hash
+    C->>H: intent with frame token and command id
+    H->>H: compare the token with the newest token of the connection
+    H->>K: apply state and command payload and core frame
+    K-->>H: new state and events
+    H->>K: hash of the new state
+    K-->>H: state hash
     H->>R: append payload and events to the log
     H->>K: view and frame for the active player
     K-->>H: view and decision frame
-    H-->>C: frame with view and legal commands and log tail
+    H->>H: new token for the new state hash
+    H-->>C: frame with view and legal commands and log tail and token
 ```
 
 The trainer path is the same without the host. The environment calls `legal_commands`, and the policy selects a head combination that maps to a payload. The environment calls `apply`, and the events become the reward signal and the trace record. The model agent path puts the harness between the view and the command: view to text, text to the provider, answer to a command ID, ID compared against the frame.
@@ -1179,36 +1540,45 @@ The trainer path is the same without the host. The environment calls `legal_comm
 
 ## 14. Version boundary
 
-- v0.1, headless rules proof: `slcore` for rules 1 to 21, and `sldata` for scenario 1 with its tables and counters. Also one city fixture from a first generator, one scripted agent, `slruns` artifacts, and the CLI `play` and `bench`. Also the conformance corpus, the determinism test, the command identity test, the LOS property tests, and the throughput number on the complete scenario 1. Gate: TC-04, TC-05, TC-08, TC-09, TC-38.
+The tiers below are the plan of 2026-09-07 with the state of each on 2026-10-28. `tasks/todo.md` holds the slices, and `VIBE_HISTORY.md` holds the gate results.
+
+- v0.1, headless rules proof: `slcore` for rules 1 to 21, scenario 1, the first generator, the scripted agents v0 and v1, `slruns`, and the CLI `play` and `bench`. Also the conformance corpus, the determinism test, the command identity test, and the LOS property tests. Gate: TC-04, TC-05, TC-08, TC-09, TC-38. Built in slices 1 to 4.
 - <!-- AI review 20260907-163721: openai, the gate after scenario 1 -->
-- v0.2, browser hot seat: `slhost`, the client, the tabletop switch, the action log panel, the `los_request` path, the reference loader, the zone resolution prototype for scenario 1. Gate: BC-01, TC-23, TC-40.
-- v0.3, scenarios and LAN: rules 22 to 27, scenarios 2 and 3A, concealment and the per-player view, three scripted agents, LAN rooms, the secrecy test, the tournament, the trace writer with `board_source`. Gate: TC-24, TC-34.
-- v0.4, agents that learn: the PettingZoo environment, PPO and the league, the ladder, and the prompted harness with the local endpoint and Anthropic. Also the tuned model pipeline with the trace control, and the four-family tournament. Gate: TC-18, TC-20, TC-21, TC-35, TC-37, TC-39. TC-36 is a measurement.
-- RC: the last art pass, four board types, the rubrics, the release audit, the public title.
-- If the throughput gate is not satisfied: `slcore-rs`, a Rust crate with the same three functions, PyO3 and wasm-bindgen bindings, and the same corpus. The Python `slcore` stays as the reference implementation for the corpus.
+- v0.2, browser hot seat: `slhost`, the browser client, the action log panel, the `los_request` path, the reference loader, and the zone resolution for scenario 1. Gate: BC-01, TC-23, TC-40. Built in slices 5 and 6.
+- v0.3, scenarios and LAN: rules 22 to 27, scenarios 2 and 3A, concealment and the per-player view, LAN rooms, the secrecy test, the tournament, and the trace writer with `board_source`. Gate: TC-24, TC-34. Built in slices 7 and 8.
+- v0.4, agents that learn: the PettingZoo environment, PPO and the league, the prompted harness, and the tuned model pipeline with the trace control. Gate: TC-18, TC-20, TC-21, TC-35, TC-37, TC-39. TC-36 is a measurement.
 
-## 15. Open questions
+  The parts are built (slices 9 to 11). The prompted family has the local pool and five SaaS providers (section 9.3), and not one SaaS provider as the plan said.
+- Built after the plan of these tiers: the armor rules 28 to 41 and `s04_armor_probe`, the rules 42 to 44, and board composition. Also the desktop windows, the scripted agents v2 to v7, and the game farm. Also the scenario library of 12 scenarios, the package for players, and the collector.
+- RC: the last art pass, four board types, the rubrics, the release audit, and the public title. The four board types and the release audit are built.
+- If the throughput gate is not satisfied: `slcore-rs`, a Rust crate with the same three functions, PyO3 and wasm-bindgen bindings, and the same corpus. The gate is satisfied (section 15), so this tier does not start.
 
-- The count of environment steps for each game. The estimate is 1,000 to 4,000 (RV-5 section 5). The v0.1 headless games give the number, and the 3,500 steps/s gate is derived again from it.
-- The outline scale of the terrain polygons on the lattice. A hex side of 2 units is the proposal. The LOS conformance cases tell if a finer scale is necessary.
-- The base model for the first fine-tune (O-06). A 7B or 8B instruction model with a permissive license that llama-server runs in Q8.
-- The training workstation (O-02). The benchmark manifest names it.
+## 15. Open questions and answers
+
+- The throughput gate (NFR-01). Answered at the end of slice 3. On the complete scenario 1 the core gave 581 environment steps/s with one worker, 3,118 with 8, and 5,662 with 16, on a 20-core workstation. The gate of 3,500 is satisfied, so the Rust port stays closed (AR-05).
+- The count of environment steps for each game. The estimate was 1,000 to 4,000 (RV-5 section 5). Two computer opponents took 924 commands for one game of scenario 1 (slice 17). A learner of the two-board library slots makes 190 to 200 steps in each game. The gate was not derived again from these numbers.
+- The outline scale of the terrain polygons on the lattice. A hex side of 2 units is the scale in `slcore/geometry.py`, and the LOS conformance cases use it.
+- The base model for the first fine-tune (O-06). Open. The prompted local pool uses Qwen3-30B-A3B in Q8_0 (`sldata/providers.json`), and the full fine-tune of the year-one profile did not run.
+- The training workstation (O-02). The workstation has one RTX 5090. The first learned runs used an RTX 5070 (2026-09-10).
 - The two project rulings on player sequence in the Rally Phase and the Close Combat declaration (section 3.1). The owner can change them, and the rulings file records the change.
+- The printed Point Value Chart (O-08). Open. The point scale of `slcampaign/points.py` is the project's own.
 
-## Appendix A: architecture decision records to write
+## Appendix A: the record of the decisions
 
-Each of these is one page in `docs/adr/` when the slice that implements it lands.
+The plan of 2026-09-07 named ten architecture decision records in `docs/adr/`. That directory was not made. The decisions are in this document, each with its cause, its alternative, where it breaks, and the mitigation. `VIBE_HISTORY.md` records each decision on the day it was made, with the results that caused it.
 
-- ADR-001: Python core first, local host topology, the throughput gate, and the Rust port boundary.
-- ADR-002: the command model, the phase state machine, and the replay hash.
-- ADR-003: the per-player view and concealment.
-- ADR-004: reference mode and generated mode, and zone-based set up areas.
-- ADR-005: the exact lattice, the LOS polygon test, the static thread table, and the rule evaluator.
-- ADR-006: the RL observation, the composed action head, and the benchmark specification.
-- ADR-007: the provider policy, the local endpoint, and the one SaaS provider in v0.4.
-- ADR-008: the trace data set, the fine-tune, and constrained decoding for the tuned model agent.
-- ADR-009: the decision frame, the canonical payload, and the command ID. <!-- AI review 20260907-163721: openai -->
-- ADR-010: the reference trace policy, the `board_source` field, and the fine-tune control. <!-- AI review 20260907-163721: openai -->
+| Planned record | Where the decision is |
+|---|---|
+| ADR-001: Python core first, the local host, the throughput gate, the Rust port boundary | Sections 2, 8, 14, 15 |
+| ADR-002: the command model, the phase state machine, the replay hash | Sections 3, 3.2, 5 |
+| ADR-003: the per-player view and concealment | Section 4 |
+| ADR-004: reference mode, generated mode, zone-based set up areas | Sections 7, 7.1, 7.2 |
+| ADR-005: the exact lattice, the LOS polygon test, the thread table, the rule evaluator | Section 5 |
+| ADR-006: the RL observation, the composed action head, the benchmark | Sections 9.2, 9.5 |
+| ADR-007: the provider policy and the local endpoint | Section 9.3 |
+| ADR-008: the trace data set, the fine-tune, constrained decoding | Section 9.4 |
+| ADR-009: the decision frame, the canonical payload, the command ID | Section 3.4 |
+| ADR-010: the reference trace policy, `board_source`, the fine-tune control | Section 9.4 |
 
 ## Appendix B: requirement to section
 

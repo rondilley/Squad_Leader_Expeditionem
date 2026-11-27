@@ -2,7 +2,8 @@ Squad Leader Expeditionem
 
 A tactical game of infantry and armor, with the 4th edition rules of a 1977 board game.
 This project is not affiliated with, sponsored by, or endorsed by Hasbro or Multi-Man
-Publishing. The licence is GPL-3.0-or-later (see LICENSE).
+Publishing. The licence is GPL-3.0-or-later (see LICENSE). THIRD_PARTY.txt and the folder
+"licenses" give the licences of the other software in the package.
 
 
 To start the game
@@ -26,12 +27,30 @@ In the menu, select:
 
 Then click Play.
 
+HOW_TO_PLAY.md in this folder tells you how to set up, move, fire, and win, and gives the
+keys. It is a text file. Open it with a text editor.
+
+
+To continue a saved game
+
+The menu has no command for this. Start the program with the save file of the game.
+Windows, in PowerShell, in this folder:
+
+  .\SquadLeaderExpeditionem.exe window3d --resume "$env:LOCALAPPDATA\SquadLeaderExpeditionem\games\GAME.jsonl"
+
+Linux, in this folder:
+
+  ./SquadLeaderExpeditionem window3d --resume ~/.local/share/squad-leader-expeditionem/games/GAME.jsonl
+
+Put the name of the file in place of GAME.jsonl.
+
 
 Your player key
 
 The game sends your games only when you agreed and when you have a player key. The project
-owner gives you a key file, collect.key.txt. Put it in this folder, next to the program.
-Do not give your key file to other persons.
+owner gives you a key file, collect.key.txt. Put it in this folder, next to the program, or
+in your data folder (below). Do not give your key file to other persons. With no key, your
+games stay on this computer, and the game sends nothing.
 
 
 Where the game keeps your data
